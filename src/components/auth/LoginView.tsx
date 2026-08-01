@@ -25,6 +25,7 @@ import {
   Store,
   Layers,
   Check,
+  Crown,
 } from 'lucide-react';
 
 export const LoginView: React.FC = () => {
@@ -56,7 +57,10 @@ export const LoginView: React.FC = () => {
       setError(isBn ? 'ইমেইল এবং পাসওয়ার্ড প্রদান করুন' : 'Please enter email and password');
       return;
     }
-    login(email, password);
+    const res = login(email, password);
+    if (!res.success) {
+      setError(res.message || 'Failed to sign in.');
+    }
   };
 
   const handleSignupSubmit = (e: React.FormEvent) => {
@@ -68,20 +72,30 @@ export const LoginView: React.FC = () => {
       return;
     }
 
-    signup({
+    const res = signup({
       ownerName: yourName,
       brandName: storeName,
       email,
+      password,
       mobile: storePhone,
       businessType: storeType,
       storeAddress: storeAddress,
       affiliateCode: affiliateCode.trim() || undefined,
       affiliateProgram: affiliateCode.trim() ? 'Mazbi Affiliate Program' : undefined,
     });
+
+    if (!res.success) {
+      setError(res.message || 'Failed to create account.');
+    }
   };
 
   const handleQuickDemoLogin = () => {
     login('owner@omnibiz.com', '123456');
+  };
+
+  const handleFillOwnerCredentials = () => {
+    setEmail('owner@yearinvo.com');
+    setPassword('admin123');
   };
 
   return (
@@ -443,15 +457,27 @@ export const LoginView: React.FC = () => {
                     Need a new account? Sign Up Here
                   </button>
 
-                  <div>
-                    <p className="text-[11px] text-slate-500 mb-2">Or quick login with demo account</p>
-                    <button
-                      onClick={handleQuickDemoLogin}
-                      className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs border border-slate-700 transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                      <span>Demo Admin Quick Access</span>
-                    </button>
+                  <div className="space-y-2">
+                    <p className="text-[11px] text-slate-500 mb-1">Quick Fill Credentials</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={handleQuickDemoLogin}
+                        className="py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs border border-slate-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Demo Merchant</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleFillOwnerCredentials}
+                        className="py-2 bg-purple-950/60 hover:bg-purple-900/60 text-purple-200 font-bold rounded-xl text-xs border border-purple-800/80 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Crown className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Platform Owner</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

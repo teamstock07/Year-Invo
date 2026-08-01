@@ -1,6 +1,6 @@
 export type Language = 'en' | 'ar' | 'bn' | 'hi' | 'ur' | 'fr' | 'de' | 'es' | 'zh' | 'ja' | 'ae';
 export type ThemeMode = 'light' | 'dark';
-export type UserRole = 'Owner' | 'Manager' | 'Staff' | 'Accountant';
+export type UserRole = 'Owner' | 'Manager' | 'Staff' | 'Accountant' | 'PlatformOwner';
 export type SubscriptionPlan = 'Starter' | 'Tier2' | 'Lifetime' | 'Free' | 'Pro' | 'Business';
 
 export interface UserProfile {
@@ -9,17 +9,42 @@ export interface UserProfile {
   ownerName: string;
   mobile: string;
   email: string;
+  password?: string;
   businessType: string;
   country: string;
   currency: string; // e.g. "৳" or "$" or "€"
   timeZone: string;
   role: UserRole;
   subscriptionPlan: SubscriptionPlan;
+  subscriptionStatus?: 'active' | 'pending' | 'suspended';
+  pendingPlan?: SubscriptionPlan;
+  status?: 'active' | 'suspended';
+  storeAddress?: string;
+  affiliateCode?: string;
+  affiliateProgram?: string;
   avatarUrl?: string;
   logoUrl?: string;
   verifiedEmail: boolean;
   verifiedPhone: boolean;
   createdAt: string;
+}
+
+export interface SubscriptionRequest {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  brandName: string;
+  currentPlan: SubscriptionPlan;
+  requestedPlan: SubscriptionPlan;
+  billingCycle: 'monthly' | 'yearly';
+  paymentMethod: string;
+  transactionId?: string;
+  amount: number;
+  status: 'pending' | 'approved' | 'rejected';
+  requestDate: string;
+  reviewedDate?: string;
+  notes?: string;
 }
 
 export interface Product {

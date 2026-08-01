@@ -17,6 +17,8 @@ import {
   StockAdjustment,
   DueCollection,
   CartItem,
+  SubscriptionRequest,
+  SubscriptionPlan,
 } from '../types';
 import {
   initialCategories,
@@ -35,11 +37,31 @@ import { translations } from '../i18n/translations';
 interface AppContextType {
   // Auth & Profile
   user: UserProfile | null;
-  login: (email: string, pass: string) => boolean;
-  signup: (data: Partial<UserProfile>) => void;
+  login: (email: string, pass: string) => { success: boolean; message?: string };
+  signup: (data: Partial<UserProfile>) => { success: boolean; message?: string };
   logout: () => void;
   updateProfile: (data: Partial<UserProfile>) => void;
   updateUser: (data: Partial<UserProfile>) => void;
+
+  // Platform Owner & User Management
+  allUsers: UserProfile[];
+  suspendUser: (userId: string) => void;
+  activateUser: (userId: string) => void;
+  deleteUser: (userId: string) => void;
+  resetUserPassword: (userId: string, newPass: string) => void;
+  updateUserPlan: (userId: string, newPlan: SubscriptionPlan) => void;
+
+  // Subscription Approval System
+  subscriptionRequests: SubscriptionRequest[];
+  requestSubscription: (data: {
+    requestedPlan: SubscriptionPlan;
+    billingCycle: 'monthly' | 'yearly';
+    paymentMethod: string;
+    transactionId?: string;
+    amount: number;
+  }) => void;
+  approveSubscriptionRequest: (requestId: string) => void;
+  rejectSubscriptionRequest: (requestId: string, notes?: string) => void;
 
   // Settings & Theme
   settings: BusinessSettings;
@@ -163,22 +185,46 @@ const defaultSettings: BusinessSettings = {
   autoBackup: true,
 };
 
-const defaultUser: UserProfile = {
-  id: 'usr-owner-01',
-  brandName: 'Your Store Name',
-  ownerName: 'Ariful Islam',
-  mobile: '+880 1712 345678',
-  email: 'owner@omnibiz.com',
-  businessType: 'General Retail & Grocery',
-  country: 'Bangladesh',
-  currency: '৳',
-  timeZone: 'Asia/Dhaka',
-  role: 'Owner',
-  subscriptionPlan: 'Business',
-  verifiedEmail: true,
-  verifiedPhone: true,
-  createdAt: '2026-01-01',
-};
+const initialRegisteredUsers: UserProfile[] = [
+  {
+    id: 'usr-platform-owner-01',
+    brandName: 'YearInvo Platform Control',
+    ownerName: 'Platform Owner',
+    mobile: '+880 1700 000000',
+    email: 'owner@yearinvo.com',
+    password: 'admin123',
+    businessType: 'Platform Control Center',
+    country: 'Bangladesh',
+    currency: '৳',
+    timeZone: 'Asia/Dhaka',
+    role: 'Owner',
+    subscriptionPlan: 'Business',
+    subscriptionStatus: 'active',
+    status: 'active',
+    verifiedEmail: true,
+    verifiedPhone: true,
+    createdAt: '2026-01-01',
+  },
+  {
+    id: 'usr-demo-merchant-01',
+    brandName: 'Demo Retail Shop',
+    ownerName: 'Ariful Islam',
+    mobile: '+880 1712 345678',
+    email: 'owner@omnibiz.com',
+    password: '123456',
+    businessType: 'General Retail & Grocery',
+    country: 'Bangladesh',
+    currency: '৳',
+    timeZone: 'Asia/Dhaka',
+    role: 'Manager',
+    subscriptionPlan: 'Business',
+    subscriptionStatus: 'active',
+    status: 'active',
+    verifiedEmail: true,
+    verifiedPhone: true,
+    createdAt: '2026-01-01',
+  },
+];
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -194,10 +240,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return (saved as ThemeMode) || 'dark';
   });
 
+  // Strictly default user to NULL for unauthenticated landing view
   const [user, setUser] = useState<UserProfile | null>(() => {
     const saved = localStorage.getItem('biz_user');
-    if (saved === 'null') return null;
-    return saved ? JSON.parse(saved) : defaultUser;
+    if (!saved || saved === 'null') return null;
+    try {
+      const parsed = JSON.parse(saved);
+      return parsed && parsed.email ? parsed : null;
+    } catch (e) {
+      return null;
+    }
   });
 
   useEffect(() => {
@@ -207,6 +259,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('biz_user', 'null');
     }
   }, [user]);
+
+  // Registered Users Directory (For Owner Panel)
+  const [allUsers, setAllUsers] = useState<UserProfile[]>(() => {
+    const saved = localStorage.getItem('biz_all_users');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {}
+    }
+    return initialRegisteredUsers;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('biz_all_users', JSON.stringify(allUsers));
+  }, [allUsers]);
+
+  // Subscription Approval Requests Directory
+  const [subscriptionRequests, setSubscriptionRequests] = useState<SubscriptionRequest[]>(() => {
+    const saved = localStorage.getItem('biz_subscription_requests');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {}
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('biz_subscription_requests', JSON.stringify(subscriptionRequests));
+  }, [subscriptionRequests]);
   const [settings, setSettings] = useState<BusinessSettings>(() => {
     const saved = localStorage.getItem('biz_settings');
     if (saved) {
@@ -360,29 +444,289 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Auth methods
-  const login = (email: string, pass: string) => {
-    setUser({ ...defaultUser, email });
-    logActivity('User Logged In', 'ব্যবহারকারী লগইন করেছে', email);
-    return true;
+  const login = (emailInput: string, passInput: string): { success: boolean; message?: string } => {
+    const cleanEmail = emailInput.trim().toLowerCase();
+    const foundUser = allUsers.find((u) => u.email.toLowerCase() === cleanEmail);
+
+    if (!foundUser) {
+      return {
+        success: false,
+        message: 'Account not found. Please check your email or register a new account.',
+      };
+    }
+
+    if (foundUser.password && foundUser.password !== passInput) {
+      return {
+        success: false,
+        message: 'Incorrect password. Please try again.',
+      };
+    }
+
+    if (foundUser.status === 'suspended') {
+      return {
+        success: false,
+        message: 'Your account has been suspended by the platform administrator. Please contact support.',
+      };
+    }
+
+    setUser(foundUser);
+    if (foundUser.brandName) {
+      setSettings((prev) => ({ ...prev, brandName: foundUser.brandName }));
+    }
+    logActivity('User Logged In', 'ব্যবহারকারী লগইন করেছে', foundUser.email);
+    return { success: true };
   };
 
-  const signup = (data: Partial<UserProfile>) => {
+  const signup = (data: Partial<UserProfile>): { success: boolean; message?: string } => {
+    const cleanEmail = (data.email || '').trim().toLowerCase();
+    const existing = allUsers.find((u) => u.email.toLowerCase() === cleanEmail);
+
+    if (existing) {
+      return {
+        success: false,
+        message: 'An account with this email address already exists. Please log in.',
+      };
+    }
+
     const newUser: UserProfile = {
-      ...defaultUser,
-      ...data,
       id: `usr-${Date.now()}`,
+      brandName: data.brandName || 'My Store',
+      ownerName: data.ownerName || 'Store Owner',
+      mobile: data.mobile || '',
+      email: cleanEmail,
+      password: data.password || '123456',
+      businessType: data.businessType || 'General Retail & Grocery',
+      country: data.country || 'Bangladesh',
+      currency: data.currency || '৳',
+      timeZone: data.timeZone || 'Asia/Dhaka',
+      role: 'Manager', // Regular merchants receive Manager role; ONLY Platform Owner has 'Owner' role!
+      subscriptionPlan: 'Free',
+      subscriptionStatus: 'active',
+      status: 'active',
+      storeAddress: data.storeAddress,
+      affiliateCode: data.affiliateCode,
+      affiliateProgram: data.affiliateProgram,
+      verifiedEmail: true,
+      verifiedPhone: true,
       createdAt: new Date().toISOString().split('T')[0],
     };
+
+    setAllUsers((prev) => [newUser, ...prev]);
     setUser(newUser);
     if (data.brandName) {
       setSettings((prev) => ({ ...prev, brandName: data.brandName! }));
     }
     logActivity('User Registered Account', 'নতুন অ্যাকাউন্ট তৈরি করা হয়েছে', newUser.email);
+    return { success: true };
   };
 
   const logout = () => {
     setUser(null);
     logActivity('User Logged Out', 'ব্যবহারকারী লগআউট করেছে');
+  };
+
+  // Owner Panel User Management Handlers
+  const suspendUser = (userId: string) => {
+    setAllUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, status: 'suspended' } : u))
+    );
+    if (user && user.id === userId) {
+      setUser(null);
+    }
+    logActivity('Suspended User Account', 'ব্যবহারকারী স্থগিত করা হয়েছে', userId);
+  };
+
+  const activateUser = (userId: string) => {
+    setAllUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, status: 'active' } : u))
+    );
+    logActivity('Activated User Account', 'ব্যবহারকারী সক্রিয় করা হয়েছে', userId);
+  };
+
+  const deleteUser = (userId: string) => {
+    setAllUsers((prev) => prev.filter((u) => u.id !== userId));
+    if (user && user.id === userId) {
+      setUser(null);
+    }
+    logActivity('Deleted User Account', 'অ্যাকোউন্ট মুছে ফেলা হয়েছে', userId);
+  };
+
+  const resetUserPassword = (userId: string, newPass: string) => {
+    setAllUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, password: newPass } : u))
+    );
+    logActivity('Reset User Password', 'পাসওয়ার্ড পরিবর্তন করা হয়েছে', userId);
+  };
+
+  const updateUserPlan = (userId: string, newPlan: SubscriptionPlan) => {
+    setAllUsers((prev) =>
+      prev.map((u) =>
+        u.id === userId
+          ? {
+              ...u,
+              subscriptionPlan: newPlan,
+              subscriptionStatus: 'active',
+              pendingPlan: undefined,
+            }
+          : u
+      )
+    );
+    if (user && user.id === userId) {
+      setUser({
+        ...user,
+        subscriptionPlan: newPlan,
+        subscriptionStatus: 'active',
+        pendingPlan: undefined,
+      });
+    }
+    logActivity('Directly Updated User Plan', 'ব্যবহারকারীর প্ল্যান রেনু/আপগ্রেড করা হয়েছে', `${userId} -> ${newPlan}`);
+  };
+
+  // Subscription Approval System Handlers
+  const requestSubscription = (data: {
+    requestedPlan: SubscriptionPlan;
+    billingCycle: 'monthly' | 'yearly';
+    paymentMethod: string;
+    transactionId?: string;
+    amount: number;
+  }) => {
+    if (!user) return;
+
+    const newRequest: SubscriptionRequest = {
+      id: `subreq-${Date.now()}`,
+      userId: user.id,
+      userName: user.ownerName,
+      userEmail: user.email,
+      brandName: user.brandName,
+      currentPlan: user.subscriptionPlan,
+      requestedPlan: data.requestedPlan,
+      billingCycle: data.billingCycle,
+      paymentMethod: data.paymentMethod,
+      transactionId: data.transactionId,
+      amount: data.amount,
+      status: 'pending',
+      requestDate: new Date().toISOString(),
+    };
+
+    setSubscriptionRequests((prev) => [newRequest, ...prev]);
+
+    // Update user pending plan state without instantly activating it
+    const updatedUser: UserProfile = {
+      ...user,
+      pendingPlan: data.requestedPlan,
+      subscriptionStatus: 'pending',
+    };
+    setUser(updatedUser);
+    setAllUsers((prev) => prev.map((u) => (u.id === user.id ? updatedUser : u)));
+
+    // Send user notification
+    const notif: AppNotification = {
+      id: `notif-${Date.now()}`,
+      title: 'Subscription Request Submitted',
+      titleBn: 'সাবস্ক্রিপশন আবেদন জমা দেওয়া হয়েছে',
+      message: `Your request for the ${data.requestedPlan} Plan is pending approval by the platform owner.`,
+      messageBn: `আপনার ${data.requestedPlan} প্ল্যানের আবেদন প্লাটফর্ম এডমিন অনুমোদনের অপেক্ষায় রয়েছে।`,
+      type: 'subscription',
+      date: new Date().toISOString().split('T')[0],
+      read: false,
+      linkTab: 'subscription',
+    };
+    setNotifications((prev) => [notif, ...prev]);
+    logActivity('Requested Subscription Upgrade', 'সাবস্ক্রিপশন আপগ্রেড আবেদন করা হয়েছে', data.requestedPlan);
+  };
+
+  const approveSubscriptionRequest = (requestId: string) => {
+    const req = subscriptionRequests.find((r) => r.id === requestId);
+    if (!req) return;
+
+    setSubscriptionRequests((prev) =>
+      prev.map((r) =>
+        r.id === requestId ? { ...r, status: 'approved', reviewedDate: new Date().toISOString() } : r
+      )
+    );
+
+    setAllUsers((prev) =>
+      prev.map((u) => {
+        if (u.id === req.userId) {
+          return {
+            ...u,
+            subscriptionPlan: req.requestedPlan,
+            subscriptionStatus: 'active',
+            pendingPlan: undefined,
+          };
+        }
+        return u;
+      })
+    );
+
+    if (user && user.id === req.userId) {
+      setUser({
+        ...user,
+        subscriptionPlan: req.requestedPlan,
+        subscriptionStatus: 'active',
+        pendingPlan: undefined,
+      });
+    }
+
+    const notif: AppNotification = {
+      id: `notif-${Date.now()}`,
+      title: 'Subscription Plan Activated!',
+      titleBn: 'সাবস্ক্রিপশন প্ল্যান সক্রিয় হয়েছে!',
+      message: `Your request for the ${req.requestedPlan} Plan has been reviewed and APPROVED by the owner.`,
+      messageBn: `আপনার ${req.requestedPlan} প্ল্যানের আবেদন অনুমোদন করা হয়েছে।`,
+      type: 'subscription',
+      date: new Date().toISOString().split('T')[0],
+      read: false,
+      linkTab: 'subscription',
+    };
+    setNotifications((prev) => [notif, ...prev]);
+    logActivity('Approved Subscription Request', 'সাবস্ক্রিপশন আবেদন অনুমোদন করা হয়েছে', req.userEmail);
+  };
+
+  const rejectSubscriptionRequest = (requestId: string, notes?: string) => {
+    const req = subscriptionRequests.find((r) => r.id === requestId);
+    if (!req) return;
+
+    setSubscriptionRequests((prev) =>
+      prev.map((r) =>
+        r.id === requestId ? { ...r, status: 'rejected', notes, reviewedDate: new Date().toISOString() } : r
+      )
+    );
+
+    setAllUsers((prev) =>
+      prev.map((u) => {
+        if (u.id === req.userId) {
+          return {
+            ...u,
+            subscriptionStatus: 'active',
+            pendingPlan: undefined,
+          };
+        }
+        return u;
+      })
+    );
+
+    if (user && user.id === req.userId) {
+      setUser({
+        ...user,
+        subscriptionStatus: 'active',
+        pendingPlan: undefined,
+      });
+    }
+
+    const notif: AppNotification = {
+      id: `notif-${Date.now()}`,
+      title: 'Subscription Request Rejected',
+      titleBn: 'সাবস্ক্রিপশন আবেদন প্রত্যাখ্যাত হয়েছে',
+      message: `Your request for the ${req.requestedPlan} Plan was rejected.${notes ? ` Note: ${notes}` : ''}`,
+      messageBn: `আপনার ${req.requestedPlan} প্ল্যানের আবেদন বাতিল করা হয়েছে।`,
+      type: 'subscription',
+      date: new Date().toISOString().split('T')[0],
+      read: false,
+      linkTab: 'subscription',
+    };
+    setNotifications((prev) => [notif, ...prev]);
+    logActivity('Rejected Subscription Request', 'সাবস্ক্রিপশন আবেদন বাতিল করা হয়েছে', req.userEmail);
   };
 
   const updateProfile = (data: Partial<UserProfile>) => {
@@ -992,6 +1336,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         logout,
         updateProfile,
         updateUser: updateProfile,
+        allUsers,
+        suspendUser,
+        activateUser,
+        deleteUser,
+        resetUserPassword,
+        updateUserPlan,
+        subscriptionRequests,
+        requestSubscription,
+        approveSubscriptionRequest,
+        rejectSubscriptionRequest,
         settings,
         updateSettings,
         language,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Sale } from '../../types';
 import { QuickReceiptModal } from './QuickReceiptModal';
@@ -33,7 +33,8 @@ export const QuickSaleView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Card' | 'Due/Credit'>('Cash');
-  const [discountAmount, setDiscountAmount] = useState<number>(0);
+  const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed');
+  const [discountValue, setDiscountValue] = useState<number>(0);
   const [paidAmountInput, setPaidAmountInput] = useState<string>('');
   const [completedSale, setCompletedSale] = useState<Sale | null>(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
@@ -45,7 +46,10 @@ export const QuickSaleView: React.FC = () => {
   );
 
   const subtotal = cart.reduce((acc, item) => acc + item.product.sellingPrice * item.quantity, 0);
-  const grandTotal = Math.max(0, subtotal - discountAmount);
+  const calculatedDiscount = discountType === 'percent'
+    ? Math.round((subtotal * discountValue) / 100)
+    : Math.min(subtotal, discountValue);
+  const grandTotal = Math.max(0, subtotal - calculatedDiscount);
 
   const selectedCustomerObj = customers.find((c) => c.id === selectedCustomerId);
 
@@ -56,6 +60,15 @@ export const QuickSaleView: React.FC = () => {
         : grandTotal
       : Math.max(0, Number(paidAmountInput));
   const remainingDue = Math.max(0, grandTotal - numericPaid);
+
+  // Sync default paid amount when grandTotal or paymentMethod changes
+  useEffect(() => {
+    if (paymentMethod === 'Due/Credit') {
+      setPaidAmountInput('0');
+    } else {
+      setPaidAmountInput(grandTotal.toString());
+    }
+  }, [grandTotal, paymentMethod]);
 
   const handleCheckout = () => {
     if (cart.length === 0) {
@@ -81,7 +94,7 @@ export const QuickSaleView: React.FC = () => {
       customerId: selectedCustomerId || undefined,
       customerName: selectedCustomerObj ? selectedCustomerObj.name : 'Walk-in Customer',
       customerPhone: selectedCustomerObj ? selectedCustomerObj.phone : undefined,
-      discount: discountAmount,
+      discount: calculatedDiscount,
       tax: 0,
       paymentMethod: paymentMethod === 'Due/Credit' ? 'Due/Credit' : paymentMethod,
       cashReceived: numericPaid,
@@ -89,7 +102,7 @@ export const QuickSaleView: React.FC = () => {
 
     setCompletedSale(sale);
     setIsReceiptOpen(true);
-    setDiscountAmount(0);
+    setDiscountValue(0);
     setPaidAmountInput('');
   };
 
@@ -179,7 +192,7 @@ export const QuickSaleView: React.FC = () => {
         </div>
       </div>
 
-      {/* Right Column: Quick Sale Cart & Basic Payment */}
+      {/* Right Column: Quick Sale Cart & Payment Options */}
       <div className="lg:col-span-5 flex flex-col bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-3">
         {/* Customer Choice */}
         <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/80 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700">
@@ -199,7 +212,7 @@ export const QuickSaleView: React.FC = () => {
         </div>
 
         {/* Cart Item Rows */}
-        <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 min-h-44 max-h-56 pr-1 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 min-h-36 max-h-48 pr-1 custom-scrollbar">
           {cart.length === 0 ? (
             <div className="text-center py-8 text-slate-400 text-xs font-medium">
               Click products on the left to add them to Quick Sale.
@@ -254,11 +267,94 @@ export const QuickSaleView: React.FC = () => {
           )}
         </div>
 
-        {/* Basic Payment Options */}
-        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+        {/* Discount Row */}
+        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200/80 dark:border-slate-700/80 space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center gap-1.5">
+              <span className="font-bold text-slate-700 dark:text-slate-300">Discount:</span>
+              <div className="flex items-center rounded-md bg-white dark:bg-slate-900 p-0.5 border border-slate-200 dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setDiscountType('fixed')}
+                  className={`px-1.5 py-0.2 rounded text-[9px] font-extrabold cursor-pointer transition-colors ${
+                    discountType === 'fixed'
+                      ? 'bg-[#ff5c01] text-white shadow-2xs'
+                      : 'text-slate-500 dark:text-slate-400'
+                  }`}
+                >
+                  {symbol}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDiscountType('percent')}
+                  className={`px-1.5 py-0.2 rounded text-[9px] font-extrabold cursor-pointer transition-colors ${
+                    discountType === 'percent'
+                      ? 'bg-[#ff5c01] text-white shadow-2xs'
+                      : 'text-slate-500 dark:text-slate-400'
+                  }`}
+                >
+                  %
+                </button>
+              </div>
+            </div>
+
+            <input
+              type="number"
+              min="0"
+              value={discountValue || ''}
+              onChange={(e) => setDiscountValue(Number(e.target.value))}
+              placeholder="0"
+              className="w-24 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-right font-black text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-[#ff5c01]"
+            />
+          </div>
+
+          {discountType === 'percent' && discountValue > 0 && (
+            <div className="text-right text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+              Discount Amount: -{symbol}{calculatedDiscount.toLocaleString()}
+            </div>
+          )}
+        </div>
+
+        {/* Due / Credit & Paid Amount Box (Placed ABOVE Payment Method) */}
+        <div className="p-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+              Amount Paid ({symbol}):
+            </span>
+            <input
+              type="number"
+              min="0"
+              value={paidAmountInput}
+              onChange={(e) => setPaidAmountInput(e.target.value)}
+              placeholder={grandTotal.toString()}
+              className="w-28 px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-right font-black text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-[#ff5c01]"
+            />
+          </div>
+
+          <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-200/60 dark:border-slate-700/60">
+            <span className="font-semibold text-slate-600 dark:text-slate-400">Remaining Due (Credit):</span>
+            <span className={`font-black text-xs ${remainingDue > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+              {symbol} {remainingDue.toLocaleString()}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between text-[11px] pt-0.5">
+            <span className="text-slate-500">Invoice Status:</span>
+            <span className={`px-2 py-0.2 rounded-full font-black text-[10px] ${
+              remainingDue > 0
+                ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20'
+                : 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
+            }`}>
+              {remainingDue > 0 ? 'PARTIALLY PAID / DUE' : 'PAID IN FULL'}
+            </span>
+          </div>
+        </div>
+
+        {/* Payment Method Selection */}
+        <div className="space-y-2">
           <div>
             <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
-              Payment Method (Quick Sale Mode)
+              Payment Method
             </span>
             <div className="grid grid-cols-3 gap-2">
               {[

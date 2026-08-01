@@ -904,11 +904,17 @@ const subTranslations: Record<Language, SubDict> = {
 };
 
 export const SubscriptionView: React.FC = () => {
-  const { user, updateUser, language, settings } = useApp();
+  const { user, updateUser, language, settings, requestSubscription } = useApp();
   const currentPlan = user?.subscriptionPlan || 'Free';
   const currencySymbol = settings.currency || '৳';
 
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+
+  // Request Modal State
+  const [requestPlan, setRequestPlan] = useState<'Pro' | 'Business' | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState('bKash / Nagad');
+  const [transactionId, setTransactionId] = useState('');
+  const [submittedSuccess, setSubmittedSuccess] = useState(false);
 
   const langDict = subTranslations[language] || subTranslations['en'];
 
@@ -928,8 +934,31 @@ export const SubscriptionView: React.FC = () => {
     },
   };
 
-  const handleSelectPlan = (planName: 'Free' | 'Pro' | 'Premium') => {
-    updateUser({ subscriptionPlan: planName as any });
+  const handleSelectPlan = (planName: 'Free' | 'Pro' | 'Business' | 'Premium') => {
+    if (planName === 'Free') {
+      updateUser({ subscriptionPlan: 'Free' });
+      return;
+    }
+    setRequestPlan(planName === 'Premium' ? 'Business' : planName);
+  };
+
+  const handleFormSubmitRequest = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!requestPlan) return;
+
+    const amount = requestPlan === 'Pro' ? 350 : 600;
+
+    requestSubscription({
+      requestedPlan: requestPlan,
+      billingCycle,
+      paymentMethod,
+      transactionId: transactionId.trim() || undefined,
+      amount,
+    });
+
+    setRequestPlan(null);
+    setSubmittedSuccess(true);
+    setTimeout(() => setSubmittedSuccess(false), 5000);
   };
 
   return (
@@ -946,6 +975,25 @@ export const SubscriptionView: React.FC = () => {
         <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
           {langDict.subtitle}
         </p>
+
+        {/* Status Banners */}
+        {user?.subscriptionStatus === 'pending' && (
+          <div className="mt-4 p-4 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-2xl text-xs font-bold text-center flex items-center justify-center gap-2">
+            <Crown className="w-4 h-4 text-amber-400 animate-pulse" />
+            <span>
+              Your request to upgrade to the <strong>{user.pendingPlan} Plan</strong> is currently pending approval by the Platform Owner.
+            </span>
+          </div>
+        )}
+
+        {submittedSuccess && (
+          <div className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-2xl text-xs font-bold text-center flex items-center justify-center gap-2">
+            <CheckCircle className="w-4 h-4 text-emerald-400" />
+            <span>
+              Subscription request submitted successfully! The platform owner will review and activate your plan.
+            </span>
+          </div>
+        )}
 
         {/* Billing Toggle Switch */}
         <div className="pt-3 flex items-center justify-center">
@@ -1356,6 +1404,84 @@ export const SubscriptionView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* PLAN UPGRADE PAYMENT REQUEST MODAL */}
+      {requestPlan && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl text-slate-100">
+            <div className="flex items-center justify-between">
+              <h3 className="font-extrabold text-base text-white flex items-center gap-2">
+                <Crown className="w-5 h-5 text-amber-400" />
+                <span>Upgrade to {requestPlan} Plan</span>
+              </h3>
+              <button
+                onClick={() => setRequestPlan(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Submit your request for the <strong>{requestPlan} Plan ({billingCycle})</strong>. The platform owner will review your payment details and approve your upgrade.
+            </p>
+
+            <form onSubmit={handleFormSubmitRequest} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">
+                  Payment Method
+                </label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-[#ff5c01] cursor-pointer"
+                >
+                  <option value="bKash / Nagad (Mobile Wallet)">bKash / Nagad (Mobile Wallet)</option>
+                  <option value="Bank Wire Transfer">Bank Wire Transfer</option>
+                  <option value="Credit / Debit Card">Credit / Debit Card</option>
+                  <option value="Direct Admin Cash">Direct Admin Payment</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">
+                  Transaction ID / Sender Number (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={transactionId}
+                  onChange={(e) => setTransactionId(e.target.value)}
+                  placeholder="e.g. TRX982347192"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#ff5c01]"
+                />
+              </div>
+
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs flex justify-between items-center">
+                <span className="text-slate-400 font-bold">Estimated Cost:</span>
+                <span className="font-black text-emerald-400">
+                  {requestPlan === 'Pro' ? '৳350 / month' : '৳600 / month'}
+                </span>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setRequestPlan(null)}
+                  className="px-4 py-2.5 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-[#ff5c01] hover:bg-[#e05100] text-white rounded-xl text-xs font-extrabold cursor-pointer shadow-lg shadow-[#ff5c01]/20"
+                >
+                  Submit for Approval
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

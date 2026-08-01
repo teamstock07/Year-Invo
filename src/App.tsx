@@ -24,6 +24,7 @@ import { BrandingView } from './components/settings/BrandingView';
 import { SubscriptionView } from './components/subscription/SubscriptionView';
 import { HelpSupportView } from './components/help/HelpSupportView';
 import { AboutView } from './components/about/AboutView';
+import { OwnerDashboard } from './components/owner/OwnerDashboard';
 import { LoginView } from './components/auth/LoginView';
 
 import { getDisplayBrandName } from './utils/brand';
@@ -86,6 +87,8 @@ const MainLayout: React.FC = () => {
         return <HelpSupportView />;
       case 'about':
         return <AboutView />;
+      case 'owner':
+        return <OwnerDashboard />;
       default:
         return <DashboardView />;
     }

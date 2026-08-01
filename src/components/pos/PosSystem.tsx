@@ -57,7 +57,8 @@ export const PosSystem: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
-  const [discountAmount, setDiscountAmount] = useState<number>(0);
+  const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed');
+  const [discountValue, setDiscountValue] = useState<number>(0);
   const [taxPercent, setTaxPercent] = useState<number>(settings.taxRatePercent || 0);
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Card' | 'bKash/Mobile' | 'Due/Credit'>('Cash');
   const [paidAmountInput, setPaidAmountInput] = useState<string>('');
@@ -180,8 +181,11 @@ export const PosSystem: React.FC = () => {
 
   // Cart Calculations
   const subtotal = cart.reduce((acc, item) => acc + item.product.sellingPrice * item.quantity, 0);
+  const calculatedDiscount = discountType === 'percent'
+    ? Math.round((subtotal * discountValue) / 100)
+    : Math.min(subtotal, discountValue);
   const taxAmount = Math.round((subtotal * taxPercent) / 100);
-  const grandTotal = Math.max(0, subtotal - discountAmount + taxAmount);
+  const grandTotal = Math.max(0, subtotal - calculatedDiscount + taxAmount);
 
   // Calculate actual paid amount based on user input or payment method
   const numericPaid = paidAmountInput === '' ? (paymentMethod === 'Due/Credit' ? 0 : grandTotal) : Math.max(0, Number(paidAmountInput));
@@ -223,7 +227,7 @@ export const PosSystem: React.FC = () => {
       customerId: selectedCustomerId || undefined,
       customerName: selectedCustomerObj ? selectedCustomerObj.name : 'Walk-in Customer',
       customerPhone: selectedCustomerObj ? selectedCustomerObj.phone : undefined,
-      discount: discountAmount,
+      discount: calculatedDiscount,
       tax: taxPercent,
       paymentMethod,
       cashReceived: numericPaid,
@@ -231,7 +235,7 @@ export const PosSystem: React.FC = () => {
 
     setCompletedSale(sale);
     setIsReceiptOpen(true);
-    setDiscountAmount(0);
+    setDiscountValue(0);
     setPaidAmountInput('');
   };
 
@@ -696,29 +700,108 @@ export const PosSystem: React.FC = () => {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div>
-              <span className="text-slate-500 font-semibold text-[10px] block">{t('discount')} ({symbol})</span>
+          {/* Discount & Tax Row */}
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-slate-600 dark:text-slate-400 font-semibold text-[10px]">{t('discount')}</span>
+                  <div className="flex items-center rounded-md bg-slate-100 dark:bg-slate-800 p-0.5 border border-slate-200 dark:border-slate-700">
+                    <button
+                      type="button"
+                      onClick={() => setDiscountType('fixed')}
+                      className={`px-1.5 py-0.2 rounded text-[9px] font-extrabold cursor-pointer transition-colors ${
+                        discountType === 'fixed'
+                          ? 'bg-[#ff5c01] text-white shadow-2xs'
+                          : 'text-slate-500 dark:text-slate-400'
+                      }`}
+                    >
+                      {symbol}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDiscountType('percent')}
+                      className={`px-1.5 py-0.2 rounded text-[9px] font-extrabold cursor-pointer transition-colors ${
+                        discountType === 'percent'
+                          ? 'bg-[#ff5c01] text-white shadow-2xs'
+                          : 'text-slate-500 dark:text-slate-400'
+                      }`}
+                    >
+                      %
+                    </button>
+                  </div>
+                </div>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    value={discountValue || ''}
+                    onChange={(e) => setDiscountValue(Number(e.target.value))}
+                    placeholder="0"
+                    className="w-full px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 font-bold focus:outline-hidden focus:border-[#ff5c01]"
+                  />
+                  {discountType === 'percent' && discountValue > 0 && (
+                    <span className="absolute right-2 top-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                      (-{symbol}{calculatedDiscount})
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <span className="text-slate-600 dark:text-slate-400 font-semibold text-[10px] block mb-1">{t('tax')} (%)</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={taxPercent || ''}
+                  onChange={(e) => setTaxPercent(Number(e.target.value))}
+                  placeholder="0"
+                  className="w-full px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 font-bold focus:outline-hidden focus:border-[#ff5c01]"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Due / Credit & Paid Amount Section (Placed ABOVE Payment Method) */}
+          <div className="p-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                Amount Paid ({symbol}):
+              </span>
               <input
                 type="number"
                 min="0"
-                value={discountAmount || ''}
-                onChange={(e) => setDiscountAmount(Number(e.target.value))}
-                placeholder="0"
-                className="w-full px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 font-bold"
+                value={paidAmountInput}
+                onChange={(e) => setPaidAmountInput(e.target.value)}
+                placeholder={grandTotal.toString()}
+                className="w-28 px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-right font-black text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-[#ff5c01]"
               />
             </div>
-            <div>
-              <span className="text-slate-500 font-semibold text-[10px] block">{t('tax')} (%)</span>
-              <input
-                type="number"
-                min="0"
-                value={taxPercent || ''}
-                onChange={(e) => setTaxPercent(Number(e.target.value))}
-                placeholder="0"
-                className="w-full px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 font-bold"
-              />
+
+            <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-200/60 dark:border-slate-700/60">
+              <span className="font-semibold text-slate-600 dark:text-slate-400">Remaining Due (Credit):</span>
+              <span className={`font-black text-xs ${remainingDue > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                {symbol} {remainingDue.toLocaleString()}
+              </span>
             </div>
+
+            <div className="flex items-center justify-between text-[11px] pt-1">
+              <span className="text-slate-500">Invoice Status:</span>
+              <span className={`px-2 py-0.2 rounded-full font-black text-[10px] ${
+                remainingDue > 0
+                  ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20'
+                  : 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
+              }`}>
+                {remainingDue > 0 ? 'PARTIALLY PAID / DUE' : 'PAID IN FULL'}
+              </span>
+            </div>
+
+            {changeReturn > 0 && (
+              <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                <span className="font-medium text-slate-500">Change Return:</span>
+                <span className="font-black text-amber-500">{symbol} {changeReturn.toLocaleString()}</span>
+              </div>
+            )}
           </div>
 
           {/* Payment Method Radio Pills */}
@@ -727,9 +810,9 @@ export const PosSystem: React.FC = () => {
             <div className="grid grid-cols-4 gap-1.5">
               {[
                 { id: 'Cash', label: 'Cash', icon: Banknote },
-                { id: 'bKash/Mobile', label: 'QR / bKash', icon: Smartphone, isPremiumOnly: true },
+                { id: 'bKash/Mobile', label: 'QR / Mobile', icon: Smartphone, isPremiumOnly: true },
                 { id: 'Card', label: 'Card', icon: CreditCard },
-                { id: 'Due/Credit', label: 'Due/Credit', icon: Tag },
+                { id: 'Due/Credit', label: 'Due / Credit', icon: Tag },
               ].map((pm) => {
                 const Icon = pm.icon;
                 const isSelected = paymentMethod === pm.id;
@@ -763,35 +846,6 @@ export const PosSystem: React.FC = () => {
                 );
               })}
             </div>
-          </div>
-
-          {/* Amount Paid & Remaining Due Live Calculation */}
-          <div className="p-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-bold text-slate-700 dark:text-slate-300">Paid Amount ({symbol}):</span>
-              <input
-                type="number"
-                min="0"
-                value={paidAmountInput}
-                onChange={(e) => setPaidAmountInput(e.target.value)}
-                placeholder={grandTotal.toString()}
-                className="w-28 px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-right font-black text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-[#ff5c01]"
-              />
-            </div>
-
-            <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
-              <span className="font-medium text-slate-500">Remaining Due:</span>
-              <span className={`font-black ${remainingDue > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`}>
-                {symbol} {remainingDue.toLocaleString()}
-              </span>
-            </div>
-
-            {changeReturn > 0 && (
-              <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
-                <span className="font-medium text-slate-500">Change Return:</span>
-                <span className="font-black text-amber-500">{symbol} {changeReturn.toLocaleString()}</span>
-              </div>
-            )}
           </div>
 
           {/* Grand Total Bar */}

@@ -53,6 +53,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const isPosLocked = plan === 'Free';
 
   const menuItems = [
+    ...(user?.role === 'Owner'
+      ? [{ id: 'owner', label: 'Owner Panel', icon: Crown, highlight: true }]
+      : []),
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'quicksale', label: 'Quick Sale', icon: Zap, highlight: true },
     { 

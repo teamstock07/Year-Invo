@@ -1,8 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Sale } from '../../types';
 import { useApp } from '../../context/AppContext';
-import { getDisplayBrandName } from '../../utils/brand';
-import { X, Printer, CheckCircle2 } from 'lucide-react';
+import { getCustomerStoreName } from '../../utils/brand';
+import { ShareInvoiceModal } from '../sales/ShareInvoiceModal';
+import {
+  X,
+  Printer,
+  CheckCircle2,
+  Share2,
+  Download,
+  Phone,
+} from 'lucide-react';
 
 interface ReceiptModalProps {
   sale: Sale | null;
@@ -11,8 +19,9 @@ interface ReceiptModalProps {
 }
 
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, isOpen, onClose }) => {
-  const { settings, t } = useApp();
+  const { settings, user } = useApp();
   const symbol = settings.currency || '৳';
+  const [isShareOpen, setIsShareOpen] = useState(false);
 
   if (!isOpen || !sale) return null;
 
@@ -20,175 +29,232 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, isOpen, onClos
     window.print();
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto">
-      <div className="relative w-full max-w-lg bg-[#0f172a] text-slate-100 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95">
-        {/* Top Control Bar */}
-        <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 sm:py-4 border-b border-slate-800 bg-slate-900/80 print:hidden">
-          <div>
-            <h3 className="text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-2">
-              Invoice {sale.invoiceNo}
-            </h3>
-            <p className="text-[11px] text-slate-400 font-medium mt-0.5">
-              {new Date(sale.date).toLocaleString(undefined, {
-                dateStyle: 'medium',
-                timeStyle: 'medium',
-              })}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-            title="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+  const rawBrand = settings.brandName || user?.brandName || '';
+  const storeName = getCustomerStoreName(rawBrand) || rawBrand || 'My Store';
+  const storePhone = settings.phone || user?.mobile || '';
+  const cashierName = sale.cashierName || user?.ownerName || 'Cashier';
 
-        {/* Scrollable Printable Receipt Body */}
-        <div id="thermal-receipt" className="p-4 sm:p-6 space-y-4 max-h-[75vh] overflow-y-auto custom-scrollbar">
-          {/* Top White Store Header Card */}
-          <div className="bg-white text-slate-900 rounded-2xl p-4 sm:p-5 shadow-lg border border-slate-100">
-            <div className="flex justify-between items-start gap-3">
-              {/* Left Store Info */}
-              <div className="flex items-start gap-3 min-w-0 flex-1">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 font-black text-xl flex items-center justify-center shrink-0 overflow-hidden shadow-2xs">
-                  {settings.logo ? (
-                    <img src={settings.logo} alt="Logo" className="w-full h-full object-cover" />
-                  ) : (
-                    (getDisplayBrandName(settings.brandName)[0] || 'S').toUpperCase()
+  return (
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto">
+        <div className="relative w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95">
+          {/* Top Control Bar */}
+          <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-emerald-50/80 dark:bg-emerald-950/30 print:hidden">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white leading-tight">
+                  Order Completed
+                </h3>
+                <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold">
+                  Invoice #{sale.invoiceNo}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Printable Invoice Container */}
+          <div id="printable-invoice" className="p-5 sm:p-7 space-y-5 max-h-[75vh] overflow-y-auto custom-scrollbar">
+            {/* Store & Invoice Header */}
+            <div className="border-b border-slate-200 dark:border-slate-800 pb-4 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                {/* Store Information */}
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                    {storeName}
+                  </h1>
+                  {storePhone && (
+                    <p className="text-xs text-slate-600 dark:text-slate-400 font-medium flex items-center gap-1.5 mt-1">
+                      <Phone className="w-3.5 h-3.5 text-[#ff5c01]" />
+                      <span>{storePhone}</span>
+                    </p>
+                  )}
+                  {settings.address && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      {settings.address}
+                    </p>
                   )}
                 </div>
-                <div className="min-w-0 flex-1 space-y-0.5">
-                  <h2 className="font-extrabold text-base text-slate-900 leading-tight truncate">
-                    {getDisplayBrandName(settings.brandName)}
-                  </h2>
-                  <p className="text-[11px] text-slate-500 font-medium leading-normal break-words max-w-[200px]">
-                    {settings.address || settings.receiptHeader || 'Store Address'}
+
+                {/* Invoice Meta */}
+                <div className="sm:text-right space-y-1 text-xs">
+                  <div className="inline-block px-3 py-1 rounded-full bg-[#ff5c01]/10 text-[#ff5c01] font-black text-xs border border-[#ff5c01]/20">
+                    INVOICE
+                  </div>
+                  <p className="font-mono font-bold text-slate-900 dark:text-slate-100">
+                    #{sale.invoiceNo}
                   </p>
-                  <p className="text-[11px] text-slate-500 font-semibold">
-                    {settings.phone || settings.receiptFooter || ''}
+                  <p className="text-slate-500 font-medium text-[11px]">
+                    {new Date(sale.date).toLocaleDateString()} • {new Date(sale.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
               </div>
 
-              {/* Right Invoice Info */}
-              <div className="flex flex-col items-end text-right shrink-0">
-                <span className="text-xs font-black tracking-widest text-indigo-600 uppercase">
-                  INVOICE
-                </span>
-                <span className="text-[10px] sm:text-[11px] font-mono font-bold text-slate-800 mt-0.5">
-                  {sale.invoiceNo}
-                </span>
-                <span className="text-[10px] text-slate-500 mt-0.5">
-                  {new Date(sale.date).toLocaleDateString()} {new Date(sale.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Items Table */}
-          <div className="space-y-2">
-            <div className="grid grid-cols-12 text-[11px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1.5 border-b border-slate-800">
-              <div className="col-span-6">Item</div>
-              <div className="col-span-2 text-center">Qty</div>
-              <div className="col-span-2 text-right">Price</div>
-              <div className="col-span-2 text-right">Total</div>
-            </div>
-
-            <div className="divide-y divide-slate-800/60">
-              {sale.items.map((item, idx) => (
-                <div key={idx} className="grid grid-cols-12 items-center py-2.5 px-2 text-xs">
-                  <div className="col-span-6 flex items-center gap-2.5 min-w-0 pr-2">
-                    <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700/80 flex items-center justify-center shrink-0 overflow-hidden">
-                      {item.image ? (
-                        <img src={item.image} alt={item.productName} className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-[10px] font-extrabold text-slate-400 uppercase">
-                          {item.productName.slice(0, 2)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-slate-100 truncate text-xs leading-tight">
-                        {item.productName}
-                      </p>
-                      {item.sku && (
-                        <p className="text-[10px] text-slate-500 font-mono mt-0.5 truncate">
-                          #{item.sku}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="col-span-2 text-center font-bold text-slate-200 text-xs">
-                    {item.quantity}
-                  </div>
-                  <div className="col-span-2 text-right text-slate-300 font-medium text-xs">
-                    {symbol}{item.sellingPrice.toFixed(2)}
-                  </div>
-                  <div className="col-span-2 text-right font-black text-white text-xs">
-                    {symbol}{item.total.toFixed(2)}
-                  </div>
+              {/* Customer & Cashier Info Bar */}
+              <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 text-xs bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Customer</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-100">
+                    {sale.customerName || 'Walk-in Customer'}
+                  </span>
+                  {sale.customerPhone && (
+                    <span className="block text-[11px] text-slate-500 font-mono">
+                      {sale.customerPhone}
+                    </span>
+                  )}
                 </div>
-              ))}
+                <div className="text-right">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Cashier</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-100">{cashierName}</span>
+                  <span className="block text-[11px] text-slate-500 font-medium">
+                    Via {sale.paymentMethod}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Product List Table */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">
+                Product Details
+              </h4>
+              <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 font-bold uppercase text-[10px]">
+                    <tr>
+                      <th className="p-3">Product</th>
+                      <th className="p-3 text-center">Qty</th>
+                      <th className="p-3 text-right">Unit Price</th>
+                      <th className="p-3 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-800 dark:text-slate-200">
+                    {sale.items.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                        <td className="p-3">
+                          <p className="font-bold">{item.productName}</p>
+                          {item.sku && <span className="text-[10px] text-slate-400 font-mono">#{item.sku}</span>}
+                        </td>
+                        <td className="p-3 text-center font-extrabold">{item.quantity}</td>
+                        <td className="p-3 text-right text-slate-600 dark:text-slate-400">
+                          {symbol}{item.sellingPrice.toLocaleString()}
+                        </td>
+                        <td className="p-3 text-right font-black text-slate-900 dark:text-white">
+                          {symbol}{item.total.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Financial Summary */}
+            <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-2 text-xs">
+              <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                <span>Subtotal</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{symbol} {sale.subtotal.toLocaleString()}</span>
+              </div>
+
+              {sale.discount > 0 && (
+                <div className="flex justify-between text-rose-600 dark:text-rose-400 font-semibold">
+                  <span>Discount</span>
+                  <span>-{symbol} {sale.discount.toLocaleString()}</span>
+                </div>
+              )}
+
+              {sale.tax > 0 && (
+                <div className="flex justify-between text-slate-600 dark:text-slate-400 font-semibold">
+                  <span>Tax</span>
+                  <span>+{symbol} {sale.tax.toLocaleString()}</span>
+                </div>
+              )}
+
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                <span>Grand Total</span>
+                <span className="text-[#ff5c01]">{symbol} {sale.total.toLocaleString()}</span>
+              </div>
+
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-700 grid grid-cols-2 gap-2 text-xs pt-2">
+                <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 font-extrabold flex justify-between items-center">
+                  <span>Paid Amount</span>
+                  <span>{symbol} {sale.paidAmount.toLocaleString()}</span>
+                </div>
+
+                <div className={`p-2 rounded-xl border font-extrabold flex justify-between items-center ${
+                  sale.dueAmount > 0
+                    ? 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400'
+                    : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                }`}>
+                  <span>Due Amount</span>
+                  <span>{symbol} {sale.dueAmount.toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[11px] text-slate-500">Payment Status:</span>
+                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black ${
+                  sale.dueAmount > 0
+                    ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20'
+                    : 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
+                }`}>
+                  {sale.dueAmount > 0 ? 'PARTIALLY PAID' : 'PAID IN FULL'}
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Bottom White Totals Card */}
-          <div className="bg-white text-slate-900 rounded-2xl p-4 sm:p-5 shadow-lg border border-slate-100 space-y-2">
-            <div className="flex justify-between items-center text-xs text-slate-500 font-semibold">
-              <span>Subtotal: {symbol}{sale.subtotal.toFixed(2)}</span>
-            </div>
+          {/* Action Buttons Footer */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 px-5 sm:px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 print:hidden">
+            <button
+              onClick={handlePrint}
+              className="px-4 py-2.5 bg-[#ff5c01] hover:bg-[#e05100] text-white font-extrabold text-xs rounded-xl shadow-md shadow-[#ff5c01]/25 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Print</span>
+            </button>
 
-            {sale.discount > 0 && (
-              <div className="flex justify-between items-center text-xs text-rose-600 font-semibold">
-                <span>Discount</span>
-                <span>-{symbol}{sale.discount.toFixed(2)}</span>
-              </div>
-            )}
+            <button
+              onClick={handlePrint}
+              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Download className="w-4 h-4" />
+              <span>PDF</span>
+            </button>
 
-            {sale.tax > 0 && (
-              <div className="flex justify-between items-center text-xs text-slate-600 font-semibold">
-                <span>Tax</span>
-                <span>+{symbol}{sale.tax.toFixed(2)}</span>
-              </div>
-            )}
+            <button
+              onClick={() => setIsShareOpen(true)}
+              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Share2 className="w-4 h-4" />
+              <span>Share</span>
+            </button>
 
-            <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-lg sm:text-xl font-black text-indigo-600">
-              <span>Total: {symbol}{sale.total.toFixed(2)}</span>
-            </div>
-
-            <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-xs text-slate-600 font-bold">
-              <span>Paid: <span className="text-slate-800">{symbol}{sale.paidAmount.toFixed(2)}</span></span>
-              <span>
-                {sale.dueAmount > 0 ? (
-                  <span className="text-rose-600">Due: {symbol}{sale.dueAmount.toFixed(2)}</span>
-                ) : (
-                  <span className="text-slate-500">Due: {symbol}0.00</span>
-                )}
-              </span>
-            </div>
+            <button
+              onClick={onClose}
+              className="px-4 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-bold text-xs rounded-xl transition-all flex items-center justify-center cursor-pointer"
+            >
+              Close
+            </button>
           </div>
-        </div>
-
-        {/* Action Buttons Footer */}
-        <div className="flex items-center gap-3 px-5 sm:px-6 py-4 border-t border-slate-800 bg-slate-900/90 print:hidden">
-          <button
-            onClick={handlePrint}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
-          >
-            <Printer className="w-4 h-4" />
-            <span>Print</span>
-          </button>
-
-          <button
-            onClick={onClose}
-            className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl transition-all cursor-pointer"
-          >
-            Close
-          </button>
         </div>
       </div>
-    </div>
+
+      <ShareInvoiceModal
+        sale={sale}
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+      />
+    </>
   );
 };
