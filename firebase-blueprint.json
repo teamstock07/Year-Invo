@@ -1,0 +1,44 @@
+{
+  "entities": {
+    "users": {
+      "title": "users",
+      "description": "Registered user accounts and stores",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "brandName": { "type": "string" },
+        "mobile": { "type": "string" },
+        "businessType": { "type": "string" },
+        "role": { "type": "string" },
+        "subscriptionPlan": { "type": "string" },
+        "subscriptionStatus": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "email", "ownerName", "brandName", "role"]
+    },
+    "subscription_requests": {
+      "title": "subscription_requests",
+      "description": "Plan upgrade requests submitted by users for owner approval",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "brandName": { "type": "string" },
+        "currentPlan": { "type": "string" },
+        "requestedPlan": { "type": "string" },
+        "billingCycle": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "transactionId": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string" },
+        "requestDate": { "type": "string" }
+      },
+      "required": ["id", "userId", "requestedPlan", "status"]
+    }
+  }
+}
