@@ -1,0 +1,208 @@
+import React, { useState } from 'react';
+import { useApp } from '../../context/AppContext';
+import {
+  Home,
+  ShoppingCart,
+  CreditCard,
+  Package,
+  Grid,
+  X,
+  ShoppingBag,
+  Receipt,
+  FileSpreadsheet,
+  Boxes,
+  Users,
+  Truck,
+  QrCode,
+  Sparkles,
+  Settings,
+  AlertTriangle,
+  Tags,
+  Zap,
+  History,
+  Shield,
+  HelpCircle,
+  HelpCircle as SupportIcon,
+  Info,
+} from 'lucide-react';
+
+export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSidebar }) => {
+  const { activeTab, setActiveTab, language } = useApp();
+  const [showAllMenuSheet, setShowAllMenuSheet] = useState(false);
+
+  const handleSelectTab = (tabId: string) => {
+    setActiveTab(tabId);
+    setShowAllMenuSheet(false);
+  };
+
+  const isBn = language === 'bn';
+
+  // Feature Categories for Mobile Sheet
+  const featureCategories = [
+    {
+      title: isBn ? 'বিক্রয় সমূহের তালিকা' : 'Sales Operations',
+      items: [
+        { id: 'quicksale', name: isBn ? 'কুইক সেল' : 'Quick Sale', icon: Zap, color: 'bg-[#ff5c01]/10 text-[#ff5c01] dark:bg-[#ff5c01]/20' },
+        { id: 'pos', name: isBn ? 'পস রেজিস্টার' : 'POS Register', icon: ShoppingCart, color: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400' },
+        { id: 'saleshistory', name: isBn ? 'বিক্রয় হিস্ট্রি' : 'Sales History', icon: History, color: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400' },
+        { id: 'due', name: isBn ? 'বকেয়া হিসাব' : 'Customer Dues', icon: CreditCard, color: 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400' },
+      ],
+    },
+    {
+      title: isBn ? 'আপনার ব্যবসার জন্য (Business Tools)' : 'Business Tools',
+      items: [
+        { id: 'stock', name: isBn ? 'স্টকের হিসাব' : 'Stock Audit', icon: Boxes, color: 'bg-purple-50 text-purple-600 dark:bg-purple-950/60 dark:text-purple-400' },
+        { id: 'expired', name: isBn ? 'মেয়াদোত্তীর্ণ পণ্য' : 'Expiry Products', icon: AlertTriangle, color: 'bg-red-50 text-red-600 dark:bg-red-950/60 dark:text-red-400' },
+        { id: 'ai', name: isBn ? 'AI ইনসাইট' : 'AI Insights', icon: Sparkles, color: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400' },
+        { id: 'reports', name: isBn ? 'ব্যবসার রিপোর্ট' : 'Business Reports', icon: FileSpreadsheet, color: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400' },
+      ],
+    },
+    {
+      title: isBn ? 'অন্যান্য সুবিধাসমূহ (Other Utilities)' : 'Other Utilities',
+      items: [
+        { id: 'products', name: isBn ? 'প্রোডাক্ট লিস্ট' : 'Product Catalog', icon: Package, color: 'bg-sky-50 text-sky-600 dark:bg-sky-950/60 dark:text-sky-400' },
+        { id: 'categories', name: isBn ? 'ক্যাটাগরি' : 'Categories', icon: Tags, color: 'bg-teal-50 text-teal-600 dark:bg-teal-950/60 dark:text-teal-400' },
+        { id: 'customers', name: isBn ? 'কাস্টমার লিস্ট' : 'Customers', icon: Users, color: 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400' },
+        { id: 'suppliers', name: isBn ? 'সাপ্লায়ার' : 'Suppliers', icon: Truck, color: 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400' },
+        { id: 'barcode', name: isBn ? 'বারকোড জেনারেটর' : 'Barcode Print', icon: QrCode, color: 'bg-[#ff5c01]/10 text-[#ff5c01]' },
+        { id: 'settings', name: isBn ? 'সেটিংস' : 'Settings', icon: Settings, color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200' },
+        { id: 'help', name: isBn ? 'হেল্প ও সাপোর্ট' : 'Help & Support', icon: HelpCircle, color: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400' },
+        { id: 'about', name: isBn ? 'সম্পর্কে (About)' : 'About', icon: Info, color: 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400' },
+      ],
+    },
+  ];
+
+  return (
+    <>
+      {/* Bottom Bar for Mobile */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-white/95 dark:bg-[#0c0c0e]/95 backdrop-blur-md border-t border-slate-200/80 dark:border-slate-800 px-2 py-1.5 flex items-center justify-around shadow-2xl">
+        {/* Home */}
+        <button
+          onClick={() => handleSelectTab('dashboard')}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
+            activeTab === 'dashboard'
+              ? 'text-[#ff5c01] font-bold bg-[#ff5c01]/10'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800'
+          }`}
+        >
+          <Home className="w-5 h-5" />
+          <span className="text-[10px]">{isBn ? 'হোম' : 'Home'}</span>
+        </button>
+
+        {/* Customer Dues */}
+        <button
+          onClick={() => handleSelectTab('due')}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
+            activeTab === 'due'
+              ? 'text-[#ff5c01] font-bold bg-[#ff5c01]/10'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800'
+          }`}
+        >
+          <CreditCard className="w-5 h-5" />
+          <span className="text-[10px]">{isBn ? 'বকেয়া' : 'Dues'}</span>
+        </button>
+
+        {/* Center Prominent POS / Sell Button */}
+        <button
+          onClick={() => handleSelectTab('pos')}
+          className="flex flex-col items-center justify-center -mt-5 w-13 h-13 rounded-2xl bg-[#ff5c01] text-white shadow-xl shadow-[#ff5c01]/35 hover:scale-105 active:scale-95 transition-all cursor-pointer ring-4 ring-white dark:ring-[#0c0c0e]"
+          title="POS Counter"
+        >
+          <ShoppingCart className="w-6 h-6" />
+          <span className="text-[9px] font-black uppercase tracking-tight">{isBn ? 'বেচা' : 'Sell'}</span>
+        </button>
+
+        {/* Stock / Products */}
+        <button
+          onClick={() => handleSelectTab('products')}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
+            activeTab === 'products'
+              ? 'text-[#ff5c01] font-bold bg-[#ff5c01]/10'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800'
+          }`}
+        >
+          <Package className="w-5 h-5" />
+          <span className="text-[10px]">{isBn ? 'স্টক' : 'Stock'}</span>
+        </button>
+
+        {/* All Functions Grid Sheet Button */}
+        <button
+          onClick={() => setShowAllMenuSheet(true)}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
+            showAllMenuSheet
+              ? 'text-[#ff5c01] font-bold bg-[#ff5c01]/10'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800'
+          }`}
+        >
+          <Grid className="w-5 h-5" />
+          <span className="text-[10px]">{isBn ? 'মেন্যু' : 'Menu'}</span>
+        </button>
+      </div>
+
+      {/* All Functions Sheet Modal on Mobile */}
+      {showAllMenuSheet && (
+        <div className="fixed inset-0 z-50 lg:hidden bg-slate-950/70 backdrop-blur-xs flex flex-col justify-end transition-all animate-fade-in">
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-slate-900 rounded-t-3xl border-t border-slate-200 dark:border-slate-800 p-5 max-h-[85vh] overflow-y-auto space-y-5 shadow-2xl"
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <Grid className="w-5 h-5 text-[#ff5c01]" />
+                <h3 className="font-black text-base text-slate-900 dark:text-white">
+                  {isBn ? 'সকল ফিচার ও সার্ভিস' : 'All App Functions'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowAllMenuSheet(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Function Categories */}
+            {featureCategories.map((group, gIdx) => (
+              <div key={gIdx} className="space-y-2.5">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  {group.title}
+                </h4>
+                <div className="grid grid-cols-4 gap-3">
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => handleSelectTab(item.id)}
+                        className="flex flex-col items-center text-center p-2 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all cursor-pointer group"
+                      >
+                        <div className={`w-11 h-11 rounded-2xl ${item.color} flex items-center justify-center mb-1.5 shadow-xs group-active:scale-95 transition-transform`}>
+                          <Icon className="w-5 h-5" />
+                        </div>
+                        <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 leading-tight">
+                          {item.name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+            {/* Bottom Close Button */}
+            <div className="pt-2">
+              <button
+                onClick={() => setShowAllMenuSheet(false)}
+                className="w-full py-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-xs uppercase tracking-wider"
+              >
+                {isBn ? 'বন্ধ করুন' : 'Close Sheet'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+

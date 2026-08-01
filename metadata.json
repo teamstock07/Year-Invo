@@ -1,0 +1,6 @@
+{
+  "name": "YearInvo by Year Media",
+  "description": "Complete Business Management Web Application by Year Media with Inventory, POS, Sales, Expense, Due Management, Multi-language (English & Bengali), Barcode/QR generator, and AI Business Insights.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

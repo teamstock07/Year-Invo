@@ -1,0 +1,949 @@
+import React, { useState, useEffect } from 'react';
+import { useApp } from '../../context/AppContext';
+import { Product, Sale } from '../../types';
+import { ReceiptModal } from './ReceiptModal';
+import {
+  ShoppingCart,
+  Search,
+  QrCode,
+  Plus,
+  Minus,
+  Trash2,
+  UserPlus,
+  CreditCard,
+  Banknote,
+  Smartphone,
+  CheckCircle,
+  Tag,
+  Boxes,
+  Camera,
+  X,
+  User,
+  AlertCircle,
+  CheckSquare,
+  Square,
+  Lock,
+  Monitor,
+  Landmark,
+  FileSpreadsheet,
+  Scan,
+  Volume2,
+} from 'lucide-react';
+
+export const PosSystem: React.FC = () => {
+  const {
+    user,
+    setActiveTab,
+    products,
+    categories,
+    customers,
+    cart,
+    addToCart,
+    removeFromCart,
+    updateCartQuantity,
+    clearCart,
+    checkoutPOS,
+    addCustomer,
+    settings,
+    t,
+  } = useApp();
+
+  const plan = user?.subscriptionPlan || 'Free';
+  const isProOrPremium = plan === 'Pro' || plan === 'Tier2' || plan === 'Premium' || plan === 'Business' || plan === 'Lifetime';
+  const isPremiumPlan = plan === 'Premium' || plan === 'Business' || plan === 'Lifetime';
+
+  const symbol = settings.currency || '৳';
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [discountAmount, setDiscountAmount] = useState<number>(0);
+  const [taxPercent, setTaxPercent] = useState<number>(settings.taxRatePercent || 0);
+  const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Card' | 'bKash/Mobile' | 'Due/Credit'>('Cash');
+  const [paidAmountInput, setPaidAmountInput] = useState<string>('');
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [completedSale, setCompletedSale] = useState<Sale | null>(null);
+  const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+  const [showCustomerDisplay, setShowCustomerDisplay] = useState(false);
+  const [drawerOpenMessage, setDrawerOpenMessage] = useState(false);
+  const [isQrPaymentModalOpen, setIsQrPaymentModalOpen] = useState(false);
+
+  // Multi-Select Products State
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState<boolean>(false);
+
+  // Quick Customer Add Modal State
+  const [isAddCustModalOpen, setIsAddCustModalOpen] = useState(false);
+  const [newCustName, setNewCustName] = useState('');
+  const [newCustPhone, setNewCustPhone] = useState('');
+
+  // Audio Beep Sound helper
+  const playBeepSound = () => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1200, ctx.currentTime);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.1);
+    } catch (e) {}
+  };
+
+  // Hardware Barcode Scanner Keyboard Listener
+  useEffect(() => {
+    let barcodeBuffer = '';
+    let lastKeyTime = Date.now();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing inside text input or textarea
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) {
+        return;
+      }
+
+      const currentTime = Date.now();
+      if (currentTime - lastKeyTime > 120) {
+        barcodeBuffer = '';
+      }
+      lastKeyTime = currentTime;
+
+      if (e.key === 'Enter') {
+        if (barcodeBuffer.trim()) {
+          const code = barcodeBuffer.trim();
+          const matchedProd = products.find(
+            (p) => p.barcode === code || p.sku === code
+          );
+          if (matchedProd) {
+            const todayStr = new Date().toISOString().split('T')[0];
+            if (matchedProd.expiryDate && matchedProd.expiryDate <= todayStr) {
+              alert(`Product "${matchedProd.name}" has expired and cannot be sold.`);
+            } else {
+              addToCart(matchedProd);
+              playBeepSound();
+            }
+          }
+          barcodeBuffer = '';
+        }
+      } else if (e.key.length === 1) {
+        barcodeBuffer += e.key;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [products, addToCart]);
+
+  // Filter Products
+  const filteredProducts = products.filter((p) => {
+    const matchesSearch =
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.barcode.includes(searchQuery);
+
+    const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const toggleSelectProduct = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setSelectedProductIds((prev) =>
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
+    );
+  };
+
+  const handleAddSelectedToCart = () => {
+    if (selectedProductIds.length === 0) return;
+    const todayStr = new Date().toISOString().split('T')[0];
+    selectedProductIds.forEach((id) => {
+      const prod = products.find((p) => p.id === id);
+      if (prod) {
+        if (prod.expiryDate && prod.expiryDate <= todayStr) {
+          alert(`Product "${prod.name}" has expired and cannot be sold.`);
+        } else {
+          addToCart(prod);
+        }
+      }
+    });
+    setSelectedProductIds([]);
+  };
+
+  const toggleSelectAllFiltered = () => {
+    if (selectedProductIds.length === filteredProducts.length) {
+      setSelectedProductIds([]);
+    } else {
+      setSelectedProductIds(filteredProducts.map((p) => p.id));
+    }
+  };
+
+  // Cart Calculations
+  const subtotal = cart.reduce((acc, item) => acc + item.product.sellingPrice * item.quantity, 0);
+  const taxAmount = Math.round((subtotal * taxPercent) / 100);
+  const grandTotal = Math.max(0, subtotal - discountAmount + taxAmount);
+
+  // Calculate actual paid amount based on user input or payment method
+  const numericPaid = paidAmountInput === '' ? (paymentMethod === 'Due/Credit' ? 0 : grandTotal) : Math.max(0, Number(paidAmountInput));
+  const remainingDue = Math.max(0, grandTotal - numericPaid);
+  const changeReturn = Math.max(0, numericPaid - grandTotal);
+
+  const selectedCustomerObj = customers.find((c) => c.id === selectedCustomerId);
+
+  // Sync default paid amount when grandTotal or paymentMethod changes
+  useEffect(() => {
+    if (paymentMethod === 'Due/Credit') {
+      setPaidAmountInput('0');
+    } else {
+      setPaidAmountInput(grandTotal.toString());
+    }
+  }, [grandTotal, paymentMethod]);
+
+  const handleCheckout = () => {
+    if (cart.length === 0) {
+      alert('Cart is empty! Add products to proceed.');
+      return;
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const expiredItem = cart.find(
+      (item) => item.product.expiryDate && item.product.expiryDate <= todayStr
+    );
+    if (expiredItem) {
+      alert(`"${expiredItem.product.name}" has expired and cannot be sold. Please remove it from the cart.`);
+      return;
+    }
+
+    if (remainingDue > 0 && !selectedCustomerId) {
+      alert('A remaining due balance of ' + symbol + remainingDue.toLocaleString() + ' requires choosing a registered customer! Please select or add a customer.');
+      return;
+    }
+
+    const sale = checkoutPOS({
+      customerId: selectedCustomerId || undefined,
+      customerName: selectedCustomerObj ? selectedCustomerObj.name : 'Walk-in Customer',
+      customerPhone: selectedCustomerObj ? selectedCustomerObj.phone : undefined,
+      discount: discountAmount,
+      tax: taxPercent,
+      paymentMethod,
+      cashReceived: numericPaid,
+    });
+
+    setCompletedSale(sale);
+    setIsReceiptOpen(true);
+    setDiscountAmount(0);
+    setPaidAmountInput('');
+  };
+
+  const handleAddQuickCustomer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCustName) return;
+    addCustomer({ name: newCustName, phone: newCustPhone });
+    setNewCustName('');
+    setNewCustPhone('');
+    setIsAddCustModalOpen(false);
+  };
+
+  if (!isProOrPremium) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center p-4">
+        <div className="max-w-xl w-full p-8 rounded-3xl bg-white dark:bg-slate-900 border-2 border-[#ff5c01]/30 shadow-2xl text-center space-y-6">
+          <div className="w-16 h-16 rounded-2xl bg-[#ff5c01] text-white flex items-center justify-center mx-auto shadow-lg shadow-[#ff5c01]/20">
+            <ShoppingCart className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ff5c01]/10 text-[#ff5c01] text-xs font-bold border border-[#ff5c01]/20">
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>POS System Requires Pro or Premium Plan</span>
+            </div>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100">
+              Upgrade Your Plan to Access POS System
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
+              You are currently on the <strong className="text-slate-800 dark:text-slate-200">{plan} Plan</strong>. 
+              The Free Plan includes <strong className="text-[#ff5c01]">Quick Sale</strong> and basic sales transactions. To unlock the full <strong className="text-slate-900 dark:text-white">POS Register</strong> for supermarkets and large businesses, upgrade to <strong className="text-[#ff5c01]">Pro</strong> or <strong className="text-[#ff5c01]">Premium</strong>.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 text-left space-y-2 text-xs text-slate-700 dark:text-slate-300">
+            <div className="font-bold text-slate-900 dark:text-slate-100 text-center mb-2">
+              🚀 Upgrade Plan Access Comparison:
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+              <div className="flex items-start gap-2">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                <span><strong>Pro Plan:</strong> Unlocks POS System Register + Sales Reports</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                <span><strong>Premium Plan:</strong> Full POS + Barcode Scanner + QR Payments &amp; Code Print</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              type="button"
+              onClick={() => setActiveTab('subscription')}
+              className="px-6 py-3 rounded-xl bg-[#ff5c01] hover:bg-[#e05100] text-white font-black text-xs shadow-lg shadow-[#ff5c01]/20 cursor-pointer transition-all"
+            >
+              🚀 View Subscription Plans &amp; Upgrade
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[calc(100vh-6rem)]">
+      {/* Left Column: Product Search & Grid (7 cols) */}
+      <div className="lg:col-span-7 flex flex-col h-full bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs relative">
+        {/* Top Search, Barcode & Scanner Mode Trigger */}
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <div className="relative flex-1 min-w-[160px]">
+            <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSearchQuery(val);
+                // Instant barcode match check
+                if (val.trim()) {
+                  const exactMatch = products.find((p) => p.barcode === val.trim() || p.sku === val.trim());
+                  if (exactMatch) {
+                    addToCart(exactMatch);
+                    playBeepSound();
+                    setSearchQuery('');
+                  }
+                }
+              }}
+              placeholder={t('searchPosPlaceholder') + " (or scan barcode)"}
+              className="w-full pl-10 pr-4 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-hidden focus:border-[#ff5c01] text-slate-800 dark:text-slate-100 font-medium"
+            />
+          </div>
+
+          <button
+            onClick={() => {
+              setIsMultiSelectMode(!isMultiSelectMode);
+              if (isMultiSelectMode) setSelectedProductIds([]);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+              isMultiSelectMode || selectedProductIds.length > 0
+                ? 'bg-[#ff5c01]/10 text-[#ff5c01] border-[#ff5c01]/40'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+            }`}
+            title="Toggle Multi-Select Mode"
+          >
+            <CheckSquare className="w-4 h-4" />
+            <span className="hidden sm:inline">Multi-Select</span>
+            {selectedProductIds.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.2 bg-[#ff5c01] text-white rounded-full text-[10px] font-black">
+                {selectedProductIds.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => {
+              if (!isPremiumPlan) {
+                alert('Camera Barcode Scanner is a Premium Plan feature. Please upgrade your subscription.');
+                return;
+              }
+              setIsScannerOpen(true);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              isPremiumPlan
+                ? 'bg-[#ff5c01] text-white hover:bg-[#e05100] shadow-md shadow-[#ff5c01]/20'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700'
+            }`}
+            title={isPremiumPlan ? 'Scan Barcode / QR Code' : 'Barcode Scanner (Premium Feature)'}
+          >
+            {isPremiumPlan ? <Camera className="w-4 h-4" /> : <Lock className="w-4 h-4 text-amber-500" />}
+            <span className="hidden sm:inline">{t('scanBarcode')}</span>
+          </button>
+
+          <button
+            onClick={() => setShowCustomerDisplay(!showCustomerDisplay)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+              showCustomerDisplay
+                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+            }`}
+            title="Customer Display Screen"
+          >
+            <Monitor className="w-4 h-4" />
+            <span className="hidden md:inline">Display</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setDrawerOpenMessage(true);
+              setTimeout(() => setDrawerOpenMessage(false), 3000);
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 cursor-pointer"
+            title="Open Cash Drawer"
+          >
+            <Landmark className="w-4 h-4 text-[#ff5c01]" />
+            <span className="hidden md:inline">Drawer</span>
+          </button>
+        </div>
+
+        {/* Hardware Scanner Active Status Badge */}
+        <div className="flex items-center justify-between px-3 py-1.5 mb-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 font-medium">
+          <div className="flex items-center gap-1.5">
+            <Scan className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+            <span>Hardware Barcode Scanner Ready (USB / Bluetooth)</span>
+          </div>
+          <div className="flex items-center gap-1 text-[10px] text-emerald-500 font-bold">
+            <Volume2 className="w-3 h-3" />
+            <span>Audio Beep On</span>
+          </div>
+        </div>
+
+        {drawerOpenMessage && (
+          <div className="p-2 mb-2 rounded-xl bg-emerald-500 text-white text-xs font-extrabold flex items-center justify-between shadow-md animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <Landmark className="w-4 h-4" />
+              <span>Cash Drawer Signal Triggered</span>
+            </div>
+            <span className="text-[10px] uppercase font-mono">READY</span>
+          </div>
+        )}
+
+        {/* Multi-Select Action Sub-Bar */}
+        {(isMultiSelectMode || selectedProductIds.length > 0) && (
+          <div className="p-2.5 mb-3 bg-[#ff5c01]/10 dark:bg-[#ff5c01]/15 border border-[#ff5c01]/30 rounded-xl flex items-center justify-between gap-2 text-xs">
+            <button
+              onClick={toggleSelectAllFiltered}
+              className="font-bold text-slate-800 dark:text-slate-200 hover:text-[#ff5c01] flex items-center gap-1 cursor-pointer"
+            >
+              {selectedProductIds.length === filteredProducts.length ? (
+                <CheckSquare className="w-4 h-4 text-[#ff5c01]" />
+              ) : (
+                <Square className="w-4 h-4 text-slate-400" />
+              )}
+              <span>Select All ({filteredProducts.length})</span>
+            </button>
+
+            <button
+              onClick={handleAddSelectedToCart}
+              disabled={selectedProductIds.length === 0}
+              className="px-3 py-1.5 bg-[#ff5c01] hover:bg-[#e05100] disabled:bg-slate-300 dark:disabled:bg-slate-800 text-white font-bold rounded-lg shadow-sm text-xs transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Selected ({selectedProductIds.length}) to Cart</span>
+            </button>
+          </div>
+        )}
+
+        {/* Category Pills Slider */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-3 custom-scrollbar">
+          <button
+            onClick={() => setSelectedCategory('All')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+              selectedCategory === 'All'
+                ? 'bg-[#ff5c01] text-white shadow-xs'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            All Items
+          </button>
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.name)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                selectedCategory === cat.name
+                  ? 'bg-[#ff5c01] text-white shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              {cat.name}
+            </button>
+          ))}
+        </div>
+
+        {/* High-Density Supermarket Product Grid */}
+        <div className="flex-1 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 content-start items-start pr-1 custom-scrollbar min-h-80">
+          {filteredProducts.map((prod) => {
+            const isSelected = selectedProductIds.includes(prod.id);
+            const cartItem = cart.find((item) => item.product.id === prod.id);
+            const todayStr = new Date().toISOString().split('T')[0];
+            const isExpired = Boolean(prod.expiryDate && prod.expiryDate <= todayStr);
+
+            return (
+              <div
+                key={prod.id}
+                onClick={(e) => {
+                  if (isExpired) {
+                    alert('This product has expired and cannot be sold.');
+                    return;
+                  }
+                  if (isMultiSelectMode) {
+                    toggleSelectProduct(prod.id, e);
+                  } else {
+                    addToCart(prod);
+                    playBeepSound();
+                  }
+                }}
+                className={`group relative p-2.5 rounded-xl border transition-all flex flex-col justify-start hover:shadow-md h-auto ${
+                  isExpired
+                    ? 'bg-rose-50/80 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 cursor-not-allowed opacity-90'
+                    : isSelected
+                    ? 'border-[#ff5c01] bg-[#ff5c01]/5 ring-2 ring-[#ff5c01]/20 cursor-pointer'
+                    : 'bg-slate-50/70 dark:bg-slate-800/60 border-slate-200/70 dark:border-slate-700/60 hover:border-[#ff5c01]/60 cursor-pointer'
+                }`}
+              >
+                {/* Multi-Select Checkbox Badge */}
+                <div
+                  onClick={(e) => {
+                    if (isExpired) {
+                      e.stopPropagation();
+                      alert('This product has expired and cannot be sold.');
+                      return;
+                    }
+                    toggleSelectProduct(prod.id, e);
+                  }}
+                  className="absolute top-2 left-2 z-10 cursor-pointer"
+                >
+                  {isSelected ? (
+                    <div className="w-5 h-5 rounded-md bg-[#ff5c01] text-white flex items-center justify-center shadow-sm">
+                      <CheckSquare className="w-3.5 h-3.5" />
+                    </div>
+                  ) : isMultiSelectMode && !isExpired ? (
+                    <div className="w-5 h-5 rounded-md bg-white/90 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 flex items-center justify-center shadow-xs">
+                      <Square className="w-3.5 h-3.5 text-slate-400" />
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Status Badges: Expired vs In Cart */}
+                {isExpired ? (
+                  <div className="absolute top-2 right-2 z-10 px-2 py-0.5 rounded-full bg-rose-600 text-white font-black text-[9px] uppercase shadow-sm tracking-wide">
+                    EXPIRED
+                  </div>
+                ) : cartItem ? (
+                  <div className="absolute top-2 right-2 z-10 px-2 py-0.5 rounded-full bg-emerald-500 text-white font-black text-[10px] shadow-sm">
+                    x{cartItem.quantity}
+                  </div>
+                ) : null}
+
+                {/* Compact Product Image */}
+                <div className="h-24 w-full rounded-lg overflow-hidden bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-700/60 mb-2">
+                  <img
+                    src={prod.imageUrl || 'https://images.unsplash.com/photo-1587049352847-4a222e784d38?auto=format&fit=crop&q=80&w=200'}
+                    alt={prod.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                  />
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-xs text-slate-800 dark:text-slate-100 line-clamp-2 leading-tight min-h-[2rem]">
+                    {prod.name}
+                  </h4>
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">#{prod.barcode || prod.sku}</p>
+
+                  <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-slate-200/40 dark:border-slate-700/40">
+                    <span className={`font-black text-xs ${isExpired ? 'text-rose-600 dark:text-rose-400' : 'text-[#ff5c01]'}`}>
+                      {symbol} {prod.sellingPrice}
+                    </span>
+                    {!isExpired && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          addToCart(prod);
+                          playBeepSound();
+                        }}
+                        className="p-1 rounded-md bg-[#ff5c01]/10 hover:bg-[#ff5c01] text-[#ff5c01] hover:text-white transition-colors"
+                        title="Add to Cart"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Right Column: POS Cart & Checkout Panel (5 cols) */}
+      <div className="lg:col-span-5 flex flex-col h-full bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-3">
+        {/* Customer Selector & Quick Add */}
+        <div className="flex items-center gap-2 mb-1 pb-2 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2 flex-1 bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+            <User className="w-4 h-4 text-[#ff5c01]" />
+            <select
+              value={selectedCustomerId}
+              onChange={(e) => setSelectedCustomerId(e.target.value)}
+              className="flex-1 text-xs font-bold bg-transparent text-slate-800 dark:text-slate-100 focus:outline-hidden"
+            >
+              <option value="">Walk-in Customer</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.phone || 'No Phone'}) {c.dueAmount > 0 ? `[Due: ${symbol}${c.dueAmount}]` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={() => setIsAddCustModalOpen(true)}
+            className="p-2 bg-[#ff5c01]/10 hover:bg-[#ff5c01] text-[#ff5c01] hover:text-white rounded-xl transition-colors cursor-pointer"
+            title="Quick Add Customer"
+          >
+            <UserPlus className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Cart Items List */}
+        <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 pr-1 custom-scrollbar max-h-48">
+          {cart.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-slate-400 text-center py-8">
+              <ShoppingCart className="w-9 h-9 mb-2 stroke-1 opacity-40" />
+              <p className="text-xs font-semibold">{t('emptyCart')}</p>
+            </div>
+          ) : (
+            cart.map((item) => {
+              const todayStr = new Date().toISOString().split('T')[0];
+              const isItemExpired = Boolean(item.product.expiryDate && item.product.expiryDate <= todayStr);
+
+              return (
+                <div key={item.product.id} className={`py-2 px-1 flex items-center justify-between gap-3 text-xs ${isItemExpired ? 'bg-rose-50/80 dark:bg-rose-950/40 rounded-xl border border-rose-300 dark:border-rose-800 my-1' : ''}`}>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <h5 className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate">
+                        {item.product.name}
+                      </h5>
+                    </div>
+                    <span className="text-[10px] text-slate-400">
+                      {symbol} {item.product.sellingPrice} × {item.quantity} ={' '}
+                      <strong className="text-slate-700 dark:text-slate-300">
+                        {symbol} {item.product.sellingPrice * item.quantity}
+                      </strong>
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => updateCartQuantity(item.product.id, item.quantity - 1)}
+                      className="p-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+                    >
+                      <Minus className="w-3 h-3" />
+                    </button>
+                    <span className="w-5 text-center text-xs font-bold text-slate-800 dark:text-slate-100">
+                      {item.quantity}
+                    </span>
+                    <button
+                      onClick={() => {
+                        if (isItemExpired) {
+                          alert('This product has expired and cannot be sold.');
+                          return;
+                        }
+                        updateCartQuantity(item.product.id, item.quantity + 1);
+                      }}
+                      disabled={isItemExpired}
+                      className="p-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => removeFromCart(item.product.id)}
+                    className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Checkout Summary & Payment Options */}
+        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+          {/* Quick Cash Tender Hotkeys */}
+          {cart.length > 0 && (
+            <div>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                Quick Cash Tender
+              </span>
+              <div className="grid grid-cols-4 gap-1.5">
+                {[
+                  { label: 'Exact', amount: grandTotal },
+                  { label: symbol + '100', amount: 100 },
+                  { label: symbol + '500', amount: 500 },
+                  { label: symbol + '1000', amount: 1000 },
+                ].map((tender, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => {
+                      setPaymentMethod('Cash');
+                      setPaidAmountInput(tender.amount.toString());
+                    }}
+                    className="py-1 px-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-[#ff5c01] hover:text-white text-slate-700 dark:text-slate-300 text-[10px] font-extrabold border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                  >
+                    {tender.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div>
+              <span className="text-slate-500 font-semibold text-[10px] block">{t('discount')} ({symbol})</span>
+              <input
+                type="number"
+                min="0"
+                value={discountAmount || ''}
+                onChange={(e) => setDiscountAmount(Number(e.target.value))}
+                placeholder="0"
+                className="w-full px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 font-bold"
+              />
+            </div>
+            <div>
+              <span className="text-slate-500 font-semibold text-[10px] block">{t('tax')} (%)</span>
+              <input
+                type="number"
+                min="0"
+                value={taxPercent || ''}
+                onChange={(e) => setTaxPercent(Number(e.target.value))}
+                placeholder="0"
+                className="w-full px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 font-bold"
+              />
+            </div>
+          </div>
+
+          {/* Payment Method Radio Pills */}
+          <div>
+            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">{t('paymentMethod')}</span>
+            <div className="grid grid-cols-4 gap-1.5">
+              {[
+                { id: 'Cash', label: 'Cash', icon: Banknote },
+                { id: 'bKash/Mobile', label: 'QR / bKash', icon: Smartphone, isPremiumOnly: true },
+                { id: 'Card', label: 'Card', icon: CreditCard },
+                { id: 'Due/Credit', label: 'Due/Credit', icon: Tag },
+              ].map((pm) => {
+                const Icon = pm.icon;
+                const isSelected = paymentMethod === pm.id;
+                return (
+                  <button
+                    key={pm.id}
+                    onClick={() => {
+                      if (pm.isPremiumOnly && !isPremiumPlan) {
+                        alert('QR Payment & Mobile Banking is a Premium Plan feature. Please upgrade to Premium.');
+                        return;
+                      }
+                      setPaymentMethod(pm.id as any);
+                      if (pm.id === 'bKash/Mobile') {
+                        setIsQrPaymentModalOpen(true);
+                      }
+                    }}
+                    className={`py-1.5 px-1 rounded-xl text-[10px] font-bold flex flex-col items-center justify-center gap-1 border transition-all cursor-pointer relative ${
+                      isSelected
+                        ? 'bg-[#ff5c01] text-white border-[#ff5c01] shadow-xs'
+                        : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    {pm.isPremiumOnly && !isPremiumPlan && (
+                      <span className="absolute top-0.5 right-0.5 px-1 py-0.2 bg-amber-500 text-white rounded text-[8px] font-black">
+                        PRO+
+                      </span>
+                    )}
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{pm.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Amount Paid & Remaining Due Live Calculation */}
+          <div className="p-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-slate-700 dark:text-slate-300">Paid Amount ({symbol}):</span>
+              <input
+                type="number"
+                min="0"
+                value={paidAmountInput}
+                onChange={(e) => setPaidAmountInput(e.target.value)}
+                placeholder={grandTotal.toString()}
+                className="w-28 px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-right font-black text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-[#ff5c01]"
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+              <span className="font-medium text-slate-500">Remaining Due:</span>
+              <span className={`font-black ${remainingDue > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`}>
+                {symbol} {remainingDue.toLocaleString()}
+              </span>
+            </div>
+
+            {changeReturn > 0 && (
+              <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                <span className="font-medium text-slate-500">Change Return:</span>
+                <span className="font-black text-amber-500">{symbol} {changeReturn.toLocaleString()}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Grand Total Bar */}
+          <div className="p-3 rounded-xl bg-slate-950 text-white flex items-center justify-between">
+            <div>
+              <span className="text-[10px] uppercase text-slate-400 font-bold block">{t('grandTotal')}</span>
+              <span className="text-xl font-black text-[#ff5c01]">
+                {symbol} {grandTotal.toLocaleString()}
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="text-[10px] text-slate-400 block font-semibold">Net Received</span>
+              <span className="text-xs font-bold text-emerald-400">
+                {symbol} {numericPaid.toLocaleString()}
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={handleCheckout}
+            disabled={cart.length === 0}
+            className="w-full py-3 bg-[#ff5c01] hover:bg-[#e05100] disabled:bg-slate-300 dark:disabled:bg-slate-800 disabled:text-slate-500 text-white font-black text-xs rounded-xl shadow-lg shadow-[#ff5c01]/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <CheckCircle className="w-4 h-4" />
+            <span>{t('checkout')}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Camera Barcode Scanner Modal */}
+      {isScannerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
+          <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-800 text-center space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <Camera className="w-4 h-4 text-blue-600" />
+                Barcode / QR Code Scanner
+              </h3>
+              <button onClick={() => setIsScannerOpen(false)} className="text-slate-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="relative aspect-video bg-slate-950 rounded-2xl flex items-center justify-center border-2 border-dashed border-blue-500/50 overflow-hidden">
+              <div className="absolute inset-0 bg-blue-500/10 animate-pulse" />
+              <span className="text-xs text-blue-400 font-bold z-10">Point camera at product barcode...</span>
+            </div>
+
+            <p className="text-xs text-slate-500">Or pick a test barcode item from catalog:</p>
+            <div className="flex flex-wrap gap-1.5 justify-center">
+              {products.slice(0, 4).map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => {
+                    addToCart(p);
+                    playBeepSound();
+                    setIsScannerOpen(false);
+                  }}
+                  className="px-2.5 py-1 rounded-lg text-[10px] font-mono bg-slate-100 dark:bg-slate-800 text-blue-600"
+                >
+                  #{p.barcode || p.sku}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* QR Code Payment Modal */}
+      {isQrPaymentModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4">
+          <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                <QrCode className="w-4 h-4 text-[#ff5c01]" />
+                bKash / Mobile QR Payment
+              </h3>
+              <button onClick={() => setIsQrPaymentModalOpen(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl inline-block shadow-inner mx-auto">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=BKASH-PAYMENT-${grandTotal}`}
+                alt="QR Payment"
+                className="w-44 h-44 mx-auto"
+              />
+            </div>
+
+            <div className="space-y-1 text-xs">
+              <p className="font-bold text-white">Scan to pay: <span className="text-[#ff5c01] text-base font-black">{symbol}{grandTotal}</span></p>
+              <p className="text-[11px] text-slate-400">bKash / Nagad Merchant QR Code</p>
+            </div>
+
+            <button
+              onClick={() => setIsQrPaymentModalOpen(false)}
+              className="w-full py-2.5 bg-[#ff5c01] text-white font-bold text-xs rounded-xl cursor-pointer"
+            >
+              Confirm QR Payment Received
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add Customer Modal */}
+      {isAddCustModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
+          <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 space-y-4">
+            <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">Add Quick Customer</h3>
+            <form onSubmit={handleAddQuickCustomer} className="space-y-3">
+              <input
+                type="text"
+                required
+                placeholder="Customer Name *"
+                value={newCustName}
+                onChange={(e) => setNewCustName(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+              />
+              <input
+                type="text"
+                placeholder="Mobile Number"
+                value={newCustPhone}
+                onChange={(e) => setNewCustPhone(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+              />
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddCustModalOpen(false)}
+                  className="px-3 py-1.5 text-xs font-semibold text-slate-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-blue-600 text-white font-bold text-xs rounded-xl"
+                >
+                  Save
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Printable Receipt Modal */}
+      <ReceiptModal
+        sale={completedSale}
+        isOpen={isReceiptOpen}
+        onClose={() => setIsReceiptOpen(false)}
+      />
+    </div>
+  );
+};
