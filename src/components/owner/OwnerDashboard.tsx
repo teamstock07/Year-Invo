@@ -29,6 +29,8 @@ export const OwnerDashboard: React.FC = () => {
   const {
     user,
     allUsers,
+    updateUserRole,
+    sendFirebasePasswordReset,
     suspendUser,
     activateUser,
     deleteUser,
@@ -362,8 +364,20 @@ export const OwnerDashboard: React.FC = () => {
                     </div>
 
                     <div className="space-y-0.5">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase block">Phone / Mobile</span>
-                      <span className="font-semibold text-slate-200 block">{u.mobile || 'N/A'}</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase block">User Role</span>
+                      {isOwner ? (
+                        <span className="font-black text-amber-300 uppercase block">Platform Owner</span>
+                      ) : (
+                        <select
+                          value={u.role || 'Manager'}
+                          onChange={(e) => updateUserRole(u.id, e.target.value as any)}
+                          className="bg-slate-900 border border-slate-700 text-xs font-bold text-[#a78bfa] rounded-lg px-2 py-0.5 focus:outline-none cursor-pointer w-full"
+                        >
+                          <option value="Owner">Owner</option>
+                          <option value="Manager">Manager</option>
+                          <option value="Staff">Staff</option>
+                        </select>
+                      )}
                     </div>
 
                     <div className="space-y-0.5">
@@ -380,7 +394,7 @@ export const OwnerDashboard: React.FC = () => {
                   {/* Actions Bar */}
                   {!isOwner && (
                     <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800/80">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <button
                           onClick={() => setPlanModalUser(u)}
                           className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold border border-slate-700 transition-all cursor-pointer flex items-center gap-1"
@@ -394,7 +408,19 @@ export const OwnerDashboard: React.FC = () => {
                           className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold border border-slate-700 transition-all cursor-pointer flex items-center gap-1"
                         >
                           <Key className="w-3.5 h-3.5 text-amber-400" />
-                          <span>Reset Password</span>
+                          <span>Set Password</span>
+                        </button>
+
+                        <button
+                          onClick={async () => {
+                            const res = await sendFirebasePasswordReset(u.email);
+                            alert(res.message || 'Password reset request sent.');
+                          }}
+                          className="px-2.5 py-1.5 bg-purple-950/60 hover:bg-purple-900/60 text-purple-200 rounded-lg text-xs font-bold border border-purple-800/80 transition-all cursor-pointer flex items-center gap-1"
+                          title="Send Firebase Password Reset Email"
+                        >
+                          <Mail className="w-3.5 h-3.5 text-[#a78bfa]" />
+                          <span>Firebase Reset</span>
                         </button>
                       </div>
 

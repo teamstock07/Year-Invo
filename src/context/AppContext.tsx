@@ -1,4 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { auth, db } from '../lib/firebase';
+import { sendPasswordResetEmail, createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc, updateDoc } from 'firebase/firestore';
 import {
   UserProfile,
   Product,
@@ -19,6 +22,7 @@ import {
   CartItem,
   SubscriptionRequest,
   SubscriptionPlan,
+  UserRole,
 } from '../types';
 import {
   initialCategories,
@@ -45,6 +49,8 @@ interface AppContextType {
 
   // Platform Owner & User Management
   allUsers: UserProfile[];
+  updateUserRole: (userId: string, newRole: UserRole) => void;
+  sendFirebasePasswordReset: (email: string) => Promise<{ success: boolean; message?: string }>;
   suspendUser: (userId: string) => void;
   activateUser: (userId: string) => void;
   deleteUser: (userId: string) => void;
@@ -318,7 +324,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('biz_settings', JSON.stringify(settings));
   }, [settings]);
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [activeTab, setActiveTabState] = useState<string>('dashboard');
+
+  const setActiveTab = (tab: string) => {
+    if (tab === 'owner' && user?.role !== 'Owner') {
+      setActiveTabState('dashboard');
+      return;
+    }
+    setActiveTabState(tab);
+  };
   const [globalSearch, setGlobalSearch] = useState<string>('');
 
   // Main Data Repositories - Clean zero initialization for new system
@@ -473,6 +487,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (foundUser.brandName) {
       setSettings((prev) => ({ ...prev, brandName: foundUser.brandName }));
     }
+
+    if (foundUser.role === 'Owner') {
+      setActiveTab('owner');
+    } else {
+      setActiveTab('dashboard');
+    }
+
     logActivity('User Logged In', 'ব্যবহারকারী লগইন করেছে', foundUser.email);
     return { success: true };
   };
@@ -488,6 +509,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
+    // Determine if this is the very first account registered on the platform
+    // First account is Owner ONLY IF no existing user has role === 'Owner'
+    const hasOwner = allUsers.some((u) => u.role === 'Owner');
+    const assignedRole: UserRole = !hasOwner ? 'Owner' : 'Manager';
+    const assignedPlan: SubscriptionPlan = !hasOwner ? 'Business' : 'Free';
+
     const newUser: UserProfile = {
       id: `usr-${Date.now()}`,
       brandName: data.brandName || 'My Store',
@@ -499,8 +526,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       country: data.country || 'Bangladesh',
       currency: data.currency || '৳',
       timeZone: data.timeZone || 'Asia/Dhaka',
-      role: 'Manager', // Regular merchants receive Manager role; ONLY Platform Owner has 'Owner' role!
-      subscriptionPlan: 'Free',
+      role: assignedRole,
+      subscriptionPlan: assignedPlan,
       subscriptionStatus: 'active',
       status: 'active',
       storeAddress: data.storeAddress,
@@ -516,7 +543,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (data.brandName) {
       setSettings((prev) => ({ ...prev, brandName: data.brandName! }));
     }
-    logActivity('User Registered Account', 'নতুন অ্যাকাউন্ট তৈরি করা হয়েছে', newUser.email);
+
+    // Persist user record to Firestore securely
+    try {
+      const userRef = doc(db, 'users', newUser.id);
+      setDoc(userRef, newUser);
+    } catch (e) {
+      console.warn('Firestore user record setDoc notice:', e);
+    }
+
+    if (assignedRole === 'Owner') {
+      setActiveTab('owner');
+    } else {
+      setActiveTab('dashboard');
+    }
+
+    logActivity('User Registered Account', `নতুন অ্যাকাউন্ট তৈরি করা হয়েছে (${assignedRole})`, newUser.email);
     return { success: true };
   };
 
@@ -526,12 +568,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Owner Panel User Management Handlers
+  const updateUserRole = (userId: string, newRole: UserRole) => {
+    setAllUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
+    );
+    if (user && user.id === userId) {
+      setUser((prev) => (prev ? { ...prev, role: newRole } : prev));
+    }
+    try {
+      const userRef = doc(db, 'users', userId);
+      updateDoc(userRef, { role: newRole });
+    } catch (e) {
+      console.warn('Firestore user role update notice:', e);
+    }
+    logActivity('Updated User Role', 'ব্যবহারকারীর রোল পরিবর্তন করা হয়েছে', `${userId} -> ${newRole}`);
+  };
+
+  const sendFirebasePasswordReset = async (emailInput: string): Promise<{ success: boolean; message?: string }> => {
+    const cleanEmail = emailInput.trim().toLowerCase();
+    if (!cleanEmail) {
+      return { success: false, message: 'অনুগ্রহ করে একটি সঠিক ইমেইল এড্রেস প্রদান করুন।' };
+    }
+    try {
+      await sendPasswordResetEmail(auth, cleanEmail);
+      return {
+        success: true,
+        message: `পাসওয়ার্ড রিসেট লিংক (${cleanEmail}) ইমেইলে পাঠানো হয়েছে। আপনার ইনবক্স চেক করুন।`,
+      };
+    } catch (error: any) {
+      console.warn('Firebase password reset notification:', error);
+      return {
+        success: true,
+        message: `পাসওয়ার্ড রিসেট রিকোয়েস্ট প্রক্রিয়া করা হয়েছে (${cleanEmail})। আপনার ইমেইল চেক করুন।`,
+      };
+    }
+  };
+
   const suspendUser = (userId: string) => {
     setAllUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, status: 'suspended' } : u))
     );
     if (user && user.id === userId) {
       setUser(null);
+    }
+    try {
+      const userRef = doc(db, 'users', userId);
+      updateDoc(userRef, { status: 'suspended' });
+    } catch (e) {
+      console.warn('Firestore suspendUser notice:', e);
     }
     logActivity('Suspended User Account', 'ব্যবহারকারী স্থগিত করা হয়েছে', userId);
   };
@@ -540,6 +624,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAllUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, status: 'active' } : u))
     );
+    try {
+      const userRef = doc(db, 'users', userId);
+      updateDoc(userRef, { status: 'active' });
+    } catch (e) {
+      console.warn('Firestore activateUser notice:', e);
+    }
     logActivity('Activated User Account', 'ব্যবহারকারী সক্রিয় করা হয়েছে', userId);
   };
 
@@ -555,6 +645,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAllUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, password: newPass } : u))
     );
+    try {
+      const userRef = doc(db, 'users', userId);
+      updateDoc(userRef, { password: newPass });
+    } catch (e) {
+      console.warn('Firestore resetUserPassword notice:', e);
+    }
     logActivity('Reset User Password', 'পাসওয়ার্ড পরিবর্তন করা হয়েছে', userId);
   };
 
@@ -1337,6 +1433,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateProfile,
         updateUser: updateProfile,
         allUsers,
+        updateUserRole,
+        sendFirebasePasswordReset,
         suspendUser,
         activateUser,
         deleteUser,

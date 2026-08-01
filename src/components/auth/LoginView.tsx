@@ -29,11 +29,17 @@ import {
 } from 'lucide-react';
 
 export const LoginView: React.FC = () => {
-  const { login, signup, settings, language, setLanguage } = useApp();
+  const { login, signup, sendFirebasePasswordReset, settings, language, setLanguage } = useApp();
 
-  const [mode, setMode] = useState<'landing' | 'login' | 'signup'>('landing');
+  const [mode, setMode] = useState<'landing' | 'login' | 'signup' | 'forgot'>('landing');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  // Forgot password form state
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotMsg, setForgotMsg] = useState('');
+  const [forgotError, setForgotError] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   // Signup form state matching user's requested specification
   const [yourName, setYourName] = useState('');
@@ -49,6 +55,27 @@ export const LoginView: React.FC = () => {
   const [error, setError] = useState('');
 
   const isBn = language === 'bn';
+
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError('');
+    setForgotMsg('');
+
+    if (!forgotEmail.trim()) {
+      setForgotError(isBn ? 'অনুগ্রহ করে ইমেইল এড্রেস প্রদান করুন' : 'Please enter your registered email address');
+      return;
+    }
+
+    setForgotLoading(true);
+    const res = await sendFirebasePasswordReset(forgotEmail);
+    setForgotLoading(false);
+
+    if (res.success) {
+      setForgotMsg(res.message || (isBn ? 'পাসওয়ার্ড রিসেট ইমেইল সফলভাবে পাঠানো হয়েছে।' : 'Password reset link sent to your email.'));
+    } else {
+      setForgotError(res.message || 'Failed to send password reset email.');
+    }
+  };
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -421,9 +448,23 @@ export const LoginView: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-300 mb-1">
-                      Password *
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-slate-300">
+                        Password *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForgotError('');
+                          setForgotMsg('');
+                          setForgotEmail(email);
+                          setMode('forgot');
+                        }}
+                        className="text-[11px] font-medium text-[#a78bfa] hover:underline cursor-pointer"
+                      >
+                        {isBn ? 'পাসওয়ার্ড ভুলে গেছেন?' : 'Forgot Password?'}
+                      </button>
+                    </div>
                     <div className="relative">
                       <Lock className="absolute left-3.5 top-3 w-4 h-4 text-slate-500" />
                       <input
@@ -479,6 +520,86 @@ export const LoginView: React.FC = () => {
                       </button>
                     </div>
                   </div>
+                </div>
+              </div>
+            ) : mode === 'forgot' ? (
+              /* FORGOT PASSWORD MODE FORM */
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative">
+                <button
+                  type="button"
+                  onClick={() => setMode('landing')}
+                  className="absolute top-6 right-6 p-2 rounded-full text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer shadow-xs"
+                  title="Close / Back to Overview"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+
+                <div className="text-center mb-6 pr-8">
+                  <div className="w-12 h-12 rounded-2xl bg-[#7C3AED]/10 border border-[#7C3AED]/30 text-[#a78bfa] flex items-center justify-center mx-auto mb-3">
+                    <Lock className="w-6 h-6 text-[#a78bfa]" />
+                  </div>
+                  <h2 className="text-2xl font-black text-white">
+                    {isBn ? 'পাসওয়ার্ড রিসেট করুন' : 'Reset Your Password'}
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {isBn
+                      ? 'আপনার রেজিস্টার্ড ইমেইল এড্রেস লিখুন। আমরা ফায়ারবেস পাসওয়ার্ড রিসেট লিংক পাঠাবো।'
+                      : 'Enter your registered email address to receive a password reset link via Firebase.'}
+                  </p>
+                </div>
+
+                {forgotError && (
+                  <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-medium">
+                    {forgotError}
+                  </div>
+                )}
+
+                {forgotMsg && (
+                  <div className="mb-4 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>{forgotMsg}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleForgotSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1">
+                      {isBn ? 'ইমেইল এড্রেস *' : 'Registered Email Address *'}
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-3.5 top-3 w-4 h-4 text-slate-500" />
+                      <input
+                        type="email"
+                        value={forgotEmail}
+                        onChange={(e) => setForgotEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-[#7C3AED]"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={forgotLoading}
+                    className="w-full py-3 bg-[#7C3AED] hover:bg-[#6d28d9] text-white font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#7C3AED]/20 mt-2 cursor-pointer disabled:opacity-50"
+                  >
+                    <span>{forgotLoading ? (isBn ? 'পাঠানো হচ্ছে...' : 'Sending...') : (isBn ? 'রিসেট লিংক পাঠান' : 'Send Password Reset Email')}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </form>
+
+                <div className="mt-6 pt-5 border-t border-slate-800 text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError('');
+                      setMode('login');
+                    }}
+                    className="text-xs font-bold text-[#a78bfa] hover:underline cursor-pointer"
+                  >
+                    {isBn ? '← লগইন পেজে ফিরে যান' : '← Back to Sign In'}
+                  </button>
                 </div>
               </div>
             ) : (
