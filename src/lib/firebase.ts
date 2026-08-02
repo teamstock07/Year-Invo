@@ -15,9 +15,12 @@ const activeConfig = {
   measurementId: metaEnv.VITE_FIREBASE_MEASUREMENT_ID || defaultAppletConfig.measurementId,
 };
 
-console.log('[Firebase Config] Initializing with Project ID:', activeConfig.projectId);
-console.log('[Firebase Config] Auth Domain:', activeConfig.authDomain);
-console.log('[Firebase Config] App ID:', activeConfig.appId);
+console.log('[Firebase Configuration currently being used]:', activeConfig);
+console.log('[Firebase Config Properties]:');
+console.log('  - apiKey:', activeConfig.apiKey);
+console.log('  - authDomain:', activeConfig.authDomain);
+console.log('  - projectId:', activeConfig.projectId);
+console.log('  - appId:', activeConfig.appId);
 
 const app = !getApps().length ? initializeApp(activeConfig) : getApps()[0];
 
@@ -26,6 +29,7 @@ export const auth = getAuth(app);
 const databaseId = defaultAppletConfig.firestoreDatabaseId;
 export const db = databaseId ? getFirestore(app, databaseId) : getFirestore(app);
 
+console.log('[Firebase App initialized]:', app.name);
 console.log('[Firebase Auth Instance initialized]:', auth);
 console.log('[Firebase Firestore Instance initialized]:', db);
 

@@ -588,6 +588,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     try {
+      console.log('[Firebase Auth] Attempting signInWithEmailAndPassword...', { email: cleanEmail });
       const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, passInput);
       const firebaseUser = userCredential.user;
 
@@ -728,6 +729,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     try {
+      console.log('[Firebase Auth] Attempting createUserWithEmailAndPassword...', { email: cleanEmail });
       // 1. Wait until Firebase Authentication successfully returns the user
       const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
       const firebaseUser = userCredential.user;
