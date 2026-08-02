@@ -1,7 +1,22 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth, db } from '../lib/firebase';
-import { sendPasswordResetEmail, createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, updateDoc } from 'firebase/firestore';
+import {
+  sendPasswordResetEmail,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+} from 'firebase/auth';
+import {
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  collection,
+  getDocs,
+  onSnapshot,
+  serverTimestamp,
+} from 'firebase/firestore';
 import {
   UserProfile,
   Product,
@@ -41,9 +56,9 @@ import { translations } from '../i18n/translations';
 interface AppContextType {
   // Auth & Profile
   user: UserProfile | null;
-  login: (email: string, pass: string) => { success: boolean; message?: string };
-  signup: (data: Partial<UserProfile>) => { success: boolean; message?: string };
-  logout: () => void;
+  login: (email: string, pass: string) => Promise<{ success: boolean; message?: string }>;
+  signup: (data: Partial<UserProfile> & { password?: string }) => Promise<{ success: boolean; message?: string }>;
+  logout: () => Promise<void>;
   updateProfile: (data: Partial<UserProfile>) => void;
   updateUser: (data: Partial<UserProfile>) => void;
 
@@ -193,25 +208,6 @@ const defaultSettings: BusinessSettings = {
 
 const initialRegisteredUsers: UserProfile[] = [
   {
-    id: 'usr-platform-owner-01',
-    brandName: 'YearInvo Platform Control',
-    ownerName: 'Platform Owner',
-    mobile: '+880 1700 000000',
-    email: 'owner@yearinvo.com',
-    password: 'admin123',
-    businessType: 'Platform Control Center',
-    country: 'Bangladesh',
-    currency: '৳',
-    timeZone: 'Asia/Dhaka',
-    role: 'Owner',
-    subscriptionPlan: 'Business',
-    subscriptionStatus: 'active',
-    status: 'active',
-    verifiedEmail: true,
-    verifiedPhone: true,
-    createdAt: '2026-01-01',
-  },
-  {
     id: 'usr-demo-merchant-01',
     brandName: 'Demo Retail Shop',
     ownerName: 'Ariful Islam',
@@ -266,21 +262,147 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [user]);
 
-  // Registered Users Directory (For Owner Panel)
-  const [allUsers, setAllUsers] = useState<UserProfile[]>(() => {
-    const saved = localStorage.getItem('biz_all_users');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch (e) {}
-    }
-    return initialRegisteredUsers;
-  });
+  // Helper to check if user is Platform Admin (teamstock07@gmail.com)
+  const isTeamStockAdmin = (emailStr?: string | null) => {
+    if (!emailStr) return false;
+    return emailStr.trim().toLowerCase() === 'teamstock07@gmail.com';
+  };
+
+  // Listen to Firebase Auth state changes & sync user profile from Firestore
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const userRef = doc(db, 'users', firebaseUser.uid);
+          const docSnap = await getDoc(userRef);
+
+          const userEmail = (firebaseUser.email || (docSnap.exists() ? docSnap.data()?.email : '') || '').toLowerCase();
+          const isAdmin = isTeamStockAdmin(userEmail);
+
+          if (docSnap.exists()) {
+            const uData = docSnap.data();
+            const roleRaw = uData.role || uData.roleName || 'Manager';
+            const normalizedRole: UserRole = (isAdmin || roleRaw.toString().toLowerCase() === 'owner' || roleRaw.toString().toLowerCase() === 'admin' || roleRaw.toString().toLowerCase() === 'platformowner') ? 'Owner' : 'Manager';
+
+            if (isAdmin && (uData.role !== 'owner' || uData.subscriptionPlan !== 'Lifetime')) {
+              try {
+                updateDoc(userRef, { role: 'owner', subscriptionPlan: 'Lifetime', subscription: 'lifetime' });
+              } catch (e) {
+                console.warn('Sync admin role notice:', e);
+              }
+            }
+
+            if (uData.status === 'suspended' && !isAdmin) {
+              await signOut(auth);
+              setUser(null);
+              return;
+            }
+
+            const profile: UserProfile = {
+              id: firebaseUser.uid,
+              brandName: uData.brandName || uData.storeName || 'My Store',
+              ownerName: uData.ownerName || uData.fullName || firebaseUser.displayName || 'Store Owner',
+              mobile: uData.mobile || uData.phone || '',
+              email: firebaseUser.email || uData.email || userEmail,
+              businessType: uData.businessType || uData.storeType || 'General Retail & Grocery',
+              country: uData.country || 'Bangladesh',
+              currency: uData.currency || '৳',
+              timeZone: uData.timeZone || 'Asia/Dhaka',
+              role: normalizedRole,
+              subscriptionPlan: isAdmin ? 'Lifetime' : ((uData.subscriptionPlan || uData.subscription || 'Free') as SubscriptionPlan),
+              subscriptionStatus: uData.subscriptionStatus || 'active',
+              status: uData.status || 'active',
+              storeAddress: uData.storeAddress || uData.address || '',
+              affiliateCode: uData.affiliateCode || '',
+              affiliateProgram: uData.affiliateProgram || '',
+              verifiedEmail: true,
+              verifiedPhone: true,
+              createdAt: uData.createdAt ? (typeof uData.createdAt === 'string' ? uData.createdAt : new Date().toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
+            };
+
+            setUser(profile);
+            if (profile.brandName) {
+              setSettings((prev) => ({ ...prev, brandName: profile.brandName }));
+            }
+            if (normalizedRole === 'Owner') {
+              setActiveTabState('owner');
+            }
+          }
+        } catch (err) {
+          console.warn('Error fetching authenticated user profile from Firestore:', err);
+        }
+      } else {
+        setUser(null);
+      }
+    });
+
+    return () => unsubscribeAuth();
+  }, []);
+
+  // Registered Users Directory (Realtime Firestore Collection)
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
 
   useEffect(() => {
-    localStorage.setItem('biz_all_users', JSON.stringify(allUsers));
-  }, [allUsers]);
+    const usersCol = collection(db, 'users');
+    const unsubscribeUsers = onSnapshot(
+      usersCol,
+      (snapshot) => {
+        const list: UserProfile[] = [];
+        snapshot.forEach((docSnap) => {
+          const uData = docSnap.data();
+          const uEmail = (uData.email || '').toLowerCase();
+          const isAdmin = isTeamStockAdmin(uEmail) || uData.role === 'owner' || uData.role === 'Owner' || uData.role === 'admin' || uData.role === 'PlatformOwner';
+          const normalizedRole: UserRole = isAdmin ? 'Owner' : 'Manager';
+          const assignedPlan: SubscriptionPlan = isAdmin ? 'Lifetime' : ((uData.subscriptionPlan || uData.subscription || 'Free') as SubscriptionPlan);
+
+          list.push({
+            id: docSnap.id || uData.uid || uData.id,
+            brandName: uData.brandName || uData.storeName || 'My Store',
+            ownerName: uData.ownerName || uData.fullName || 'Store Owner',
+            mobile: uData.mobile || uData.phone || '',
+            email: uData.email || '',
+            businessType: uData.businessType || uData.storeType || 'General Retail & Grocery',
+            country: uData.country || 'Bangladesh',
+            currency: uData.currency || '৳',
+            timeZone: uData.timeZone || 'Asia/Dhaka',
+            role: normalizedRole,
+            subscriptionPlan: assignedPlan,
+            subscriptionStatus: uData.subscriptionStatus || 'active',
+            status: uData.status || 'active',
+            storeAddress: uData.storeAddress || uData.address || '',
+            affiliateCode: uData.affiliateCode || '',
+            affiliateProgram: uData.affiliateProgram || '',
+            verifiedEmail: true,
+            verifiedPhone: true,
+            createdAt: uData.createdAt ? (typeof uData.createdAt === 'string' ? uData.createdAt : new Date().toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
+          });
+        });
+        setAllUsers(list);
+
+        if (auth.currentUser) {
+          const currentUid = auth.currentUser.uid;
+          const currentInList = list.find((u) => u.id === currentUid);
+          if (currentInList) {
+            setUser((prev) => {
+              if (!prev) return currentInList;
+              if (prev.role !== currentInList.role || prev.status !== currentInList.status) {
+                if (currentInList.role === 'Owner') {
+                  setActiveTabState('owner');
+                }
+                return currentInList;
+              }
+              return prev;
+            });
+          }
+        }
+      },
+      (error) => {
+        console.warn('Firestore onSnapshot users notice:', error);
+      }
+    );
+
+    return () => unsubscribeUsers();
+  }, []);
 
   // Subscription Approval Requests Directory
   const [subscriptionRequests, setSubscriptionRequests] = useState<SubscriptionRequest[]>(() => {
@@ -400,6 +522,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Sync LocalStorage
   useEffect(() => {
     localStorage.setItem('biz_language', language);
+    document.documentElement.lang = language;
   }, [language]);
 
   useEffect(() => {
@@ -457,112 +580,264 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActivityLogs((prev) => [newLog, ...prev]);
   };
 
-  // Auth methods
-  const login = (emailInput: string, passInput: string): { success: boolean; message?: string } => {
+  // Auth methods using Firebase Auth & Cloud Firestore
+  const login = async (emailInput: string, passInput: string): Promise<{ success: boolean; message?: string }> => {
     const cleanEmail = emailInput.trim().toLowerCase();
-    const foundUser = allUsers.find((u) => u.email.toLowerCase() === cleanEmail);
-
-    if (!foundUser) {
-      return {
-        success: false,
-        message: 'Account not found. Please check your email or register a new account.',
-      };
+    if (!cleanEmail || !passInput) {
+      return { success: false, message: 'Please enter both email and password.' };
     }
 
-    if (foundUser.password && foundUser.password !== passInput) {
-      return {
-        success: false,
-        message: 'Incorrect password. Please try again.',
-      };
-    }
-
-    if (foundUser.status === 'suspended') {
-      return {
-        success: false,
-        message: 'Your account has been suspended by the platform administrator. Please contact support.',
-      };
-    }
-
-    setUser(foundUser);
-    if (foundUser.brandName) {
-      setSettings((prev) => ({ ...prev, brandName: foundUser.brandName }));
-    }
-
-    if (foundUser.role === 'Owner') {
-      setActiveTab('owner');
-    } else {
-      setActiveTab('dashboard');
-    }
-
-    logActivity('User Logged In', 'ব্যবহারকারী লগইন করেছে', foundUser.email);
-    return { success: true };
-  };
-
-  const signup = (data: Partial<UserProfile>): { success: boolean; message?: string } => {
-    const cleanEmail = (data.email || '').trim().toLowerCase();
-    const existing = allUsers.find((u) => u.email.toLowerCase() === cleanEmail);
-
-    if (existing) {
-      return {
-        success: false,
-        message: 'An account with this email address already exists. Please log in.',
-      };
-    }
-
-    // Determine if this is the very first account registered on the platform
-    // First account is Owner ONLY IF no existing user has role === 'Owner'
-    const hasOwner = allUsers.some((u) => u.role === 'Owner');
-    const assignedRole: UserRole = !hasOwner ? 'Owner' : 'Manager';
-    const assignedPlan: SubscriptionPlan = !hasOwner ? 'Business' : 'Free';
-
-    const newUser: UserProfile = {
-      id: `usr-${Date.now()}`,
-      brandName: data.brandName || 'My Store',
-      ownerName: data.ownerName || 'Store Owner',
-      mobile: data.mobile || '',
-      email: cleanEmail,
-      password: data.password || '123456',
-      businessType: data.businessType || 'General Retail & Grocery',
-      country: data.country || 'Bangladesh',
-      currency: data.currency || '৳',
-      timeZone: data.timeZone || 'Asia/Dhaka',
-      role: assignedRole,
-      subscriptionPlan: assignedPlan,
-      subscriptionStatus: 'active',
-      status: 'active',
-      storeAddress: data.storeAddress,
-      affiliateCode: data.affiliateCode,
-      affiliateProgram: data.affiliateProgram,
-      verifiedEmail: true,
-      verifiedPhone: true,
-      createdAt: new Date().toISOString().split('T')[0],
-    };
-
-    setAllUsers((prev) => [newUser, ...prev]);
-    setUser(newUser);
-    if (data.brandName) {
-      setSettings((prev) => ({ ...prev, brandName: data.brandName! }));
-    }
-
-    // Persist user record to Firestore securely
     try {
-      const userRef = doc(db, 'users', newUser.id);
-      setDoc(userRef, newUser);
-    } catch (e) {
-      console.warn('Firestore user record setDoc notice:', e);
-    }
+      const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, passInput);
+      const firebaseUser = userCredential.user;
 
-    if (assignedRole === 'Owner') {
-      setActiveTab('owner');
-    } else {
-      setActiveTab('dashboard');
-    }
+      let docSnap;
+      try {
+        const userRef = doc(db, 'users', firebaseUser.uid);
+        docSnap = await getDoc(userRef);
+      } catch (docErr) {
+        console.warn('Could not fetch user document from Firestore directly:', docErr);
+      }
 
-    logActivity('User Registered Account', `নতুন অ্যাকাউন্ট তৈরি করা হয়েছে (${assignedRole})`, newUser.email);
-    return { success: true };
+      let foundUser: UserProfile;
+      const isAdmin = isTeamStockAdmin(cleanEmail);
+
+      if (docSnap && docSnap.exists()) {
+        const uData = docSnap.data();
+        const roleRaw = uData.role || uData.roleName || 'Manager';
+        const normalizedRole: UserRole = (isAdmin || roleRaw.toString().toLowerCase() === 'owner' || roleRaw.toString().toLowerCase() === 'admin' || roleRaw.toString().toLowerCase() === 'platformowner') ? 'Owner' : 'Manager';
+
+        if (uData.status === 'suspended' && !isAdmin) {
+          await signOut(auth);
+          setUser(null);
+          return {
+            success: false,
+            message: 'Your account has been suspended by the platform administrator.',
+          };
+        }
+
+        foundUser = {
+          id: firebaseUser.uid,
+          brandName: uData.brandName || uData.storeName || 'My Store',
+          ownerName: uData.ownerName || uData.fullName || firebaseUser.displayName || 'Store Owner',
+          mobile: uData.mobile || uData.phone || '',
+          email: firebaseUser.email || uData.email || cleanEmail,
+          businessType: uData.businessType || uData.storeType || 'General Retail & Grocery',
+          country: uData.country || 'Bangladesh',
+          currency: uData.currency || '৳',
+          timeZone: uData.timeZone || 'Asia/Dhaka',
+          role: normalizedRole,
+          subscriptionPlan: isAdmin ? 'Lifetime' : ((uData.subscriptionPlan || uData.subscription || 'Free') as SubscriptionPlan),
+          subscriptionStatus: uData.subscriptionStatus || 'active',
+          status: uData.status || 'active',
+          storeAddress: uData.storeAddress || uData.address || '',
+          affiliateCode: uData.affiliateCode || '',
+          affiliateProgram: uData.affiliateProgram || '',
+          verifiedEmail: true,
+          verifiedPhone: true,
+          createdAt: uData.createdAt ? (typeof uData.createdAt === 'string' ? uData.createdAt : new Date().toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
+        };
+      } else {
+        foundUser = {
+          id: firebaseUser.uid,
+          brandName: 'My Store',
+          ownerName: firebaseUser.displayName || cleanEmail.split('@')[0] || 'Store Owner',
+          mobile: '',
+          email: cleanEmail,
+          businessType: 'General Retail & Grocery',
+          country: 'Bangladesh',
+          currency: '৳',
+          timeZone: 'Asia/Dhaka',
+          role: isAdmin ? 'Owner' : 'Manager',
+          subscriptionPlan: isAdmin ? 'Lifetime' : 'Free',
+          subscriptionStatus: 'active',
+          status: 'active',
+          verifiedEmail: true,
+          verifiedPhone: true,
+          createdAt: new Date().toISOString().split('T')[0],
+        };
+
+        try {
+          const userRef = doc(db, 'users', firebaseUser.uid);
+          await setDoc(userRef, {
+            uid: firebaseUser.uid,
+            id: firebaseUser.uid,
+            fullName: foundUser.ownerName,
+            ownerName: foundUser.ownerName,
+            email: cleanEmail,
+            brandName: foundUser.brandName,
+            storeName: foundUser.brandName,
+            businessType: foundUser.businessType,
+            storeType: foundUser.businessType,
+            mobile: '',
+            phone: '',
+            role: isAdmin ? 'owner' : 'manager',
+            subscriptionPlan: isAdmin ? 'Lifetime' : 'Free',
+            subscription: isAdmin ? 'lifetime' : 'free',
+            status: 'active',
+            createdAt: serverTimestamp(),
+          });
+        } catch (setErr) {
+          console.warn('Notice setting initial user document:', setErr);
+        }
+      }
+
+      setUser(foundUser);
+      if (foundUser.brandName) {
+        setSettings((prev) => ({ ...prev, brandName: foundUser.brandName }));
+      }
+
+      if (foundUser.role === 'Owner') {
+        setActiveTab('owner');
+      } else {
+        setActiveTab('dashboard');
+      }
+
+      logActivity('User Logged In', 'ব্যবহারকারী লগইন করেছে', cleanEmail);
+      return { success: true };
+    } catch (error: any) {
+      console.error('Firebase Auth login error:', error);
+      let message = 'Incorrect email or password.';
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        message = 'Incorrect email or password. If you have not created an account yet, please click "Need a new account? Sign Up Here" below to register.';
+      } else if (error.code === 'auth/invalid-email') {
+        message = 'Invalid email address format.';
+      } else if (error.code === 'auth/too-many-requests') {
+        message = 'Access to this account has been temporarily disabled due to many failed login attempts. Please reset your password or try again later.';
+      } else if (error.message) {
+        message = error.message;
+      }
+      return { success: false, message };
+    }
   };
 
-  const logout = () => {
+  const signup = async (data: Partial<UserProfile> & { password?: string }): Promise<{ success: boolean; message?: string }> => {
+    const cleanEmail = (data.email || '').trim().toLowerCase();
+    const pass = data.password || '';
+
+    if (!cleanEmail || !pass) {
+      return {
+        success: false,
+        message: 'Please provide both email and password.',
+      };
+    }
+
+    try {
+      // 1. Wait until Firebase Authentication successfully returns the user
+      const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
+      const firebaseUser = userCredential.user;
+
+      console.log('Authentication Success');
+
+      if (!firebaseUser || !firebaseUser.uid) {
+        return {
+          success: false,
+          message: 'Firebase Authentication did not return a valid user UID.',
+        };
+      }
+
+      // 2. Prepare user document payload with required schema
+      const fullName = data.ownerName || 'Store Owner';
+      const storeName = data.brandName || 'My Store';
+      const storeType = data.businessType || 'General Retail & Grocery';
+      const phone = data.mobile || '';
+      const address = data.storeAddress || '';
+      const affiliateCode = data.affiliateCode || '';
+
+      const isAdmin = isTeamStockAdmin(cleanEmail);
+      const assignedRole: UserRole = isAdmin ? 'Owner' : 'Manager';
+      const assignedPlan: SubscriptionPlan = isAdmin ? 'Lifetime' : 'Free';
+
+      const userDocData = {
+        uid: firebaseUser.uid,
+        fullName,
+        email: cleanEmail,
+        storeName,
+        storeType,
+        phone,
+        address,
+        affiliateCode,
+        role: isAdmin ? 'owner' : 'manager',
+        subscription: isAdmin ? 'lifetime' : 'free',
+        status: 'active',
+        createdAt: serverTimestamp(),
+        // UI field compatibility
+        ownerName: fullName,
+        brandName: storeName,
+        businessType: storeType,
+        mobile: phone,
+        storeAddress: address,
+        subscriptionPlan: assignedPlan,
+      };
+
+      // 3. Write document to users/{uid} in Firestore
+      console.log('Writing Firestore...');
+      try {
+        const userRef = doc(db, 'users', firebaseUser.uid);
+        await setDoc(userRef, userDocData);
+        console.log('Firestore Write Success');
+      } catch (firestoreErr: any) {
+        console.error('Firestore Write Error:', firestoreErr);
+        return {
+          success: false,
+          message: `Firestore Write Failed: ${firestoreErr?.message || firestoreErr}`,
+        };
+      }
+
+      const newUser: UserProfile = {
+        id: firebaseUser.uid,
+        brandName: storeName,
+        ownerName: fullName,
+        mobile: phone,
+        email: cleanEmail,
+        businessType: storeType,
+        country: data.country || 'Bangladesh',
+        currency: data.currency || '৳',
+        timeZone: data.timeZone || 'Asia/Dhaka',
+        role: assignedRole,
+        subscriptionPlan: assignedPlan,
+        subscriptionStatus: 'active',
+        status: 'active',
+        storeAddress: address,
+        affiliateCode: affiliateCode,
+        affiliateProgram: affiliateCode ? 'Mazbi Affiliate Program' : undefined,
+        verifiedEmail: true,
+        verifiedPhone: true,
+        createdAt: new Date().toISOString().split('T')[0],
+      };
+
+      setUser(newUser);
+      if (storeName) {
+        setSettings((prev) => ({ ...prev, brandName: storeName }));
+      }
+
+      if (assignedRole === 'Owner') {
+        setActiveTab('owner');
+      } else {
+        setActiveTab('dashboard');
+      }
+      logActivity('User Registered Account', `নতুন অ্যাকাউন্ট তৈরি করা হয়েছে (Manager)`, cleanEmail);
+      return { success: true };
+    } catch (error: any) {
+      console.error('Firebase signup error:', error);
+      let message = error.message || 'Failed to create account.';
+      if (error.code === 'auth/email-already-in-use') {
+        message = 'An account with this email address already exists. Please log in.';
+      } else if (error.code === 'auth/weak-password') {
+        message = 'Password should be at least 6 characters.';
+      } else if (error.code === 'auth/invalid-email') {
+        message = 'Invalid email address.';
+      }
+      return { success: false, message };
+    }
+  };
+
+  const logout = async (): Promise<void> => {
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.warn('Firebase signOut notice:', e);
+    }
     setUser(null);
     logActivity('User Logged Out', 'ব্যবহারকারী লগআউট করেছে');
   };

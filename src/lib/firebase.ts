@@ -15,12 +15,18 @@ const activeConfig = {
   measurementId: metaEnv.VITE_FIREBASE_MEASUREMENT_ID || defaultAppletConfig.measurementId,
 };
 
+console.log('[Firebase Config] projectId:', activeConfig.projectId);
+console.log('[Firebase Config] authDomain:', activeConfig.authDomain);
+console.log('[Firebase Config] appId:', activeConfig.appId);
+
 const app = !getApps().length ? initializeApp(activeConfig) : getApps()[0];
 
 export const auth = getAuth(app);
 
 const databaseId = defaultAppletConfig.firestoreDatabaseId;
 export const db = databaseId ? getFirestore(app, databaseId) : getFirestore(app);
+
+console.log('[Firebase Firestore Instance]:', db);
 
 export default app;
 

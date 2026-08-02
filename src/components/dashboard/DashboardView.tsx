@@ -1,6 +1,7 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { getCustomerStoreName } from '../../utils/brand';
+import { MobileDashboardView } from './MobileDashboardView';
 import {
   TrendingUp,
   Receipt,
@@ -207,7 +208,14 @@ export const DashboardView: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-6 pb-12">
+    <>
+      {/* Mobile Dashboard (< md) */}
+      <div className="block md:hidden">
+        <MobileDashboardView />
+      </div>
+
+      {/* Desktop & Tablet Dashboard (>= md) */}
+      <div className="hidden md:block space-y-6 pb-12">
       {/* Modern SaaS Header & Welcome Section */}
       <div className="bg-white dark:bg-slate-900 border border-[#E8EEF2] dark:border-slate-800 rounded-3xl p-6 sm:p-7 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div className="space-y-2">
@@ -456,6 +464,7 @@ export const DashboardView: React.FC = () => {
           </div>
         ))}
       </div>
-    </div>
+      </div>
+    </>
   );
 };

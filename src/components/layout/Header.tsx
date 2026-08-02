@@ -92,36 +92,29 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
         className="hidden"
       />
 
-      {/* Brand & Mobile Hamburger */}
-      <div className="flex items-center gap-3">
-        {onToggleSidebar && (
-          <button
-            onClick={onToggleSidebar}
-            className="p-2 -ml-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 lg:hidden cursor-pointer"
-            title="Menu Options"
-          >
-            <MoreVertical className="w-5 h-5 text-[#ff5c01]" />
-          </button>
-        )}
-
+      {/* Brand Logo, Name & Badge */}
+      <div className="flex items-center gap-2 min-w-0">
         <div
-          className="flex items-center gap-2.5 select-none cursor-pointer group"
+          className="flex items-center gap-2 select-none cursor-pointer group min-w-0"
           onClick={() => setActiveTab('dashboard')}
           title="Go to Dashboard"
         >
           {/* Main Store Logo Badge */}
-          <div className="relative p-0.5 bg-slate-900 dark:bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-center shadow-xs group-hover:border-[#ff5c01] transition-colors">
+          <div className="relative p-0.5 bg-slate-900 dark:bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-center shadow-xs group-hover:border-[#ff5c01] transition-colors shrink-0">
             <MainWebsiteLogo
-              size={32}
+              size={28}
               customUrl={settings.logoUrl}
               siteName={storeDisplayName}
             />
           </div>
 
-          <div className="hidden sm:block">
-            <h1 className="font-black text-slate-900 dark:text-white text-base leading-tight flex items-center gap-1.5 group-hover:text-[#ff5c01] transition-colors">
-              <span>{storeDisplayName}</span>
+          <div className="flex items-center gap-1 min-w-0">
+            <h1 className="font-black text-slate-900 dark:text-white text-xs sm:text-base leading-tight group-hover:text-[#ff5c01] transition-colors truncate max-w-[85px] xs:max-w-[120px] sm:max-w-xs">
+              {storeDisplayName}
             </h1>
+            <span className="text-[8px] sm:text-[9px] font-extrabold px-1.5 py-0.5 rounded-md bg-[#ff5c01]/10 text-[#ff5c01] border border-[#ff5c01]/20 uppercase shrink-0">
+              {user?.subscriptionPlan || 'Free'}
+            </span>
           </div>
         </div>
       </div>
@@ -145,24 +138,24 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
       )}
 
       {/* Action Controls */}
-      <div className="flex items-center gap-1.5 sm:gap-2.5">
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         {/* Currency Selector Dropdown */}
         <div className="relative">
           <select
             value={settings.currency || '৳'}
             onChange={(e) => updateSettings({ currency: e.target.value })}
-            className="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-[11px] sm:text-xs font-black py-1 sm:py-1.5 px-2 sm:px-2.5 rounded-lg sm:rounded-xl border border-[#E8EEF2] dark:border-slate-800 focus:outline-none focus:border-[#ff5c01] cursor-pointer shadow-2xs"
+            className="w-[42px] xs:w-[52px] sm:w-auto bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-[10px] sm:text-xs font-black py-1 sm:py-1.5 px-1 sm:px-2.5 rounded-lg sm:rounded-xl border border-[#E8EEF2] dark:border-slate-800 focus:outline-none focus:border-[#ff5c01] cursor-pointer shadow-2xs truncate"
             title="Select Store Currency"
           >
-            <option value="৳">৳ BDT (Taka)</option>
-            <option value="$">$ USD (Dollar)</option>
-            <option value="€">€ EUR (Euro)</option>
-            <option value="د.إ">د.إ AED (Dirham)</option>
-            <option value="₹">₹ INR (Rupee)</option>
-            <option value="Rs">Rs PKR (Rupee)</option>
-            <option value="¥">¥ JPY/CNY (Yen/Yuan)</option>
-            <option value="£">£ GBP (Pound)</option>
-            <option value="﷼">﷼ SAR (Riyal)</option>
+            <option value="৳">৳ BDT</option>
+            <option value="$">$ USD</option>
+            <option value="€">€ EUR</option>
+            <option value="د.إ">د.إ AED</option>
+            <option value="₹">₹ INR</option>
+            <option value="Rs">Rs PKR</option>
+            <option value="¥">¥ JPY/CNY</option>
+            <option value="£">£ GBP</option>
+            <option value="﷼">﷼ SAR</option>
           </select>
         </div>
 
@@ -171,45 +164,45 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
           <select
             value={language}
             onChange={(e) => handleLanguageChange(e.target.value as Language)}
-            className="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-[11px] sm:text-xs font-bold py-1 sm:py-1.5 px-2 sm:px-2.5 rounded-lg sm:rounded-xl border border-[#E8EEF2] dark:border-slate-800 focus:outline-none focus:border-[#ff5c01] cursor-pointer shadow-2xs"
+            className="w-[46px] xs:w-[58px] sm:w-auto bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-[10px] sm:text-xs font-bold py-1 sm:py-1.5 px-1 sm:px-2.5 rounded-lg sm:rounded-xl border border-[#E8EEF2] dark:border-slate-800 focus:outline-none focus:border-[#ff5c01] cursor-pointer shadow-2xs truncate"
             title="Select Language"
           >
-            <option value="en">English</option>
-            <option value="ar">Arabic</option>
-            <option value="bn">Bangla</option>
-            <option value="hi">Hindi</option>
-            <option value="ur">Urdu</option>
-            <option value="fr">French</option>
-            <option value="de">German</option>
-            <option value="es">Spanish</option>
-            <option value="zh">Chinese</option>
-            <option value="ja">Japanese</option>
+            <option value="en">EN</option>
+            <option value="bn">BN (বাংলা)</option>
+            <option value="ar">AR (عربي)</option>
+            <option value="hi">HI (हिंदी)</option>
+            <option value="ur">UR (اردو)</option>
+            <option value="fr">FR</option>
+            <option value="de">DE</option>
+            <option value="es">ES</option>
+            <option value="zh">ZH</option>
+            <option value="ja">JA</option>
           </select>
         </div>
 
         {/* Theme Toggle */}
         <button
           onClick={toggleTheme}
-          className="p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/60"
+          className="p-1.5 sm:p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors rounded-lg sm:rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/60"
           title={theme === 'light' ? t('darkMode') : t('lightMode')}
         >
-          {theme === 'light' ? <Moon className="w-5 h-5 text-slate-700" /> : <Sun className="w-5 h-5 text-amber-400" />}
+          {theme === 'light' ? <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-slate-700" /> : <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />}
         </button>
 
         {/* Notifications Dropdown */}
         <div className="relative">
           <button
             onClick={() => setShowNotifications(!showNotifications)}
-            className="relative p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/60"
+            className="relative p-1.5 sm:p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors rounded-lg sm:rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/60"
           >
-            <Bell className="w-5 h-5" />
+            <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white dark:border-[#09090b]"></span>
+              <span className="absolute top-1 right-1 w-2 h-2 sm:w-2.5 sm:h-2.5 bg-rose-500 rounded-full border-2 border-white dark:border-[#09090b]"></span>
             )}
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-[#0c0c0e] rounded-2xl shadow-2xl border border-[#E8EEF2] dark:border-slate-800 py-2 z-50">
+            <div className="absolute right-0 mt-2 w-[280px] xs:w-80 sm:w-96 bg-white dark:bg-[#0c0c0e] rounded-2xl shadow-2xl border border-[#E8EEF2] dark:border-slate-800 py-2 z-50">
               <div className="flex items-center justify-between px-4 py-2 border-b border-[#E8EEF2] dark:border-slate-800">
                 <h3 className="font-semibold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
                   <Bell className="w-4 h-4 text-[#ff5c01]" />
@@ -270,19 +263,19 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
         <div className="relative ml-1 pl-3 border-l border-[#E8EEF2] dark:border-slate-800">
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
-            className="flex items-center gap-2.5 text-left hover:opacity-90 transition-opacity"
+            className="flex items-center gap-1.5 sm:gap-2.5 text-left hover:opacity-90 transition-opacity"
           >
             <div className="text-right hidden md:block">
               <p className="text-xs font-semibold leading-tight text-slate-900 dark:text-white">{user?.ownerName || 'Ariful Islam'}</p>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-widest font-semibold">{user?.role || 'Owner'}</p>
             </div>
-            <div className="w-9 h-9 rounded-xl bg-[#ff5c01] text-white border border-white/20 flex items-center justify-center font-bold text-sm shadow-sm">
+            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-[#ff5c01] text-white border border-white/20 flex items-center justify-center font-bold text-xs sm:text-sm shadow-sm shrink-0">
               {user?.ownerName?.[0] || 'A'}
             </div>
           </button>
 
           {showUserMenu && (
-            <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-[#0c0c0e] rounded-2xl shadow-2xl border border-[#E8EEF2] dark:border-slate-800 py-2 z-50">
+            <div className="absolute right-0 mt-2 w-[260px] max-w-[calc(100vw-24px)] bg-white dark:bg-[#0c0c0e] rounded-2xl shadow-2xl border border-[#E8EEF2] dark:border-slate-800 py-2 z-50">
               <div className="px-4 py-3 border-b border-[#E8EEF2] dark:border-slate-800">
                 <p className="text-xs font-bold text-slate-900 dark:text-slate-100">{user?.ownerName}</p>
                 <p className="text-xs text-slate-500 truncate">{user?.email}</p>

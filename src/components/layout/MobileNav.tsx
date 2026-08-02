@@ -24,10 +24,11 @@ import {
   HelpCircle,
   HelpCircle as SupportIcon,
   Info,
+  Crown,
 } from 'lucide-react';
 
 export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSidebar }) => {
-  const { activeTab, setActiveTab, language } = useApp();
+  const { activeTab, setActiveTab, language, user } = useApp();
   const [showAllMenuSheet, setShowAllMenuSheet] = useState(false);
 
   const handleSelectTab = (tabId: string) => {
@@ -39,6 +40,21 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
 
   // Feature Categories for Mobile Sheet
   const featureCategories = [
+    ...(user?.role === 'Owner'
+      ? [
+          {
+            title: isBn ? 'অ্যাডমিন কন্ট্রোল' : 'Admin Control',
+            items: [
+              {
+                id: 'owner',
+                name: isBn ? 'ওনার প্যানেল (Owner Panel)' : 'Owner Panel',
+                icon: Crown,
+                color: 'bg-purple-500 text-white dark:bg-purple-600',
+              },
+            ],
+          },
+        ]
+      : []),
     {
       title: isBn ? 'বিক্রয় সমূহের তালিকা' : 'Sales Operations',
       items: [
@@ -76,7 +92,7 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
     <>
       {/* Bottom Bar for Mobile */}
       <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-white/95 dark:bg-[#0c0c0e]/95 backdrop-blur-md border-t border-slate-200/80 dark:border-slate-800 px-2 py-1.5 flex items-center justify-around shadow-2xl">
-        {/* Home */}
+        {/* 1. Home */}
         <button
           onClick={() => handleSelectTab('dashboard')}
           className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
@@ -89,30 +105,7 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
           <span className="text-[10px]">{isBn ? 'হোম' : 'Home'}</span>
         </button>
 
-        {/* Customer Dues */}
-        <button
-          onClick={() => handleSelectTab('due')}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
-            activeTab === 'due'
-              ? 'text-[#ff5c01] font-bold bg-[#ff5c01]/10'
-              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800'
-          }`}
-        >
-          <CreditCard className="w-5 h-5" />
-          <span className="text-[10px]">{isBn ? 'বকেয়া' : 'Dues'}</span>
-        </button>
-
-        {/* Center Prominent POS / Sell Button */}
-        <button
-          onClick={() => handleSelectTab('pos')}
-          className="flex flex-col items-center justify-center -mt-5 w-13 h-13 rounded-2xl bg-[#ff5c01] text-white shadow-xl shadow-[#ff5c01]/35 hover:scale-105 active:scale-95 transition-all cursor-pointer ring-4 ring-white dark:ring-[#0c0c0e]"
-          title="POS Counter"
-        >
-          <ShoppingCart className="w-6 h-6" />
-          <span className="text-[9px] font-black uppercase tracking-tight">{isBn ? 'বেচা' : 'Sell'}</span>
-        </button>
-
-        {/* Stock / Products */}
+        {/* 2. Products */}
         <button
           onClick={() => handleSelectTab('products')}
           className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
@@ -122,10 +115,33 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
           }`}
         >
           <Package className="w-5 h-5" />
-          <span className="text-[10px]">{isBn ? 'স্টক' : 'Stock'}</span>
+          <span className="text-[10px]">{isBn ? 'প্রোডাক্ট' : 'Products'}</span>
         </button>
 
-        {/* All Functions Grid Sheet Button */}
+        {/* 3. Center Highlighted Quick Sale Button */}
+        <button
+          onClick={() => handleSelectTab('quicksale')}
+          className="flex flex-col items-center justify-center -mt-5 w-13 h-13 rounded-2xl bg-[#ff5c01] text-white shadow-xl shadow-[#ff5c01]/35 hover:scale-105 active:scale-95 transition-all cursor-pointer ring-4 ring-white dark:ring-[#0c0c0e]"
+          title="Quick Sale"
+        >
+          <Zap className="w-6 h-6" />
+          <span className="text-[9px] font-black uppercase tracking-tight">{isBn ? 'কুইক সেল' : 'Quick Sale'}</span>
+        </button>
+
+        {/* 4. Reports */}
+        <button
+          onClick={() => handleSelectTab('reports')}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
+            activeTab === 'reports'
+              ? 'text-[#ff5c01] font-bold bg-[#ff5c01]/10'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800'
+          }`}
+        >
+          <FileSpreadsheet className="w-5 h-5" />
+          <span className="text-[10px]">{isBn ? 'রিপোর্ট' : 'Reports'}</span>
+        </button>
+
+        {/* 5. Menu */}
         <button
           onClick={() => setShowAllMenuSheet(true)}
           className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${

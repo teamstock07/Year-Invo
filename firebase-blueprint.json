@@ -2,22 +2,29 @@
   "entities": {
     "users": {
       "title": "users",
-      "description": "Registered user accounts and stores",
+      "description": "Registered user accounts and stores in Firestore",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
+        "uid": { "type": "string" },
+        "fullName": { "type": "string" },
         "email": { "type": "string" },
+        "storeName": { "type": "string" },
+        "storeType": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "affiliateCode": { "type": "string" },
+        "role": { "type": "string" },
+        "subscription": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
         "ownerName": { "type": "string" },
         "brandName": { "type": "string" },
-        "mobile": { "type": "string" },
         "businessType": { "type": "string" },
-        "role": { "type": "string" },
-        "subscriptionPlan": { "type": "string" },
-        "subscriptionStatus": { "type": "string" },
-        "status": { "type": "string" },
-        "createdAt": { "type": "string" }
+        "mobile": { "type": "string" },
+        "storeAddress": { "type": "string" },
+        "subscriptionPlan": { "type": "string" }
       },
-      "required": ["id", "email", "ownerName", "brandName", "role"]
+      "required": ["uid", "fullName", "email", "storeName", "role"]
     },
     "subscription_requests": {
       "title": "subscription_requests",
@@ -39,6 +46,16 @@
         "requestDate": { "type": "string" }
       },
       "required": ["id", "userId", "requestedPlan", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "users",
+      "description": "User profiles indexed by Firebase Auth UID"
+    },
+    "/subscription_requests/{requestId}": {
+      "schema": "subscription_requests",
+      "description": "User plan subscription requests"
     }
   }
 }
