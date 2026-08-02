@@ -851,13 +851,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
 
       // 3. Write document to users/{uid} in Firestore
-      console.log('Writing Firestore...');
+      console.log('[Firestore Write Start] Attempting setDoc for user in "users" collection...', firebaseUser.uid);
+      console.log('[Firestore Write Payload]:', userDocData);
       try {
         const userRef = doc(db, 'users', firebaseUser.uid);
         await setDoc(userRef, userDocData);
-        console.log('Firestore Write Success');
+        console.log('[Firestore Write Success] Successfully created document in "users" collection with UID:', firebaseUser.uid);
       } catch (firestoreErr: any) {
-        console.error('Firestore Write Error:', firestoreErr);
+        console.error('[Firestore Write Error] Failed to write user document to "users" collection:', firestoreErr);
+        if (firestoreErr && typeof firestoreErr === 'object') {
+          console.error('[COMPLETE Firebase Error Details]:', JSON.stringify(firestoreErr, Object.getOwnPropertyNames(firestoreErr)));
+        }
         return {
           success: false,
           message: `Firestore Write Failed: ${firestoreErr?.message || firestoreErr}`,
@@ -1190,18 +1194,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     try {
+      console.log('[Firestore Write Start] Creating subscription request document in "subscriptionRequests"...', requestId);
+      console.log('[Firestore Write Payload]:', docData);
       // 1. Save request to Firestore
       await setDoc(reqRef, docData);
+      console.log('[Firestore Write Success] Successfully created subscription request in "subscriptionRequests":', requestId);
 
       // 2. Update user's pending status in Firestore
       try {
+        console.log('[Firestore Write Start] Updating user pendingPlan in "users" collection...', user.id);
         const userRef = doc(db, 'users', user.id);
         await updateDoc(userRef, {
           pendingPlan: data.requestedPlan,
           subscriptionStatus: 'pending',
         });
-      } catch (uErr) {
+        console.log('[Firestore Write Success] Successfully updated pendingPlan in "users" collection for:', user.id);
+      } catch (uErr: any) {
         console.warn('Notice updating user pending plan in Firestore:', uErr);
+        if (uErr && typeof uErr === 'object') {
+          console.error('[COMPLETE Firebase Error Details]:', JSON.stringify(uErr, Object.getOwnPropertyNames(uErr)));
+        }
       }
 
       // 3. Local user state update
@@ -1229,8 +1241,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       logActivity('Requested Subscription Upgrade', 'সাবস্ক্রিপশন আপগ্রেড আবেদন করা হয়েছে', data.requestedPlan);
 
       return true;
-    } catch (error) {
-      console.error('Failed to create subscription request document in Firestore:', error);
+    } catch (error: any) {
+      console.error('[Firestore Write Failure] Failed to create subscription request document in Firestore:', error);
+      if (error && typeof error === 'object') {
+        console.error('[COMPLETE Firebase Error Details]:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+      }
       throw error;
     }
   };
@@ -1240,6 +1255,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!req) return;
 
     try {
+      console.log('[Firestore Write Start] Approving request in "subscriptionRequests":', requestId);
       // 1. Update request status in Firestore
       const reqRef = doc(db, 'subscriptionRequests', requestId);
       await updateDoc(reqRef, {
@@ -1247,9 +1263,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         reviewedDate: new Date().toISOString(),
         reviewedAt: serverTimestamp(),
       });
+      console.log('[Firestore Write Success] Approved request in "subscriptionRequests":', requestId);
 
       // 2. Update merchant user profile in Firestore
       if (req.userId) {
+        console.log('[Firestore Write Start] Updating merchant profile in "users" collection:', req.userId);
         const userRef = doc(db, 'users', req.userId);
         await updateDoc(userRef, {
           subscriptionPlan: req.requestedPlan,
@@ -1257,6 +1275,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           subscriptionStatus: 'active',
           pendingPlan: deleteField(),
         });
+        console.log('[Firestore Write Success] Updated merchant profile in "users" collection:', req.userId);
       }
 
       // 3. Local states update
@@ -1296,8 +1315,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setNotifications((prev) => [notif, ...prev]);
       logActivity('Approved Subscription Request', 'সাবস্ক্রিপশন আবেদন অনুমোদন করা হয়েছে', req.userEmail);
-    } catch (error) {
-      console.error('Error approving subscription request:', error);
+    } catch (error: any) {
+      console.error('[Firestore Write Failure] Error approving subscription request:', error);
+      if (error && typeof error === 'object') {
+        console.error('[COMPLETE Firebase Error Details]:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+      }
     }
   };
 
@@ -1306,6 +1328,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!req) return;
 
     try {
+      console.log('[Firestore Write Start] Rejecting request in "subscriptionRequests":', requestId);
       // 1. Update request status in Firestore
       const reqRef = doc(db, 'subscriptionRequests', requestId);
       await updateDoc(reqRef, {
@@ -1314,14 +1337,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         reviewedDate: new Date().toISOString(),
         reviewedAt: serverTimestamp(),
       });
+      console.log('[Firestore Write Success] Rejected request in "subscriptionRequests":', requestId);
 
       // 2. Update merchant user profile in Firestore
       if (req.userId) {
+        console.log('[Firestore Write Start] Updating user status in "users" collection:', req.userId);
         const userRef = doc(db, 'users', req.userId);
         await updateDoc(userRef, {
           subscriptionStatus: 'active',
           pendingPlan: deleteField(),
         });
+        console.log('[Firestore Write Success] Updated user status in "users" collection:', req.userId);
       }
 
       setAllUsers((prev) =>

@@ -53,6 +53,10 @@
       "schema": "users",
       "description": "User profiles indexed by Firebase Auth UID"
     },
+    "/subscriptionRequests/{requestId}": {
+      "schema": "subscription_requests",
+      "description": "User plan subscription requests"
+    },
     "/subscription_requests/{requestId}": {
       "schema": "subscription_requests",
       "description": "User plan subscription requests"

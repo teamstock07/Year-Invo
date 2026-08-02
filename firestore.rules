@@ -7,12 +7,16 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Subscription requests collection
+    // Subscription requests collection (both camelCase and snake_case)
+    match /subscriptionRequests/{requestId} {
+      allow read, write: if true;
+    }
+
     match /subscription_requests/{requestId} {
       allow read, write: if true;
     }
 
-    // Default rule
+    // Default catch-all rule
     match /{document=**} {
       allow read, write: if true;
     }
