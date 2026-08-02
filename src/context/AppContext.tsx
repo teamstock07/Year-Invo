@@ -696,9 +696,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       logActivity('User Logged In', 'ব্যবহারকারী লগইন করেছে', cleanEmail);
       return { success: true };
     } catch (error: any) {
-      console.error('Firebase Auth login error:', error);
+      console.error('Firebase Auth login error [Full Error]:', error);
+      if (error && typeof error === 'object') {
+        console.error('Firebase Error Code:', error.code, '| Message:', error.message, '| Full Details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+      }
       let message = 'Incorrect email or password.';
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+      if (error.code === 'auth/operation-not-allowed') {
+        message = 'Email/Password sign-in is disabled in your Firebase Console. Please go to Firebase Console -> Authentication -> Sign-in method and enable Email/Password.';
+      } else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
         message = 'Incorrect email or password. If you have not created an account yet, please click "Need a new account? Sign Up Here" below to register.';
       } else if (error.code === 'auth/invalid-email') {
         message = 'Invalid email address format.';
@@ -819,9 +824,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       logActivity('User Registered Account', `নতুন অ্যাকাউন্ট তৈরি করা হয়েছে (Manager)`, cleanEmail);
       return { success: true };
     } catch (error: any) {
-      console.error('Firebase signup error:', error);
+      console.error('Firebase signup error [Full Error]:', error);
+      if (error && typeof error === 'object') {
+        console.error('Firebase Error Code:', error.code, '| Message:', error.message, '| Full Details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+      }
       let message = error.message || 'Failed to create account.';
-      if (error.code === 'auth/email-already-in-use') {
+      if (error.code === 'auth/operation-not-allowed') {
+        message = 'Email/Password sign-in is disabled in your Firebase Console. Please go to Firebase Console -> Authentication -> Sign-in method and enable Email/Password.';
+      } else if (error.code === 'auth/email-already-in-use') {
         message = 'An account with this email address already exists. Please log in.';
       } else if (error.code === 'auth/weak-password') {
         message = 'Password should be at least 6 characters.';
