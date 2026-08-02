@@ -250,7 +250,18 @@ export const OwnerDashboard: React.FC = () => {
     (u) => u.subscriptionPlan === 'Pro' || u.subscriptionPlan === 'Business' || u.subscriptionPlan === 'Lifetime'
   ).length;
   const freeUsers = allUsers.filter((u) => u.subscriptionPlan === 'Free' || u.subscriptionPlan === 'Starter').length;
-  const pendingRequests = subscriptionRequests.filter((r) => r.status === 'pending');
+  const [subFilterTab, setSubFilterTab] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+
+  const pendingRequests = useMemo(() => subscriptionRequests.filter((r) => r.status === 'pending'), [subscriptionRequests]);
+  const approvedRequests = useMemo(() => subscriptionRequests.filter((r) => r.status === 'approved'), [subscriptionRequests]);
+  const rejectedRequests = useMemo(() => subscriptionRequests.filter((r) => r.status === 'rejected'), [subscriptionRequests]);
+
+  const filteredSubscriptionRequests = useMemo(() => {
+    if (subFilterTab === 'pending') return pendingRequests;
+    if (subFilterTab === 'approved') return approvedRequests;
+    if (subFilterTab === 'rejected') return rejectedRequests;
+    return subscriptionRequests;
+  }, [subscriptionRequests, subFilterTab, pendingRequests, approvedRequests, rejectedRequests]);
 
   // Platform Sales & Revenue Estimates
   const totalSalesRevenue = sales.reduce((acc, s) => acc + (s.totalAmount || 0), 0);
@@ -1268,59 +1279,121 @@ export const OwnerDashboard: React.FC = () => {
       {/* TAB 3: SUBSCRIPTION APPROVALS */}
       {activeTab === 'subscriptions' && (
         <div className="space-y-6">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-lg">
-            <div className="flex items-center justify-between">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
               <div>
                 <h3 className="font-extrabold text-base text-white flex items-center gap-2">
                   <Award className="w-5 h-5 text-amber-400" />
-                  <span>Pending Merchant Upgrade Requests</span>
+                  <span>Merchant Subscription Requests</span>
                 </h3>
-                <p className="text-xs text-slate-400">Review subscription plan upgrade requests from merchants</p>
+                <p className="text-xs text-slate-400">Manage and review subscription plan upgrade requests from merchants</p>
               </div>
-              <span className="px-3 py-1 bg-amber-500/20 border border-amber-500/40 text-amber-300 rounded-xl text-xs font-black">
-                {pendingRequests.length} Pending
-              </span>
+
+              {/* Status Filter Pills */}
+              <div className="flex items-center gap-1.5 p-1 bg-slate-950 border border-slate-800 rounded-xl overflow-x-auto text-xs">
+                <button
+                  onClick={() => setSubFilterTab('all')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                    subFilterTab === 'all' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  All ({subscriptionRequests.length})
+                </button>
+                <button
+                  onClick={() => setSubFilterTab('pending')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                    subFilterTab === 'pending' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-amber-400'
+                  }`}
+                >
+                  Pending ({pendingRequests.length})
+                </button>
+                <button
+                  onClick={() => setSubFilterTab('approved')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                    subFilterTab === 'approved' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-emerald-400'
+                  }`}
+                >
+                  Approved ({approvedRequests.length})
+                </button>
+                <button
+                  onClick={() => setSubFilterTab('rejected')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                    subFilterTab === 'rejected' ? 'bg-rose-600 text-white' : 'text-slate-400 hover:text-rose-400'
+                  }`}
+                >
+                  Rejected ({rejectedRequests.length})
+                </button>
+              </div>
             </div>
 
-            {pendingRequests.length === 0 ? (
+            {filteredSubscriptionRequests.length === 0 ? (
               <div className="p-8 text-center bg-slate-950/60 rounded-xl border border-slate-800 text-slate-400 space-y-2">
                 <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
-                <p className="font-bold text-sm text-slate-200">No pending upgrade requests</p>
-                <p className="text-xs text-slate-500">All merchant subscription requests have been processed.</p>
+                <p className="font-bold text-sm text-slate-200">No subscription requests found</p>
+                <p className="text-xs text-slate-500">There are no requests matching the selected filter ({subFilterTab}).</p>
               </div>
             ) : (
               <div className="divide-y divide-slate-800 border border-slate-800 rounded-xl overflow-hidden">
-                {pendingRequests.map((req) => (
+                {filteredSubscriptionRequests.map((req) => (
                   <div key={req.id} className="p-5 bg-slate-950/50 hover:bg-slate-800/40 transition-colors space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
                         <div className="flex items-center gap-2">
-                          <h4 className="font-extrabold text-sm text-white">{req.brandName}</h4>
+                          <h4 className="font-extrabold text-sm text-white">{req.brandName || 'Store'}</h4>
                           <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold text-[10px]">
                             {req.requestedPlan} Plan
                           </span>
+                          {req.status === 'pending' && (
+                            <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold text-[10px]">
+                              Pending Review
+                            </span>
+                          )}
+                          {req.status === 'approved' && (
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold text-[10px]">
+                              Approved
+                            </span>
+                          )}
+                          {req.status === 'rejected' && (
+                            <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold text-[10px]">
+                              Rejected
+                            </span>
+                          )}
                         </div>
-                        <p className="text-xs text-slate-400">
-                          Applicant: {req.userName} ({req.userEmail})
+                        <p className="text-xs text-slate-400 mt-1">
+                          Applicant: <strong className="text-slate-200">{req.userName}</strong> ({req.userEmail}) • UID: <span className="font-mono text-slate-400">{req.userId || 'N/A'}</span>
                         </p>
                       </div>
 
                       <div className="flex items-center gap-2 text-xs">
-                        <button
-                          onClick={() => approveSubscriptionRequest(req.id)}
-                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1.5"
-                        >
-                          <Check className="w-4 h-4" />
-                          <span>Approve Upgrade</span>
-                        </button>
+                        {req.status === 'pending' ? (
+                          <>
+                            <button
+                              onClick={() => approveSubscriptionRequest(req.id)}
+                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1.5"
+                            >
+                              <Check className="w-4 h-4" />
+                              <span>Approve Upgrade</span>
+                            </button>
 
-                        <button
-                          onClick={() => setRejectModalReqId(req.id)}
-                          className="px-4 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
-                        >
-                          <X className="w-4 h-4" />
-                          <span>Reject Request</span>
-                        </button>
+                            <button
+                              onClick={() => setRejectModalReqId(req.id)}
+                              className="px-4 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                            >
+                              <X className="w-4 h-4" />
+                              <span>Reject Request</span>
+                            </button>
+                          </>
+                        ) : req.status === 'approved' ? (
+                          <div className="text-right text-xs">
+                            <span className="text-emerald-400 font-bold block">✓ Request Approved</span>
+                            {req.reviewedDate && <span className="text-slate-500 text-[10px]">{new Date(req.reviewedDate).toLocaleDateString()}</span>}
+                          </div>
+                        ) : (
+                          <div className="text-right text-xs">
+                            <span className="text-rose-400 font-bold block">✕ Request Rejected</span>
+                            {req.notes && <span className="text-slate-400 text-[10px] block">Reason: {req.notes}</span>}
+                          </div>
+                        )}
                       </div>
                     </div>
 

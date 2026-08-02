@@ -16,6 +16,7 @@ import {
   getDocs,
   onSnapshot,
   serverTimestamp,
+  deleteField,
 } from 'firebase/firestore';
 import {
   UserProfile,
@@ -84,9 +85,9 @@ interface AppContextType {
     paymentMethod: string;
     transactionId?: string;
     amount: number;
-  }) => void;
-  approveSubscriptionRequest: (requestId: string) => void;
-  rejectSubscriptionRequest: (requestId: string, notes?: string) => void;
+  }) => Promise<boolean>;
+  approveSubscriptionRequest: (requestId: string) => Promise<void>;
+  rejectSubscriptionRequest: (requestId: string, notes?: string) => Promise<void>;
 
   // Settings & Theme
   settings: BusinessSettings;
@@ -440,21 +441,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => unsubscribeUsers();
   }, []);
 
-  // Subscription Approval Requests Directory
-  const [subscriptionRequests, setSubscriptionRequests] = useState<SubscriptionRequest[]>(() => {
-    const saved = localStorage.getItem('biz_subscription_requests');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      } catch (e) {}
-    }
-    return [];
-  });
+  // Subscription Approval Requests Directory (Realtime Firestore Synchronization)
+  const [subscriptionRequests, setSubscriptionRequests] = useState<SubscriptionRequest[]>([]);
 
   useEffect(() => {
-    localStorage.setItem('biz_subscription_requests', JSON.stringify(subscriptionRequests));
-  }, [subscriptionRequests]);
+    const unsubSubReqs = onSnapshot(
+      collection(db, 'subscriptionRequests'),
+      (snapshot) => {
+        const list: SubscriptionRequest[] = [];
+        snapshot.forEach((docSnap) => {
+          const d = docSnap.data();
+          let dateStr = new Date().toISOString();
+          if (d.createdAt) {
+            if (typeof d.createdAt === 'string') {
+              dateStr = d.createdAt;
+            } else if (d.createdAt?.toDate) {
+              dateStr = d.createdAt.toDate().toISOString();
+            }
+          } else if (d.requestDate) {
+            dateStr = d.requestDate;
+          }
+
+          list.push({
+            id: docSnap.id,
+            userId: d.uid || d.userId || '',
+            userName: d.userName || d.ownerName || 'User',
+            userEmail: d.email || d.userEmail || '',
+            brandName: d.storeName || d.brandName || '',
+            currentPlan: d.currentPlan || 'Free',
+            requestedPlan: d.requestedPlan || 'Pro',
+            billingCycle: d.billingCycle || 'monthly',
+            paymentMethod: d.paymentMethod || 'bKash',
+            transactionId: d.transactionId || '',
+            amount: d.amount || 0,
+            status: d.status || 'pending',
+            requestDate: dateStr,
+            reviewedDate: d.reviewedDate || '',
+            notes: d.notes || '',
+          });
+        });
+
+        // Sort newest requests first
+        list.sort((a, b) => new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime());
+        setSubscriptionRequests(list);
+      },
+      (error) => {
+        console.warn('onSnapshot subscriptionRequests error:', error);
+      }
+    );
+
+    return () => unsubSubReqs();
+  }, []);
   const [settings, setSettings] = useState<BusinessSettings>(() => {
     const saved = localStorage.getItem('biz_settings');
     if (saved) {
@@ -1117,150 +1154,213 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Subscription Approval System Handlers
-  const requestSubscription = (data: {
+  const requestSubscription = async (data: {
     requestedPlan: SubscriptionPlan;
     billingCycle: 'monthly' | 'yearly';
     paymentMethod: string;
     transactionId?: string;
     amount: number;
-  }) => {
-    if (!user) return;
+  }): Promise<boolean> => {
+    if (!user) {
+      throw new Error('User must be logged in to submit a request.');
+    }
 
-    const newRequest: SubscriptionRequest = {
-      id: `subreq-${Date.now()}`,
-      userId: user.id,
-      userName: user.ownerName,
-      userEmail: user.email,
-      brandName: user.brandName,
-      currentPlan: user.subscriptionPlan,
+    const requestId = `subreq-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const reqRef = doc(db, 'subscriptionRequests', requestId);
+
+    // Save document with exact required fields: uid, userName, email, storeName, requestedPlan, status: "pending", createdAt: serverTimestamp()
+    const docData = {
+      id: requestId,
+      uid: user.id || user.uid || '',
+      userId: user.id || user.uid || '',
+      userName: user.ownerName || user.fullName || 'Merchant',
+      email: user.email || '',
+      userEmail: user.email || '',
+      storeName: user.brandName || user.storeName || 'My Store',
+      brandName: user.brandName || user.storeName || 'My Store',
+      currentPlan: user.subscriptionPlan || 'Free',
       requestedPlan: data.requestedPlan,
       billingCycle: data.billingCycle,
       paymentMethod: data.paymentMethod,
-      transactionId: data.transactionId,
+      transactionId: data.transactionId || '',
       amount: data.amount,
       status: 'pending',
+      createdAt: serverTimestamp(),
       requestDate: new Date().toISOString(),
     };
 
-    setSubscriptionRequests((prev) => [newRequest, ...prev]);
+    try {
+      // 1. Save request to Firestore
+      await setDoc(reqRef, docData);
 
-    // Update user pending plan state without instantly activating it
-    const updatedUser: UserProfile = {
-      ...user,
-      pendingPlan: data.requestedPlan,
-      subscriptionStatus: 'pending',
-    };
-    setUser(updatedUser);
-    setAllUsers((prev) => prev.map((u) => (u.id === user.id ? updatedUser : u)));
+      // 2. Update user's pending status in Firestore
+      try {
+        const userRef = doc(db, 'users', user.id);
+        await updateDoc(userRef, {
+          pendingPlan: data.requestedPlan,
+          subscriptionStatus: 'pending',
+        });
+      } catch (uErr) {
+        console.warn('Notice updating user pending plan in Firestore:', uErr);
+      }
 
-    // Send user notification
-    const notif: AppNotification = {
-      id: `notif-${Date.now()}`,
-      title: 'Subscription Request Submitted',
-      titleBn: 'সাবস্ক্রিপশন আবেদন জমা দেওয়া হয়েছে',
-      message: `Your request for the ${data.requestedPlan} Plan is pending approval by the platform owner.`,
-      messageBn: `আপনার ${data.requestedPlan} প্ল্যানের আবেদন প্লাটফর্ম এডমিন অনুমোদনের অপেক্ষায় রয়েছে।`,
-      type: 'subscription',
-      date: new Date().toISOString().split('T')[0],
-      read: false,
-      linkTab: 'subscription',
-    };
-    setNotifications((prev) => [notif, ...prev]);
-    logActivity('Requested Subscription Upgrade', 'সাবস্ক্রিপশন আপগ্রেড আবেদন করা হয়েছে', data.requestedPlan);
+      // 3. Local user state update
+      const updatedUser: UserProfile = {
+        ...user,
+        pendingPlan: data.requestedPlan,
+        subscriptionStatus: 'pending',
+      };
+      setUser(updatedUser);
+      setAllUsers((prev) => prev.map((u) => (u.id === user.id ? updatedUser : u)));
+
+      // 4. Send user notification
+      const notif: AppNotification = {
+        id: `notif-${Date.now()}`,
+        title: 'Subscription Request Submitted',
+        titleBn: 'সাবস্ক্রিপশন আবেদন জমা দেওয়া হয়েছে',
+        message: `Your request for the ${data.requestedPlan} Plan is pending approval by the platform owner.`,
+        messageBn: `আপনার ${data.requestedPlan} প্ল্যানের আবেদন প্লাটফর্ম এডমিন অনুমোদনের অপেক্ষায় রয়েছে।`,
+        type: 'subscription',
+        date: new Date().toISOString().split('T')[0],
+        read: false,
+        linkTab: 'subscription',
+      };
+      setNotifications((prev) => [notif, ...prev]);
+      logActivity('Requested Subscription Upgrade', 'সাবস্ক্রিপশন আপগ্রেড আবেদন করা হয়েছে', data.requestedPlan);
+
+      return true;
+    } catch (error) {
+      console.error('Failed to create subscription request document in Firestore:', error);
+      throw error;
+    }
   };
 
-  const approveSubscriptionRequest = (requestId: string) => {
+  const approveSubscriptionRequest = async (requestId: string): Promise<void> => {
     const req = subscriptionRequests.find((r) => r.id === requestId);
     if (!req) return;
 
-    setSubscriptionRequests((prev) =>
-      prev.map((r) =>
-        r.id === requestId ? { ...r, status: 'approved', reviewedDate: new Date().toISOString() } : r
-      )
-    );
-
-    setAllUsers((prev) =>
-      prev.map((u) => {
-        if (u.id === req.userId) {
-          return {
-            ...u,
-            subscriptionPlan: req.requestedPlan,
-            subscriptionStatus: 'active',
-            pendingPlan: undefined,
-          };
-        }
-        return u;
-      })
-    );
-
-    if (user && user.id === req.userId) {
-      setUser({
-        ...user,
-        subscriptionPlan: req.requestedPlan,
-        subscriptionStatus: 'active',
-        pendingPlan: undefined,
+    try {
+      // 1. Update request status in Firestore
+      const reqRef = doc(db, 'subscriptionRequests', requestId);
+      await updateDoc(reqRef, {
+        status: 'approved',
+        reviewedDate: new Date().toISOString(),
+        reviewedAt: serverTimestamp(),
       });
-    }
 
-    const notif: AppNotification = {
-      id: `notif-${Date.now()}`,
-      title: 'Subscription Plan Activated!',
-      titleBn: 'সাবস্ক্রিপশন প্ল্যান সক্রিয় হয়েছে!',
-      message: `Your request for the ${req.requestedPlan} Plan has been reviewed and APPROVED by the owner.`,
-      messageBn: `আপনার ${req.requestedPlan} প্ল্যানের আবেদন অনুমোদন করা হয়েছে।`,
-      type: 'subscription',
-      date: new Date().toISOString().split('T')[0],
-      read: false,
-      linkTab: 'subscription',
-    };
-    setNotifications((prev) => [notif, ...prev]);
-    logActivity('Approved Subscription Request', 'সাবস্ক্রিপশন আবেদন অনুমোদন করা হয়েছে', req.userEmail);
+      // 2. Update merchant user profile in Firestore
+      if (req.userId) {
+        const userRef = doc(db, 'users', req.userId);
+        await updateDoc(userRef, {
+          subscriptionPlan: req.requestedPlan,
+          subscription: req.requestedPlan.toLowerCase(),
+          subscriptionStatus: 'active',
+          pendingPlan: deleteField(),
+        });
+      }
+
+      // 3. Local states update
+      setAllUsers((prev) =>
+        prev.map((u) => {
+          if (u.id === req.userId) {
+            return {
+              ...u,
+              subscriptionPlan: req.requestedPlan,
+              subscriptionStatus: 'active',
+              pendingPlan: undefined,
+            };
+          }
+          return u;
+        })
+      );
+
+      if (user && user.id === req.userId) {
+        setUser({
+          ...user,
+          subscriptionPlan: req.requestedPlan,
+          subscriptionStatus: 'active',
+          pendingPlan: undefined,
+        });
+      }
+
+      const notif: AppNotification = {
+        id: `notif-${Date.now()}`,
+        title: 'Subscription Plan Activated!',
+        titleBn: 'সাবস্ক্রিপশন প্ল্যান সক্রিয় হয়েছে!',
+        message: `Your request for the ${req.requestedPlan} Plan has been reviewed and APPROVED by the owner.`,
+        messageBn: `আপনার ${req.requestedPlan} প্ল্যানের আবেদন অনুমোদন করা হয়েছে।`,
+        type: 'subscription',
+        date: new Date().toISOString().split('T')[0],
+        read: false,
+        linkTab: 'subscription',
+      };
+      setNotifications((prev) => [notif, ...prev]);
+      logActivity('Approved Subscription Request', 'সাবস্ক্রিপশন আবেদন অনুমোদন করা হয়েছে', req.userEmail);
+    } catch (error) {
+      console.error('Error approving subscription request:', error);
+    }
   };
 
-  const rejectSubscriptionRequest = (requestId: string, notes?: string) => {
+  const rejectSubscriptionRequest = async (requestId: string, notes?: string): Promise<void> => {
     const req = subscriptionRequests.find((r) => r.id === requestId);
     if (!req) return;
 
-    setSubscriptionRequests((prev) =>
-      prev.map((r) =>
-        r.id === requestId ? { ...r, status: 'rejected', notes, reviewedDate: new Date().toISOString() } : r
-      )
-    );
-
-    setAllUsers((prev) =>
-      prev.map((u) => {
-        if (u.id === req.userId) {
-          return {
-            ...u,
-            subscriptionStatus: 'active',
-            pendingPlan: undefined,
-          };
-        }
-        return u;
-      })
-    );
-
-    if (user && user.id === req.userId) {
-      setUser({
-        ...user,
-        subscriptionStatus: 'active',
-        pendingPlan: undefined,
+    try {
+      // 1. Update request status in Firestore
+      const reqRef = doc(db, 'subscriptionRequests', requestId);
+      await updateDoc(reqRef, {
+        status: 'rejected',
+        notes: notes || '',
+        reviewedDate: new Date().toISOString(),
+        reviewedAt: serverTimestamp(),
       });
-    }
 
-    const notif: AppNotification = {
-      id: `notif-${Date.now()}`,
-      title: 'Subscription Request Rejected',
-      titleBn: 'সাবস্ক্রিপশন আবেদন প্রত্যাখ্যাত হয়েছে',
-      message: `Your request for the ${req.requestedPlan} Plan was rejected.${notes ? ` Note: ${notes}` : ''}`,
-      messageBn: `আপনার ${req.requestedPlan} প্ল্যানের আবেদন বাতিল করা হয়েছে।`,
-      type: 'subscription',
-      date: new Date().toISOString().split('T')[0],
-      read: false,
-      linkTab: 'subscription',
-    };
-    setNotifications((prev) => [notif, ...prev]);
-    logActivity('Rejected Subscription Request', 'সাবস্ক্রিপশন আবেদন বাতিল করা হয়েছে', req.userEmail);
+      // 2. Update merchant user profile in Firestore
+      if (req.userId) {
+        const userRef = doc(db, 'users', req.userId);
+        await updateDoc(userRef, {
+          subscriptionStatus: 'active',
+          pendingPlan: deleteField(),
+        });
+      }
+
+      setAllUsers((prev) =>
+        prev.map((u) => {
+          if (u.id === req.userId) {
+            return {
+              ...u,
+              subscriptionStatus: 'active',
+              pendingPlan: undefined,
+            };
+          }
+          return u;
+        })
+      );
+
+      if (user && user.id === req.userId) {
+        setUser({
+          ...user,
+          subscriptionStatus: 'active',
+          pendingPlan: undefined,
+        });
+      }
+
+      const notif: AppNotification = {
+        id: `notif-${Date.now()}`,
+        title: 'Subscription Request Rejected',
+        titleBn: 'সাবস্ক্রিপশন আবেদন প্রত্যাখ্যাত হয়েছে',
+        message: `Your request for the ${req.requestedPlan} Plan was rejected.${notes ? ` Note: ${notes}` : ''}`,
+        messageBn: `আপনার ${req.requestedPlan} প্ল্যানের আবেদন বাতিল করা হয়েছে।`,
+        type: 'subscription',
+        date: new Date().toISOString().split('T')[0],
+        read: false,
+        linkTab: 'subscription',
+      };
+      setNotifications((prev) => [notif, ...prev]);
+      logActivity('Rejected Subscription Request', 'সাবস্ক্রিপশন আবেদন প্রত্যাখ্যান করা হয়েছে', req.userEmail);
+    } catch (error) {
+      console.error('Error rejecting subscription request:', error);
+    }
   };
 
   const updateProfile = (data: Partial<UserProfile>) => {

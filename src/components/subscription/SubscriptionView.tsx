@@ -9,6 +9,7 @@ import {
   Sparkles,
   Zap,
   Lock,
+  Loader2,
 } from 'lucide-react';
 
 // Price & Currency Converter Engine
@@ -915,6 +916,8 @@ export const SubscriptionView: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState('bKash / Nagad');
   const [transactionId, setTransactionId] = useState('');
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const langDict = subTranslations[language] || subTranslations['en'];
 
@@ -942,23 +945,34 @@ export const SubscriptionView: React.FC = () => {
     setRequestPlan(planName === 'Premium' ? 'Business' : planName);
   };
 
-  const handleFormSubmitRequest = (e: React.FormEvent) => {
+  const handleFormSubmitRequest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requestPlan) return;
+    if (!requestPlan || isSubmitting) return;
 
-    const amount = requestPlan === 'Pro' ? 350 : 600;
+    setIsSubmitting(true);
+    setSubmitError(null);
 
-    requestSubscription({
-      requestedPlan: requestPlan,
-      billingCycle,
-      paymentMethod,
-      transactionId: transactionId.trim() || undefined,
-      amount,
-    });
+    try {
+      const amount = requestPlan === 'Pro' ? 350 : 600;
 
-    setRequestPlan(null);
-    setSubmittedSuccess(true);
-    setTimeout(() => setSubmittedSuccess(false), 5000);
+      // Ensure Firestore document is successfully created before showing success (Requirement 6)
+      await requestSubscription({
+        requestedPlan: requestPlan,
+        billingCycle,
+        paymentMethod,
+        transactionId: transactionId.trim() || undefined,
+        amount,
+      });
+
+      setRequestPlan(null);
+      setSubmittedSuccess(true);
+      setTimeout(() => setSubmittedSuccess(false), 6000);
+    } catch (err: any) {
+      console.error('Subscription request error:', err);
+      setSubmitError(err.message || 'Failed to submit request to database. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -1427,6 +1441,12 @@ export const SubscriptionView: React.FC = () => {
             </p>
 
             <form onSubmit={handleFormSubmitRequest} className="space-y-4">
+              {submitError && (
+                <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs font-medium">
+                  {submitError}
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-bold text-slate-300 mb-1">
                   Payment Method
@@ -1466,16 +1486,19 @@ export const SubscriptionView: React.FC = () => {
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => setRequestPlan(null)}
-                  className="px-4 py-2.5 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-700"
+                  className="px-4 py-2.5 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-700 disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-[#ff5c01] hover:bg-[#e05100] text-white rounded-xl text-xs font-extrabold cursor-pointer shadow-lg shadow-[#ff5c01]/20"
+                  disabled={isSubmitting}
+                  className="px-5 py-2.5 bg-[#ff5c01] hover:bg-[#e05100] text-white rounded-xl text-xs font-extrabold cursor-pointer shadow-lg shadow-[#ff5c01]/20 disabled:opacity-50 flex items-center gap-2"
                 >
-                  Submit for Approval
+                  {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{isSubmitting ? 'Saving to Database...' : 'Submit for Approval'}</span>
                 </button>
               </div>
             </form>
