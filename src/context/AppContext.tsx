@@ -68,9 +68,13 @@ interface AppContextType {
   sendFirebasePasswordReset: (email: string) => Promise<{ success: boolean; message?: string }>;
   suspendUser: (userId: string) => void;
   activateUser: (userId: string) => void;
+  blockUser: (userId: string) => void;
+  unblockUser: (userId: string) => void;
   deleteUser: (userId: string) => void;
   resetUserPassword: (userId: string, newPass: string) => void;
   updateUserPlan: (userId: string, newPlan: SubscriptionPlan) => void;
+  updateUserData: (userId: string, data: Partial<UserProfile>) => void;
+  refreshUsers: () => Promise<void>;
 
   // Subscription Approval System
   subscriptionRequests: SubscriptionRequest[];
@@ -352,8 +356,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const uData = docSnap.data();
           const uEmail = (uData.email || '').toLowerCase();
           const isAdmin = isTeamStockAdmin(uEmail) || uData.role === 'owner' || uData.role === 'Owner' || uData.role === 'admin' || uData.role === 'PlatformOwner';
-          const normalizedRole: UserRole = isAdmin ? 'Owner' : 'Manager';
+          
+          let normalizedRole: UserRole = 'Manager';
+          if (isAdmin) {
+            normalizedRole = 'Owner';
+          } else if (uData.role === 'Staff' || uData.role === 'staff') {
+            normalizedRole = 'Staff';
+          } else if (uData.role === 'Accountant' || uData.role === 'accountant') {
+            normalizedRole = 'Accountant';
+          } else {
+            normalizedRole = 'Manager';
+          }
+
           const assignedPlan: SubscriptionPlan = isAdmin ? 'Lifetime' : ((uData.subscriptionPlan || uData.subscription || 'Free') as SubscriptionPlan);
+
+          let createdDateStr = new Date().toISOString().split('T')[0];
+          if (uData.createdAt) {
+            if (typeof uData.createdAt === 'string') {
+              createdDateStr = uData.createdAt.split('T')[0];
+            } else if (uData.createdAt?.toDate) {
+              createdDateStr = uData.createdAt.toDate().toISOString().split('T')[0];
+            }
+          }
+
+          let lastLoginStr = '';
+          if (uData.lastLogin) {
+            if (typeof uData.lastLogin === 'string') {
+              lastLoginStr = uData.lastLogin;
+            } else if (uData.lastLogin?.toDate) {
+              lastLoginStr = uData.lastLogin.toDate().toLocaleString();
+            }
+          }
 
           list.push({
             id: docSnap.id || uData.uid || uData.id,
@@ -368,13 +401,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             role: normalizedRole,
             subscriptionPlan: assignedPlan,
             subscriptionStatus: uData.subscriptionStatus || 'active',
-            status: uData.status || 'active',
+            status: (uData.status as any) || 'active',
             storeAddress: uData.storeAddress || uData.address || '',
             affiliateCode: uData.affiliateCode || '',
             affiliateProgram: uData.affiliateProgram || '',
+            avatarUrl: uData.avatarUrl || uData.photoUrl || uData.photo || '',
             verifiedEmail: true,
             verifiedPhone: true,
-            createdAt: uData.createdAt ? (typeof uData.createdAt === 'string' ? uData.createdAt : new Date().toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
+            createdAt: createdDateStr,
+            lastLogin: lastLoginStr,
+            notes: uData.notes || '',
           });
         });
         setAllUsers(list);
@@ -920,12 +956,127 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logActivity('Activated User Account', 'ব্যবহারকারী সক্রিয় করা হয়েছে', userId);
   };
 
-  const deleteUser = (userId: string) => {
-    setAllUsers((prev) => prev.filter((u) => u.id !== userId));
+  const blockUser = (userId: string) => {
+    setAllUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, status: 'blocked' } : u))
+    );
     if (user && user.id === userId) {
+      signOut(auth);
       setUser(null);
     }
-    logActivity('Deleted User Account', 'অ্যাকোউন্ট মুছে ফেলা হয়েছে', userId);
+    try {
+      const userRef = doc(db, 'users', userId);
+      updateDoc(userRef, { status: 'blocked' });
+    } catch (e) {
+      console.warn('Firestore blockUser notice:', e);
+    }
+    logActivity('Blocked User Account', 'ব্যবহারকারীর অ্যাকাউন্ট ব্লক করা হয়েছে', userId);
+  };
+
+  const unblockUser = (userId: string) => {
+    setAllUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, status: 'active' } : u))
+    );
+    try {
+      const userRef = doc(db, 'users', userId);
+      updateDoc(userRef, { status: 'active' });
+    } catch (e) {
+      console.warn('Firestore unblockUser notice:', e);
+    }
+    logActivity('Unblocked User Account', 'অ্যাকাউন্ট আনব্লক করা হয়েছে', userId);
+  };
+
+  const deleteUser = (userId: string) => {
+    setAllUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: 'deleted' } : u)));
+    if (user && user.id === userId) {
+      signOut(auth);
+      setUser(null);
+    }
+    try {
+      const userRef = doc(db, 'users', userId);
+      updateDoc(userRef, { status: 'deleted' });
+    } catch (e) {
+      console.warn('Firestore deleteUser notice:', e);
+    }
+    logActivity('Deleted User Account', 'অ্যাকোউন্ট ডিঅ্যাক্টিভেট/মুছে ফেলা হয়েছে', userId);
+  };
+
+  const updateUserData = (userId: string, data: Partial<UserProfile>) => {
+    setAllUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, ...data } : u))
+    );
+    if (user && user.id === userId) {
+      setUser((prev) => (prev ? { ...prev, ...data } : prev));
+    }
+    try {
+      const userRef = doc(db, 'users', userId);
+      const fsData: Record<string, any> = {};
+      if (data.ownerName !== undefined) { fsData.ownerName = data.ownerName; fsData.fullName = data.ownerName; }
+      if (data.brandName !== undefined) { fsData.brandName = data.brandName; fsData.storeName = data.brandName; }
+      if (data.mobile !== undefined) { fsData.mobile = data.mobile; fsData.phone = data.mobile; }
+      if (data.email !== undefined) { fsData.email = data.email; }
+      if (data.businessType !== undefined) { fsData.businessType = data.businessType; fsData.storeType = data.businessType; }
+      if (data.role !== undefined) { fsData.role = data.role.toLowerCase(); }
+      if (data.subscriptionPlan !== undefined) { fsData.subscriptionPlan = data.subscriptionPlan; fsData.subscription = data.subscriptionPlan.toLowerCase(); }
+      if (data.status !== undefined) { fsData.status = data.status; }
+      if (data.notes !== undefined) { fsData.notes = data.notes; }
+      updateDoc(userRef, fsData);
+    } catch (e) {
+      console.warn('Firestore updateUserData notice:', e);
+    }
+    logActivity('Updated User Profile', 'ব্যবহারকারীর তথ্য পরিবর্তন করা হয়েছে', userId);
+  };
+
+  const refreshUsers = async (): Promise<void> => {
+    try {
+      const usersCol = collection(db, 'users');
+      const snapshot = await getDocs(usersCol);
+      const list: UserProfile[] = [];
+      snapshot.forEach((docSnap) => {
+        const uData = docSnap.data();
+        const uEmail = (uData.email || '').toLowerCase();
+        const isAdmin = isTeamStockAdmin(uEmail) || uData.role === 'owner' || uData.role === 'Owner' || uData.role === 'admin' || uData.role === 'PlatformOwner';
+        let normalizedRole: UserRole = 'Manager';
+        if (isAdmin) {
+          normalizedRole = 'Owner';
+        } else if (uData.role === 'Staff' || uData.role === 'staff') {
+          normalizedRole = 'Staff';
+        } else if (uData.role === 'Accountant' || uData.role === 'accountant') {
+          normalizedRole = 'Accountant';
+        } else {
+          normalizedRole = 'Manager';
+        }
+        const assignedPlan: SubscriptionPlan = isAdmin ? 'Lifetime' : ((uData.subscriptionPlan || uData.subscription || 'Free') as SubscriptionPlan);
+
+        list.push({
+          id: docSnap.id || uData.uid || uData.id,
+          brandName: uData.brandName || uData.storeName || 'My Store',
+          ownerName: uData.ownerName || uData.fullName || 'Store Owner',
+          mobile: uData.mobile || uData.phone || '',
+          email: uData.email || '',
+          businessType: uData.businessType || uData.storeType || 'General Retail & Grocery',
+          country: uData.country || 'Bangladesh',
+          currency: uData.currency || '৳',
+          timeZone: uData.timeZone || 'Asia/Dhaka',
+          role: normalizedRole,
+          subscriptionPlan: assignedPlan,
+          subscriptionStatus: uData.subscriptionStatus || 'active',
+          status: (uData.status as any) || 'active',
+          storeAddress: uData.storeAddress || uData.address || '',
+          affiliateCode: uData.affiliateCode || '',
+          affiliateProgram: uData.affiliateProgram || '',
+          avatarUrl: uData.avatarUrl || uData.photoUrl || uData.photo || '',
+          verifiedEmail: true,
+          verifiedPhone: true,
+          createdAt: uData.createdAt ? (typeof uData.createdAt === 'string' ? uData.createdAt : (uData.createdAt?.toDate ? uData.createdAt.toDate().toISOString().split('T')[0] : new Date().toISOString().split('T')[0])) : new Date().toISOString().split('T')[0],
+          lastLogin: uData.lastLogin ? (typeof uData.lastLogin === 'string' ? uData.lastLogin : (uData.lastLogin?.toDate ? uData.lastLogin.toDate().toLocaleString() : '')) : '',
+          notes: uData.notes || '',
+        });
+      });
+      setAllUsers(list);
+    } catch (e) {
+      console.warn('refreshUsers error:', e);
+    }
   };
 
   const resetUserPassword = (userId: string, newPass: string) => {
@@ -1724,9 +1875,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sendFirebasePasswordReset,
         suspendUser,
         activateUser,
+        blockUser,
+        unblockUser,
         deleteUser,
         resetUserPassword,
         updateUserPlan,
+        updateUserData,
+        refreshUsers,
         subscriptionRequests,
         requestSubscription,
         approveSubscriptionRequest,

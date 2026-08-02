@@ -16,9 +16,9 @@ export interface UserProfile {
   timeZone: string;
   role: UserRole;
   subscriptionPlan: SubscriptionPlan;
-  subscriptionStatus?: 'active' | 'pending' | 'suspended';
+  subscriptionStatus?: 'active' | 'pending' | 'suspended' | 'blocked' | 'deleted';
   pendingPlan?: SubscriptionPlan;
-  status?: 'active' | 'suspended';
+  status?: 'active' | 'suspended' | 'blocked' | 'deleted';
   storeAddress?: string;
   affiliateCode?: string;
   affiliateProgram?: string;
@@ -27,6 +27,8 @@ export interface UserProfile {
   verifiedEmail: boolean;
   verifiedPhone: boolean;
   createdAt: string;
+  lastLogin?: string;
+  notes?: string;
 }
 
 export interface SubscriptionRequest {
