@@ -968,7 +968,12 @@ export const SubscriptionView: React.FC = () => {
       setSubmittedSuccess(true);
       setTimeout(() => setSubmittedSuccess(false), 6000);
     } catch (err: any) {
-      console.error('Subscription request error:', err);
+      console.error('[COMPLETE Firebase Error Details]:', err);
+      if (err && typeof err === 'object') {
+        console.error('[Firebase Error Code]:', err.code);
+        console.error('[Firebase Error Message]:', err.message);
+        console.error('[Firebase Error Full Output]:', JSON.stringify(err, Object.getOwnPropertyNames(err)));
+      }
       setSubmitError(err.message || 'Failed to submit request to database. Please try again.');
     } finally {
       setIsSubmitting(false);
