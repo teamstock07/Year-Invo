@@ -2,23 +2,9 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users collection
-    match /users/{userId} {
-      allow read, write: if true;
-    }
-
-    // Subscription requests collection (both camelCase and snake_case)
-    match /subscriptionRequests/{requestId} {
-      allow read, write: if true;
-    }
-
-    match /subscription_requests/{requestId} {
-      allow read, write: if true;
-    }
-
-    // Default catch-all rule
     match /{document=**} {
       allow read, write: if true;
     }
   }
 }
+

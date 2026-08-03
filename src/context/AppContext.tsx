@@ -1169,25 +1169,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw new Error('User must be logged in to submit a request.');
     }
 
+    const targetUid = user.id || user.uid || (auth.currentUser ? auth.currentUser.uid : '');
     const requestId = `subreq-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const reqRef = doc(db, 'subscriptionRequests', requestId);
+    const reqRefSnake = doc(db, 'subscription_requests', requestId);
 
-    // Save document with exact required fields: uid, userName, email, storeName, requestedPlan, status: "pending", createdAt: serverTimestamp()
-    const docData = {
+    // Save document with sanitized fields (never undefined for Firestore)
+    const docData: Record<string, any> = {
       id: requestId,
-      uid: user.id || user.uid || '',
-      userId: user.id || user.uid || '',
+      uid: targetUid,
+      userId: targetUid,
       userName: user.ownerName || user.fullName || 'Merchant',
       email: user.email || '',
       userEmail: user.email || '',
       storeName: user.brandName || user.storeName || 'My Store',
       brandName: user.brandName || user.storeName || 'My Store',
       currentPlan: user.subscriptionPlan || 'Free',
-      requestedPlan: data.requestedPlan,
-      billingCycle: data.billingCycle,
-      paymentMethod: data.paymentMethod,
-      transactionId: data.transactionId || '',
-      amount: data.amount,
+      requestedPlan: data.requestedPlan || 'Pro',
+      billingCycle: data.billingCycle || 'monthly',
+      paymentMethod: data.paymentMethod || 'bKash',
+      transactionId: data.transactionId ? String(data.transactionId).trim() : '',
+      amount: typeof data.amount === 'number' ? data.amount : 0,
       status: 'pending',
       createdAt: serverTimestamp(),
       requestDate: new Date().toISOString(),
@@ -1196,23 +1198,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       console.log('[Firestore Write Start] Creating subscription request document in "subscriptionRequests"...', requestId);
       console.log('[Firestore Write Payload]:', docData);
-      // 1. Save request to Firestore
+      // 1. Save request to Firestore in both collection names to ensure compatibility
       await setDoc(reqRef, docData);
+      try {
+        await setDoc(reqRefSnake, docData);
+      } catch (snakeErr) {
+        console.warn('Notice setting subscription_requests snake_case:', snakeErr);
+      }
       console.log('[Firestore Write Success] Successfully created subscription request in "subscriptionRequests":', requestId);
 
-      // 2. Update user's pending status in Firestore
-      try {
-        console.log('[Firestore Write Start] Updating user pendingPlan in "users" collection...', user.id);
-        const userRef = doc(db, 'users', user.id);
-        await updateDoc(userRef, {
-          pendingPlan: data.requestedPlan,
-          subscriptionStatus: 'pending',
-        });
-        console.log('[Firestore Write Success] Successfully updated pendingPlan in "users" collection for:', user.id);
-      } catch (uErr: any) {
-        console.warn('Notice updating user pending plan in Firestore:', uErr);
-        if (uErr && typeof uErr === 'object') {
-          console.error('[COMPLETE Firebase Error Details]:', JSON.stringify(uErr, Object.getOwnPropertyNames(uErr)));
+      // 2. Update user's pending status in Firestore using merge: true
+      if (targetUid) {
+        try {
+          console.log('[Firestore Write Start] Updating user pendingPlan in "users" collection for UID:', targetUid);
+          const userRef = doc(db, 'users', targetUid);
+          await setDoc(
+            userRef,
+            {
+              pendingPlan: data.requestedPlan,
+              subscriptionStatus: 'pending',
+              uid: targetUid,
+              email: user.email || '',
+            },
+            { merge: true }
+          );
+          console.log('[Firestore Write Success] Successfully updated pendingPlan in "users" collection for:', targetUid);
+        } catch (uErr: any) {
+          console.warn('Notice updating user pending plan in Firestore:', uErr);
+          if (uErr && typeof uErr === 'object') {
+            console.error('[COMPLETE Firebase Error Details]:', JSON.stringify(uErr, Object.getOwnPropertyNames(uErr)));
+          }
         }
       }
 
@@ -1258,23 +1273,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.log('[Firestore Write Start] Approving request in "subscriptionRequests":', requestId);
       // 1. Update request status in Firestore
       const reqRef = doc(db, 'subscriptionRequests', requestId);
-      await updateDoc(reqRef, {
-        status: 'approved',
-        reviewedDate: new Date().toISOString(),
-        reviewedAt: serverTimestamp(),
-      });
+      await setDoc(
+        reqRef,
+        {
+          status: 'approved',
+          reviewedDate: new Date().toISOString(),
+          reviewedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
       console.log('[Firestore Write Success] Approved request in "subscriptionRequests":', requestId);
 
       // 2. Update merchant user profile in Firestore
       if (req.userId) {
         console.log('[Firestore Write Start] Updating merchant profile in "users" collection:', req.userId);
         const userRef = doc(db, 'users', req.userId);
-        await updateDoc(userRef, {
-          subscriptionPlan: req.requestedPlan,
-          subscription: req.requestedPlan.toLowerCase(),
-          subscriptionStatus: 'active',
-          pendingPlan: deleteField(),
-        });
+        await setDoc(
+          userRef,
+          {
+            subscriptionPlan: req.requestedPlan,
+            subscription: req.requestedPlan.toLowerCase(),
+            subscriptionStatus: 'active',
+            pendingPlan: deleteField(),
+          },
+          { merge: true }
+        );
         console.log('[Firestore Write Success] Updated merchant profile in "users" collection:', req.userId);
       }
 
@@ -1331,22 +1354,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.log('[Firestore Write Start] Rejecting request in "subscriptionRequests":', requestId);
       // 1. Update request status in Firestore
       const reqRef = doc(db, 'subscriptionRequests', requestId);
-      await updateDoc(reqRef, {
-        status: 'rejected',
-        notes: notes || '',
-        reviewedDate: new Date().toISOString(),
-        reviewedAt: serverTimestamp(),
-      });
+      await setDoc(
+        reqRef,
+        {
+          status: 'rejected',
+          notes: notes || '',
+          reviewedDate: new Date().toISOString(),
+          reviewedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
       console.log('[Firestore Write Success] Rejected request in "subscriptionRequests":', requestId);
 
       // 2. Update merchant user profile in Firestore
       if (req.userId) {
         console.log('[Firestore Write Start] Updating user status in "users" collection:', req.userId);
         const userRef = doc(db, 'users', req.userId);
-        await updateDoc(userRef, {
-          subscriptionStatus: 'active',
-          pendingPlan: deleteField(),
-        });
+        await setDoc(
+          userRef,
+          {
+            subscriptionStatus: 'active',
+            pendingPlan: deleteField(),
+          },
+          { merge: true }
+        );
         console.log('[Firestore Write Success] Updated user status in "users" collection:', req.userId);
       }
 
