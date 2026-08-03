@@ -10,6 +10,7 @@ import {
 import {
   doc,
   setDoc,
+  addDoc,
   getDoc,
   updateDoc,
   collection,
@@ -1170,18 +1171,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const targetUid = user.id || user.uid || (auth.currentUser ? auth.currentUser.uid : '');
-    const requestId = `subreq-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-    const reqRef = doc(db, 'subscriptionRequests', requestId);
-    const reqRefSnake = doc(db, 'subscription_requests', requestId);
+    const userEmail = user.email || (auth.currentUser ? auth.currentUser.email : '') || '';
 
-    // Save document with sanitized fields (never undefined for Firestore)
+    // Save document with exact fields required by prompt and UI
     const docData: Record<string, any> = {
-      id: requestId,
       uid: targetUid,
       userId: targetUid,
+      email: userEmail,
+      userEmail: userEmail,
       userName: user.ownerName || user.fullName || 'Merchant',
-      email: user.email || '',
-      userEmail: user.email || '',
       storeName: user.brandName || user.storeName || 'My Store',
       brandName: user.brandName || user.storeName || 'My Store',
       currentPlan: user.subscriptionPlan || 'Free',
@@ -1195,22 +1193,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       requestDate: new Date().toISOString(),
     };
 
-    try {
-      console.log('[Firestore Write Start] Creating subscription request document in "subscriptionRequests"...', requestId);
-      console.log('[Firestore Write Payload]:', docData);
-      // 1. Save request to Firestore in both collection names to ensure compatibility
-      await setDoc(reqRef, docData);
-      try {
-        await setDoc(reqRefSnake, docData);
-      } catch (snakeErr) {
-        console.warn('Notice setting subscription_requests snake_case:', snakeErr);
-      }
-      console.log('[Firestore Write Success] Successfully created subscription request in "subscriptionRequests":', requestId);
+    const subRequestsCollection = collection(db, 'subscriptionRequests');
 
-      // 2. Update user's pending status in Firestore using merge: true
+    console.log('[Firestore Write Pre-check]');
+    console.log('  - Firebase Project ID:', auth.app.options.projectId);
+    console.log('  - Firestore Database:', '(default)');
+    console.log('  - Collection Name: subscriptionRequests');
+    console.log('  - Target UID:', targetUid);
+    console.log('  - Write Payload:', docData);
+
+    try {
+      // 1. Write to subscriptionRequests using addDoc
+      const docRef = await addDoc(subRequestsCollection, {
+        ...docData,
+        id: '', // Will be updated or populated below
+      });
+
+      console.log('[Firestore Write Success]');
+      console.log('  - Collection Name: subscriptionRequests');
+      console.log('  - Document Path:', docRef.path);
+      console.log('  - Document ID:', docRef.id);
+
+      // 2. Also set id field on document for easy client references
+      try {
+        await setDoc(docRef, { id: docRef.id }, { merge: true });
+      } catch (idErr) {
+        console.warn('Notice attaching document ID to subscriptionRequest:', idErr);
+      }
+
+      // 3. Update user's pending status in Firestore using merge: true
       if (targetUid) {
         try {
-          console.log('[Firestore Write Start] Updating user pendingPlan in "users" collection for UID:', targetUid);
+          console.log('[Firestore User Pending Status Write]');
+          console.log('  - Document Path:', `users/${targetUid}`);
           const userRef = doc(db, 'users', targetUid);
           await setDoc(
             userRef,
@@ -1218,11 +1233,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               pendingPlan: data.requestedPlan,
               subscriptionStatus: 'pending',
               uid: targetUid,
-              email: user.email || '',
+              email: userEmail,
             },
             { merge: true }
           );
-          console.log('[Firestore Write Success] Successfully updated pendingPlan in "users" collection for:', targetUid);
+          console.log('[Firestore User Pending Status Success]: users/' + targetUid);
         } catch (uErr: any) {
           console.warn('Notice updating user pending plan in Firestore:', uErr);
           if (uErr && typeof uErr === 'object') {
