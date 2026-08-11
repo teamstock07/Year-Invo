@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Sale } from '../../types';
 import { QuickReceiptModal } from './QuickReceiptModal';
+import { playSuccessSound } from '../../utils/audio';
 import {
   Zap,
   Search,
@@ -100,6 +101,7 @@ export const QuickSaleView: React.FC = () => {
       cashReceived: numericPaid,
     });
 
+    playSuccessSound();
     setCompletedSale(sale);
     setIsReceiptOpen(true);
     setDiscountValue(0);

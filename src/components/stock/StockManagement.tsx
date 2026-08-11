@@ -6,7 +6,7 @@ export const StockManagement: React.FC = () => {
   const { products, updateProduct, settings, t } = useApp();
   const symbol = settings.currency || '৳';
 
-  const [filterType, setFilterType] = useState<'all' | 'low' | 'out'>('low');
+  const [filterType, setFilterType] = useState<'all' | 'low' | 'out'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [quickAddQty, setQuickAddQty] = useState<{ [id: string]: number }>({});
 

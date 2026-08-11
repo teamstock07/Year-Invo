@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Product, Sale } from '../../types';
 import { ReceiptModal } from './ReceiptModal';
+import { QrScannerModal } from './QrScannerModal';
+import { playSuccessSound, playBeepSound } from '../../utils/audio';
 import {
   ShoppingCart,
   Search,
@@ -233,6 +235,7 @@ export const PosSystem: React.FC = () => {
       cashReceived: numericPaid,
     });
 
+    playSuccessSound();
     setCompletedSale(sale);
     setIsReceiptOpen(true);
     setDiscountValue(0);
@@ -875,44 +878,15 @@ export const PosSystem: React.FC = () => {
         </div>
       </div>
 
-      {/* Camera Barcode Scanner Modal */}
-      {isScannerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
-          <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-800 text-center space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                <Camera className="w-4 h-4 text-blue-600" />
-                Barcode / QR Code Scanner
-              </h3>
-              <button onClick={() => setIsScannerOpen(false)} className="text-slate-400">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="relative aspect-video bg-slate-950 rounded-2xl flex items-center justify-center border-2 border-dashed border-blue-500/50 overflow-hidden">
-              <div className="absolute inset-0 bg-blue-500/10 animate-pulse" />
-              <span className="text-xs text-blue-400 font-bold z-10">Point camera at product barcode...</span>
-            </div>
-
-            <p className="text-xs text-slate-500">Or pick a test barcode item from catalog:</p>
-            <div className="flex flex-wrap gap-1.5 justify-center">
-              {products.slice(0, 4).map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => {
-                    addToCart(p);
-                    playBeepSound();
-                    setIsScannerOpen(false);
-                  }}
-                  className="px-2.5 py-1 rounded-lg text-[10px] font-mono bg-slate-100 dark:bg-slate-800 text-blue-600"
-                >
-                  #{p.barcode || p.sku}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Camera Barcode / QR Code Scanner Modal */}
+      <QrScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        products={products}
+        onProductScanned={(scannedProduct) => {
+          addToCart(scannedProduct);
+        }}
+      />
 
       {/* QR Code Payment Modal */}
       {isQrPaymentModalOpen && (

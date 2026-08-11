@@ -304,9 +304,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               return;
             }
 
+            let savedBrand = '';
+            try {
+              const savedSet = localStorage.getItem('biz_settings');
+              if (savedSet) {
+                const pSet = JSON.parse(savedSet);
+                if (pSet && pSet.brandName && pSet.brandName !== 'My Store') {
+                  savedBrand = pSet.brandName;
+                }
+              }
+              if (!savedBrand) {
+                const savedU = localStorage.getItem('biz_user');
+                if (savedU && savedU !== 'null') {
+                  const pU = JSON.parse(savedU);
+                  if (pU && pU.brandName && pU.brandName !== 'My Store') {
+                    savedBrand = pU.brandName;
+                  }
+                }
+              }
+            } catch (e) {}
+
+            const fsBrand = uData.brandName || uData.storeName || '';
+            const effectiveBrandName = fsBrand && fsBrand !== 'My Store' ? fsBrand : (savedBrand || fsBrand || 'My Store');
+
+            if (savedBrand && fsBrand !== savedBrand) {
+              try {
+                updateDoc(userRef, { brandName: savedBrand, storeName: savedBrand });
+              } catch (e) {}
+            }
+
             const profile: UserProfile = {
               id: firebaseUser.uid,
-              brandName: uData.brandName || uData.storeName || 'My Store',
+              brandName: effectiveBrandName,
               ownerName: uData.ownerName || uData.fullName || firebaseUser.displayName || 'Store Owner',
               mobile: uData.mobile || uData.phone || '',
               email: firebaseUser.email || uData.email || userEmail,
@@ -1439,8 +1468,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!user) return;
     const updated = { ...user, ...data };
     setUser(updated);
+    localStorage.setItem('biz_user', JSON.stringify(updated));
     if (data.brandName) {
-      setSettings((prev) => ({ ...prev, brandName: data.brandName! }));
+      setSettings((prev) => {
+        const next = { ...prev, brandName: data.brandName! };
+        localStorage.setItem('biz_settings', JSON.stringify(next));
+        return next;
+      });
+    }
+    if (auth.currentUser) {
+      const fsPayload: Record<string, any> = { ...data };
+      if (data.brandName) fsPayload.storeName = data.brandName;
+      updateDoc(doc(db, 'users', auth.currentUser.uid), fsPayload)
+        .catch((err) => console.warn('Sync profile error:', err));
     }
     logActivity('Updated Profile', 'প্রোফাইল আপডেট করা হয়েছে');
   };
@@ -1449,15 +1489,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!user) return;
     const updated = { ...user, ...data };
     setUser(updated);
+    localStorage.setItem('biz_user', JSON.stringify(updated));
     if (data.brandName) {
-      setSettings((prev) => ({ ...prev, brandName: data.brandName! }));
+      setSettings((prev) => {
+        const next = { ...prev, brandName: data.brandName! };
+        localStorage.setItem('biz_settings', JSON.stringify(next));
+        return next;
+      });
+    }
+    if (auth.currentUser) {
+      const fsPayload: Record<string, any> = { ...data };
+      if (data.brandName) fsPayload.storeName = data.brandName;
+      updateDoc(doc(db, 'users', auth.currentUser.uid), fsPayload)
+        .catch((err) => console.warn('Sync user error:', err));
     }
   };
 
   const updateSettings = (newSettings: Partial<BusinessSettings>) => {
-    setSettings((prev) => ({ ...prev, ...newSettings }));
+    setSettings((prev) => {
+      const next = { ...prev, ...newSettings };
+      localStorage.setItem('biz_settings', JSON.stringify(next));
+      return next;
+    });
     if (newSettings.brandName) {
-      setUser((prev) => (prev ? { ...prev, brandName: newSettings.brandName! } : prev));
+      setUser((prev) => {
+        if (!prev) return prev;
+        const updatedUser = { ...prev, brandName: newSettings.brandName! };
+        localStorage.setItem('biz_user', JSON.stringify(updatedUser));
+        return updatedUser;
+      });
+      if (auth.currentUser) {
+        updateDoc(doc(db, 'users', auth.currentUser.uid), {
+          brandName: newSettings.brandName,
+          storeName: newSettings.brandName,
+        }).catch((err) => console.warn('Sync brandName settings error:', err));
+      }
     }
     logActivity('Settings Updated', 'সেটিংস সেভ করা হয়েছে');
   };

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { ShareDueModal } from './ShareDueModal';
+import { Customer } from '../../types';
 import {
   CreditCard,
   Users,
@@ -16,6 +18,7 @@ import {
   X,
   FileText,
   Clock,
+  Share2,
 } from 'lucide-react';
 
 export const DueManagement: React.FC = () => {
@@ -44,6 +47,9 @@ export const DueManagement: React.FC = () => {
     name: string;
     type: 'customer' | 'supplier';
   } | null>(null);
+
+  // Modal for Share Due Statement
+  const [selectedCustomerForShare, setSelectedCustomerForShare] = useState<Customer | null>(null);
 
   const handleConfirmCollection = (e: React.FormEvent) => {
     e.preventDefault();
@@ -251,19 +257,27 @@ export const DueManagement: React.FC = () => {
                         </td>
                         {/* Current Due */}
                         <td className="p-3.5 text-right font-black text-rose-600 dark:text-rose-400 text-sm">
-                          {symbol} {c.dueAmount === 0 ? '00' : c.dueAmount.toLocaleString()}
+                          {symbol} {(c.dueAmount || c.totalDue || 0) === 0 ? '00' : (c.dueAmount || c.totalDue || 0).toLocaleString()}
                         </td>
                         <td className="p-3.5 text-center">
-                          <div className="flex items-center justify-center gap-2">
+                          <div className="flex items-center justify-center gap-1.5">
                             <button
                               onClick={() => {
-                                setSelectedEntityForPay({ id: c.id, name: c.name, type: 'customer', currentDue: c.dueAmount });
-                                setPayAmount(c.dueAmount);
+                                const currentDue = c.dueAmount || c.totalDue || 0;
+                                setSelectedEntityForPay({ id: c.id, name: c.name, type: 'customer', currentDue });
+                                setPayAmount(currentDue);
                               }}
-                              disabled={c.dueAmount === 0}
+                              disabled={(c.dueAmount || c.totalDue || 0) === 0}
                               className="px-3 py-1.5 bg-[#ff5c01] hover:bg-[#e05100] disabled:bg-slate-200 dark:disabled:bg-slate-800 text-white font-bold rounded-xl shadow-xs transition-all text-xs cursor-pointer"
                             >
                               Collect Due
+                            </button>
+                            <button
+                              onClick={() => setSelectedCustomerForShare({ ...c, totalDue: c.dueAmount || c.totalDue || 0 })}
+                              className="p-1.5 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 text-rose-600 dark:text-rose-400 rounded-lg transition-colors cursor-pointer"
+                              title="Share Customer Due Statement"
+                            >
+                              <Share2 className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => setHistoryEntity({ id: c.id, name: c.name, type: 'customer' })}
@@ -664,6 +678,13 @@ export const DueManagement: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Share Customer Due Modal */}
+      <ShareDueModal
+        customer={selectedCustomerForShare}
+        isOpen={Boolean(selectedCustomerForShare)}
+        onClose={() => setSelectedCustomerForShare(null)}
+      />
     </div>
   );
 };

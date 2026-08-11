@@ -5,16 +5,49 @@
 @layer base {
   :root {
     font-family: 'Hind Siliguri', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color-scheme: light dark;
   }
 
   body {
     font-family: 'Hind Siliguri', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    @apply bg-slate-50 text-slate-900 antialiased transition-colors duration-200;
+    @apply bg-[#f3f5f8] text-slate-800 antialiased transition-colors duration-200;
   }
 
   .dark body {
     @apply bg-[#09090b] text-slate-100;
   }
+}
+
+/* Eye-soothing soft light mode enhancement */
+:root:not(.dark) {
+  --color-card-bg: #ffffff;
+  --color-surface-bg: #f8fafc;
+  --color-border-subtle: #e2e8f0;
+}
+
+/* Soft card borders and pleasant shadows in light mode */
+:root:not(.dark) .bg-white {
+  background-color: #ffffff;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
+}
+
+:root:not(.dark) .border-\[\#E8EEF2\],
+:root:not(.dark) .border-slate-200 {
+  border-color: #e2e8f0;
+}
+
+:root:not(.dark) input,
+:root:not(.dark) select,
+:root:not(.dark) textarea {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+:root:not(.dark) input:focus,
+:root:not(.dark) select:focus,
+:root:not(.dark) textarea:focus {
+  background-color: #ffffff;
+  border-color: #ff5c01;
 }
 
 /* Ensure Bengali language uses Hind Siliguri as primary font */
@@ -39,4 +72,5 @@
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #334155;
 }
+
 

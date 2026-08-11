@@ -26,6 +26,7 @@ import { HelpSupportView } from './components/help/HelpSupportView';
 import { AboutView } from './components/about/AboutView';
 import { OwnerDashboard } from './components/owner/OwnerDashboard';
 import { LoginView } from './components/auth/LoginView';
+import { LivePublicView } from './components/public/LivePublicView';
 
 import { getDisplayBrandName } from './utils/brand';
 
@@ -33,9 +34,31 @@ const MainLayout: React.FC = () => {
   const { user, activeTab, theme, settings } = useApp();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  // Check URL parameters for Live Customer Due or Live Invoice View
+  const [urlParams, setUrlParams] = useState(() => new URLSearchParams(window.location.search));
+
   React.useEffect(() => {
     document.title = getDisplayBrandName(settings.brandName);
   }, [settings.brandName]);
+
+  const dueCustomerId = urlParams.get('dueCustomerId') || urlParams.get('dueId') || urlParams.get('customer');
+  const invoiceNo = urlParams.get('invoice') || urlParams.get('invoiceNo');
+
+  const handleClearLiveView = () => {
+    window.history.pushState({}, '', window.location.pathname);
+    setUrlParams(new URLSearchParams(''));
+  };
+
+  // If live statement parameter is present in URL, present LivePublicView directly
+  if (dueCustomerId || invoiceNo) {
+    return (
+      <LivePublicView
+        dueCustomerId={dueCustomerId}
+        invoiceNo={invoiceNo}
+        onExitLiveView={handleClearLiveView}
+      />
+    );
+  }
 
   if (!user) {
     return <LoginView />;

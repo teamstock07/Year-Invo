@@ -176,21 +176,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           })}
         </nav>
 
-        {/* Bottom Left Section: Enter Shop Name */}
-        <div className="p-3 border-t border-[#E8EEF2] dark:border-slate-800/80 bg-slate-50/80 dark:bg-slate-900/40">
-          <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1.5">
-            <Store className="w-3.5 h-3.5 text-[#ff5c01]" />
-            <span>Shop / Store Name:</span>
-          </label>
-          <input
-            type="text"
-            value={settings.brandName || ''}
-            onChange={(e) => updateSettings({ brandName: e.target.value })}
-            placeholder="Enter your shop name..."
-            className="w-full text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-[#ff5c01] transition-colors"
-          />
-        </div>
-
         {/* Subscription Footer Card */}
         <div className="p-3 border-t border-[#E8EEF2] dark:border-slate-800">
           <button
