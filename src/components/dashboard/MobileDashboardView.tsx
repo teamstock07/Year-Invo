@@ -53,6 +53,8 @@ export const MobileDashboardView: React.FC = () => {
     customers,
     language,
     t,
+    formatNumber,
+    formatCurrency,
   } = useApp();
 
   const symbol = settings.currency || '৳';
@@ -202,7 +204,6 @@ export const MobileDashboardView: React.FC = () => {
           {/* Top Info Bar */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
               <span className="text-[10px] sm:text-xs font-semibold text-slate-300">
                 {isBn ? 'স্বাগতম,' : 'Welcome back,'}{' '}
                 <span className="font-extrabold text-white">{user?.ownerName || 'Store Manager'}</span>
@@ -219,34 +220,23 @@ export const MobileDashboardView: React.FC = () => {
             </button>
           </div>
 
-          {/* Store Title & Status */}
+          {/* Store Title */}
           <div className="flex items-end justify-between gap-3 pt-0.5">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
                 {isBn ? 'মাই বিজনেস স্টোর' : 'Active Merchant Store'}
               </p>
-              <h1 className="text-lg xs:text-xl sm:text-2xl font-black tracking-tight text-white leading-tight truncate max-w-[210px] xs:max-w-[260px]">
+              <h1 className="text-lg xs:text-xl sm:text-2xl font-black tracking-tight text-white leading-tight truncate max-w-[280px]">
                 {storeName}
               </h1>
             </div>
-
-            <div className="text-right shrink-0">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[9px] font-extrabold uppercase">
-                <ShieldCheck className="w-3 h-3" />
-                Live
-              </span>
-            </div>
           </div>
 
-          {/* Bottom Date & Cloud Sync */}
+          {/* Bottom Date */}
           <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[10px] text-slate-300">
             <div className="flex items-center gap-1.5 font-medium">
               <Calendar className="w-3 h-3 text-[#ff5c01]" />
               <span>{currentDateFormatted}</span>
-            </div>
-            <div className="flex items-center gap-1 font-semibold text-emerald-400">
-              <RefreshCw className="w-2.5 h-2.5 animate-spin" />
-              <span>{isBn ? 'ক্লাউড সিঙ্কড' : 'Cloud Sync Active'}</span>
             </div>
           </div>
         </div>
@@ -284,7 +274,7 @@ export const MobileDashboardView: React.FC = () => {
               </div>
             </div>
             <p className="text-xs xs:text-sm font-black text-slate-900 dark:text-white truncate">
-              {symbol} {formatAmount(metrics.todaySales)}
+              {formatCurrency(metrics.todaySales)}
             </p>
           </div>
 
@@ -302,7 +292,7 @@ export const MobileDashboardView: React.FC = () => {
               </div>
             </div>
             <p className="text-xs xs:text-sm font-black text-emerald-600 dark:text-emerald-400 truncate">
-              {symbol} {formatAmount(metrics.todayProfit)}
+              {formatCurrency(metrics.todayProfit)}
             </p>
           </div>
 
@@ -320,7 +310,7 @@ export const MobileDashboardView: React.FC = () => {
               </div>
             </div>
             <p className="text-xs xs:text-sm font-black text-slate-900 dark:text-white truncate">
-              {todaySalesCount} {isBn ? 'টি' : 'orders'}
+              {formatNumber(todaySalesCount)} {isBn ? 'টি' : 'orders'}
             </p>
           </div>
 
@@ -338,7 +328,7 @@ export const MobileDashboardView: React.FC = () => {
               </div>
             </div>
             <p className="text-xs xs:text-sm font-black text-slate-900 dark:text-white truncate">
-              {products.length} {isBn ? 'টি' : 'items'}
+              {formatNumber(products.length)} {isBn ? 'টি' : 'items'}
             </p>
           </div>
 
@@ -356,7 +346,7 @@ export const MobileDashboardView: React.FC = () => {
               </div>
             </div>
             <p className="text-xs xs:text-sm font-black text-rose-500 truncate">
-              {symbol} {formatAmount(metrics.totalDueCustomers)}
+              {formatCurrency(metrics.totalDueCustomers)}
             </p>
           </div>
 
@@ -374,7 +364,7 @@ export const MobileDashboardView: React.FC = () => {
               </div>
             </div>
             <p className={`text-xs xs:text-sm font-black truncate ${metrics.lowStockCount > 0 ? 'text-amber-500' : 'text-slate-900 dark:text-white'}`}>
-              {metrics.lowStockCount} {isBn ? 'টি কম' : 'low'}
+              {formatNumber(metrics.lowStockCount)} {isBn ? 'টি কম' : 'low'}
             </p>
           </div>
         </div>

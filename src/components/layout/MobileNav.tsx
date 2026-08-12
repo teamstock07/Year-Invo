@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 
 export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSidebar }) => {
-  const { activeTab, setActiveTab, language, user } = useApp();
+  const { activeTab, setActiveTab, user, t } = useApp();
   const [showAllMenuSheet, setShowAllMenuSheet] = useState(false);
 
   const handleSelectTab = (tabId: string) => {
@@ -36,18 +36,16 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
     setShowAllMenuSheet(false);
   };
 
-  const isBn = language === 'bn';
-
   // Feature Categories for Mobile Sheet
   const featureCategories = [
     ...(user?.role === 'Owner'
       ? [
           {
-            title: isBn ? 'অ্যাডমিন কন্ট্রোল' : 'Admin Control',
+            title: t('adminControl') || 'Admin Control',
             items: [
               {
                 id: 'owner',
-                name: isBn ? 'ওনার প্যানেল (Owner Panel)' : 'Owner Panel',
+                name: t('navOwnerPanel') || 'Owner Panel',
                 icon: Crown,
                 color: 'bg-purple-500 text-white dark:bg-purple-600',
               },
@@ -56,34 +54,34 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
         ]
       : []),
     {
-      title: isBn ? 'বিক্রয় সমূহের তালিকা' : 'Sales Operations',
+      title: t('salesOperations') || 'Sales Operations',
       items: [
-        { id: 'quicksale', name: isBn ? 'কুইক সেল' : 'Quick Sale', icon: Zap, color: 'bg-[#ff5c01]/10 text-[#ff5c01] dark:bg-[#ff5c01]/20' },
-        { id: 'pos', name: isBn ? 'পস রেজিস্টার' : 'POS Register', icon: ShoppingCart, color: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400' },
-        { id: 'saleshistory', name: isBn ? 'বিক্রয় হিস্ট্রি' : 'Sales History', icon: History, color: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400' },
-        { id: 'due', name: isBn ? 'বকেয়া হিসাব' : 'Customer Dues', icon: CreditCard, color: 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400' },
+        { id: 'quicksale', name: t('navQuickSale') || 'Quick Sale', icon: Zap, color: 'bg-[#ff5c01]/10 text-[#ff5c01] dark:bg-[#ff5c01]/20' },
+        { id: 'pos', name: t('navPos') || 'POS Register', icon: ShoppingCart, color: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400' },
+        { id: 'saleshistory', name: t('navSales') || 'Sales History', icon: History, color: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400' },
+        { id: 'due', name: t('navDue') || 'Customer Dues', icon: CreditCard, color: 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400' },
       ],
     },
     {
-      title: isBn ? 'আপনার ব্যবসার জন্য (Business Tools)' : 'Business Tools',
+      title: t('businessTools') || 'Business Tools',
       items: [
-        { id: 'stock', name: isBn ? 'স্টকের হিসাব' : 'Stock Audit', icon: Boxes, color: 'bg-purple-50 text-purple-600 dark:bg-purple-950/60 dark:text-purple-400' },
-        { id: 'expired', name: isBn ? 'মেয়াদোত্তীর্ণ পণ্য' : 'Expiry Products', icon: AlertTriangle, color: 'bg-red-50 text-red-600 dark:bg-red-950/60 dark:text-red-400' },
-        { id: 'ai', name: isBn ? 'AI ইনসাইট' : 'AI Insights', icon: Sparkles, color: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400' },
-        { id: 'reports', name: isBn ? 'ব্যবসার রিপোর্ট' : 'Business Reports', icon: FileSpreadsheet, color: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400' },
+        { id: 'stock', name: t('navStock') || 'Stock Audit', icon: Boxes, color: 'bg-purple-50 text-purple-600 dark:bg-purple-950/60 dark:text-purple-400' },
+        { id: 'expired', name: t('navExpired') || 'Expiry Products', icon: AlertTriangle, color: 'bg-red-50 text-red-600 dark:bg-red-950/60 dark:text-red-400' },
+        { id: 'ai', name: t('navAiInsights') || 'AI Insights', icon: Sparkles, color: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400' },
+        { id: 'reports', name: t('navProfit') || 'Business Reports', icon: FileSpreadsheet, color: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400' },
       ],
     },
     {
-      title: isBn ? 'অন্যান্য সুবিধাসমূহ (Other Utilities)' : 'Other Utilities',
+      title: t('otherUtilities') || 'Other Utilities',
       items: [
-        { id: 'products', name: isBn ? 'প্রোডাক্ট লিস্ট' : 'Product Catalog', icon: Package, color: 'bg-sky-50 text-sky-600 dark:bg-sky-950/60 dark:text-sky-400' },
-        { id: 'categories', name: isBn ? 'ক্যাটাগরি' : 'Categories', icon: Tags, color: 'bg-teal-50 text-teal-600 dark:bg-teal-950/60 dark:text-teal-400' },
-        { id: 'customers', name: isBn ? 'কাস্টমার লিস্ট' : 'Customers', icon: Users, color: 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400' },
-        { id: 'suppliers', name: isBn ? 'সাপ্লায়ার' : 'Suppliers', icon: Truck, color: 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400' },
-        { id: 'barcode', name: isBn ? 'বারকোড জেনারেটর' : 'Barcode Print', icon: QrCode, color: 'bg-[#ff5c01]/10 text-[#ff5c01]' },
-        { id: 'settings', name: isBn ? 'সেটিংস' : 'Settings', icon: Settings, color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200' },
-        { id: 'help', name: isBn ? 'হেল্প ও সাপোর্ট' : 'Help & Support', icon: HelpCircle, color: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400' },
-        { id: 'about', name: isBn ? 'সম্পর্কে (About)' : 'About', icon: Info, color: 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400' },
+        { id: 'products', name: t('navProducts') || 'Product Catalog', icon: Package, color: 'bg-sky-50 text-sky-600 dark:bg-sky-950/60 dark:text-sky-400' },
+        { id: 'categories', name: t('navCategories') || 'Categories', icon: Tags, color: 'bg-teal-50 text-teal-600 dark:bg-teal-950/60 dark:text-teal-400' },
+        { id: 'customers', name: t('navCustomers') || 'Customers', icon: Users, color: 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400' },
+        { id: 'suppliers', name: t('navSuppliers') || 'Suppliers', icon: Truck, color: 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400' },
+        { id: 'barcode', name: t('navBarcode') || 'Barcode Print', icon: QrCode, color: 'bg-[#ff5c01]/10 text-[#ff5c01]' },
+        { id: 'settings', name: t('navSettings') || t('settings') || 'Settings', icon: Settings, color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200' },
+        { id: 'help', name: t('navHelp') || 'Help & Support', icon: HelpCircle, color: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400' },
+        { id: 'about', name: t('navAbout') || 'About', icon: Info, color: 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400' },
       ],
     },
   ];
@@ -102,7 +100,7 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
           }`}
         >
           <Home className="w-5 h-5" />
-          <span className="text-[10px]">{isBn ? 'হোম' : 'Home'}</span>
+          <span className="text-[10px]">{t('navHome') || 'Home'}</span>
         </button>
 
         {/* 2. Products */}
@@ -115,7 +113,7 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
           }`}
         >
           <Package className="w-5 h-5" />
-          <span className="text-[10px]">{isBn ? 'প্রোডাক্ট' : 'Products'}</span>
+          <span className="text-[10px]">{t('navProducts') || 'Products'}</span>
         </button>
 
         {/* 3. Center Highlighted Quick Sale Button */}
@@ -125,7 +123,7 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
           title="Quick Sale"
         >
           <Zap className="w-6 h-6" />
-          <span className="text-[9px] font-black uppercase tracking-tight">{isBn ? 'কুইক সেল' : 'Quick Sale'}</span>
+          <span className="text-[9px] font-black uppercase tracking-tight">{t('navQuickSale') || 'Quick Sale'}</span>
         </button>
 
         {/* 4. Reports */}
@@ -138,7 +136,7 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
           }`}
         >
           <FileSpreadsheet className="w-5 h-5" />
-          <span className="text-[10px]">{isBn ? 'রিপোর্ট' : 'Reports'}</span>
+          <span className="text-[10px]">{t('navProfit') || 'Reports'}</span>
         </button>
 
         {/* 5. Menu */}
@@ -151,7 +149,7 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
           }`}
         >
           <Grid className="w-5 h-5" />
-          <span className="text-[10px]">{isBn ? 'মেন্যু' : 'Menu'}</span>
+          <span className="text-[10px]">{t('navMenu') || 'Menu'}</span>
         </button>
       </div>
 
@@ -167,7 +165,7 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
               <div className="flex items-center gap-2">
                 <Grid className="w-5 h-5 text-[#ff5c01]" />
                 <h3 className="font-black text-base text-slate-900 dark:text-white">
-                  {isBn ? 'সকল ফিচার ও সার্ভিস' : 'All App Functions'}
+                  {t('allAppFunctions') || 'All App Functions'}
                 </h3>
               </div>
               <button
@@ -212,7 +210,7 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
                 onClick={() => setShowAllMenuSheet(false)}
                 className="w-full py-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-xs uppercase tracking-wider"
               >
-                {isBn ? 'বন্ধ করুন' : 'Close Sheet'}
+                {t('close') || 'Close Sheet'}
               </button>
             </div>
           </div>

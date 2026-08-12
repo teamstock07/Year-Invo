@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Sale } from '../../types';
 import { QuickReceiptModal } from './QuickReceiptModal';
-import { playSuccessSound } from '../../utils/audio';
+import { findProductByCode } from '../../utils/scanner';
+import { playSuccessSound, playBeepSound } from '../../utils/audio';
 import {
   Zap,
   Search,
@@ -14,6 +15,9 @@ import {
   Banknote,
   CreditCard,
   Tag,
+  QrCode,
+  Store,
+  X,
 } from 'lucide-react';
 
 export const QuickSaleView: React.FC = () => {
@@ -27,13 +31,15 @@ export const QuickSaleView: React.FC = () => {
     clearCart,
     checkoutPOS,
     settings,
+    setActiveTab,
   } = useApp();
 
   const symbol = settings.currency || '৳';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
-  const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Card' | 'Due/Credit'>('Cash');
+  const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Card' | 'Due/Credit' | 'bKash/Mobile'>('Cash');
+  const [isQrModalOpen, setIsQrModalOpen] = useState<boolean>(false);
   const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed');
   const [discountValue, setDiscountValue] = useState<number>(0);
   const [paidAmountInput, setPaidAmountInput] = useState<string>('');
@@ -130,8 +136,31 @@ export const QuickSaleView: React.FC = () => {
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search item by name or code..."
+            onChange={(e) => {
+              const val = e.target.value;
+              setSearchQuery(val);
+              if (val.trim()) {
+                const exactMatch = findProductByCode(products, val);
+                if (exactMatch) {
+                  addToCart(exactMatch);
+                  playBeepSound();
+                  setSearchQuery('');
+                }
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && searchQuery.trim()) {
+                const matched = findProductByCode(products, searchQuery);
+                if (matched) {
+                  addToCart(matched);
+                  playBeepSound();
+                  setSearchQuery('');
+                } else {
+                  alert(`Product not found for code: "${searchQuery.trim()}"`);
+                }
+              }
+            }}
+            placeholder="Search item by name or scan code..."
             className="w-full pl-10 pr-4 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 font-medium focus:outline-none focus:border-[#ff5c01]"
           />
         </div>
@@ -358,9 +387,10 @@ export const QuickSaleView: React.FC = () => {
             <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
               Payment Method
             </span>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
                 { id: 'Cash', label: 'Cash', icon: Banknote },
+                { id: 'bKash/Mobile', label: 'QR / Mobile', icon: QrCode },
                 { id: 'Card', label: 'Card', icon: CreditCard },
                 { id: 'Due/Credit', label: 'Due / Credit', icon: Tag },
               ].map((pm) => {
@@ -370,7 +400,12 @@ export const QuickSaleView: React.FC = () => {
                   <button
                     key={pm.id}
                     type="button"
-                    onClick={() => setPaymentMethod(pm.id as any)}
+                    onClick={() => {
+                      setPaymentMethod(pm.id as any);
+                      if (pm.id === 'bKash/Mobile') {
+                        setIsQrModalOpen(true);
+                      }
+                    }}
                     className={`py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-all cursor-pointer ${
                       isSelected
                         ? 'bg-[#ff5c01] text-white border-[#ff5c01] shadow-xs'
@@ -415,6 +450,96 @@ export const QuickSaleView: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* QR Code Payment Modal */}
+      {isQrModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 animate-in fade-in">
+          <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center space-y-4 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                <QrCode className="w-4 h-4 text-[#ff5c01]" />
+                <span>{settings.paymentSettings?.qrProvider || 'QR'} Payment</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsQrModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {settings.paymentSettings?.qrEnabled && (settings.paymentSettings?.qrImageUrl || settings.paymentSettings?.qrProvider) ? (
+              <>
+                <div className="bg-white p-4 rounded-2xl inline-block shadow-inner mx-auto">
+                  {settings.paymentSettings?.qrImageUrl ? (
+                    <img
+                      src={settings.paymentSettings.qrImageUrl}
+                      alt="Store QR Payment"
+                      className="w-48 h-48 object-contain mx-auto"
+                    />
+                  ) : (
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                        `${settings.paymentSettings?.qrProvider || 'PAYMENT'}-${settings.brandName || 'STORE'}-${grandTotal}`
+                      )}`}
+                      alt="Generated QR Payment"
+                      className="w-44 h-44 mx-auto"
+                    />
+                  )}
+                </div>
+
+                <div className="space-y-1 text-xs">
+                  <p className="font-bold text-white">
+                    Scan to pay: <span className="text-[#ff5c01] text-base font-black">{symbol}{grandTotal.toLocaleString()}</span>
+                  </p>
+                  <p className="text-xs text-slate-300 font-semibold">
+                    Provider: <span className="text-[#ff5c01]">{settings.paymentSettings?.qrProvider || 'bKash'}</span>
+                  </p>
+                  {settings.paymentSettings?.accountName && (
+                    <p className="text-[11px] text-slate-300">Account: <strong>{settings.paymentSettings.accountName}</strong></p>
+                  )}
+                  {settings.paymentSettings?.accountNumber && (
+                    <p className="text-[11px] font-mono text-slate-400">A/C No: {settings.paymentSettings.accountNumber}</p>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsQrModalOpen(false)}
+                  className="w-full py-2.5 bg-[#ff5c01] hover:bg-[#e05100] text-white font-bold text-xs rounded-xl shadow-lg shadow-[#ff5c01]/20 transition-all cursor-pointer"
+                >
+                  Confirm QR Payment Received
+                </button>
+              </>
+            ) : (
+              <div className="py-6 space-y-4 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto">
+                  <QrCode className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-white">QR payment is not configured yet.</h4>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Upload your store's QR code in Store Branding to accept QR payments.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsQrModalOpen(false);
+                    setActiveTab('branding');
+                  }}
+                  className="w-full py-2.5 bg-[#ff5c01] hover:bg-[#e05100] text-white font-bold text-xs rounded-xl shadow-lg shadow-[#ff5c01]/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Store className="w-4 h-4" />
+                  <span>Configure QR Payment</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Compact Quick Receipt Modal */}
       <QuickReceiptModal

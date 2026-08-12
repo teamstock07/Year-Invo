@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';
 import { Language } from '../../types';
 import { getCustomerStoreName } from '../../utils/brand';
@@ -18,6 +19,10 @@ import {
   ChevronDown,
   MoreVertical,
   Camera,
+  Coins,
+  Monitor,
+  X,
+  ChevronRight,
 } from 'lucide-react';
 
 export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSidebar }) => {
@@ -28,6 +33,7 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
     language,
     setLanguage,
     theme,
+    setTheme,
     toggleTheme,
     notifications,
     markAllNotificationsRead,
@@ -42,6 +48,7 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showMobileProfileMenu, setShowMobileProfileMenu] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -68,6 +75,27 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
     }
   };
 
+  const handleSetTheme = (selectedTheme: 'light' | 'dark' | 'system') => {
+    if (selectedTheme === 'system') {
+      const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (setTheme) {
+        setTheme(systemPrefersDark ? 'dark' : 'light');
+      } else {
+        if ((systemPrefersDark && theme === 'light') || (!systemPrefersDark && theme === 'dark')) {
+          toggleTheme();
+        }
+      }
+    } else {
+      if (setTheme) {
+        setTheme(selectedTheme);
+      } else {
+        if ((selectedTheme === 'dark' && theme === 'light') || (selectedTheme === 'light' && theme === 'dark')) {
+          toggleTheme();
+        }
+      }
+    }
+  };
+
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -82,7 +110,7 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
   };
 
   return (
-    <header className="sticky top-0 z-30 h-16 shrink-0 border-b border-[#E8EEF2] dark:border-slate-800 flex items-center justify-between px-4 sm:px-6 lg:px-8 bg-white/90 dark:bg-[#09090b]/80 backdrop-blur-md transition-colors">
+    <header className="sticky top-0 z-30 h-16 shrink-0 border-b border-[#E8EEF2] dark:border-slate-800 flex items-center justify-between px-3 sm:px-6 lg:px-8 bg-white/90 dark:bg-[#09090b]/80 backdrop-blur-md transition-colors">
       {/* Hidden File Input for Logo Upload */}
       <input
         type="file"
@@ -92,15 +120,15 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
         className="hidden"
       />
 
-      {/* Brand Logo, Name & Badge */}
-      <div className="flex items-center gap-2 min-w-0">
+      {/* Left Side: Brand Logo, Name & Badge */}
+      <div className="flex items-center gap-2 min-w-0 shrink">
         <div
           className="flex items-center gap-2 select-none cursor-pointer group min-w-0"
           onClick={() => setActiveTab('dashboard')}
           title="Go to Dashboard"
         >
           {/* Main Store Logo Badge */}
-          <div className="relative p-0.5 bg-slate-900 dark:bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-center shadow-xs group-hover:border-[#ff5c01] transition-colors shrink-0">
+          <div className="relative p-1 bg-slate-900 dark:bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-center shadow-xs group-hover:border-[#ff5c01] transition-colors shrink-0">
             <MainWebsiteLogo
               size={28}
               customUrl={settings.logoUrl}
@@ -109,17 +137,17 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
           </div>
 
           <div className="flex items-center gap-1 min-w-0">
-            <h1 className="font-black text-slate-900 dark:text-white text-xs sm:text-base leading-tight group-hover:text-[#ff5c01] transition-colors truncate max-w-[85px] xs:max-w-[120px] sm:max-w-xs">
+            <h1 className="font-black text-slate-900 dark:text-white text-xs sm:text-base leading-tight group-hover:text-[#ff5c01] transition-colors truncate max-w-[100px] xs:max-w-[140px] sm:max-w-xs">
               {storeDisplayName}
             </h1>
-            <span className="text-[8px] sm:text-[9px] font-extrabold px-1.5 py-0.5 rounded-md bg-[#ff5c01]/10 text-[#ff5c01] border border-[#ff5c01]/20 uppercase shrink-0">
+            <span className="hidden xs:inline-block text-[8px] sm:text-[9px] font-extrabold px-1.5 py-0.5 rounded-md bg-[#ff5c01]/10 text-[#ff5c01] border border-[#ff5c01]/20 uppercase shrink-0">
               {user?.subscriptionPlan || 'Free'}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Global Search Bar - Enabled only on Product, Category, and Stock views */}
+      {/* Global Search Bar - Desktop Only */}
       {['products', 'categories', 'stock'].includes(activeTab) ? (
         <div className="flex-1 max-w-xs sm:max-w-md mx-4 hidden sm:block">
           <div className="relative">
@@ -137,67 +165,74 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
         <div className="flex-1" />
       )}
 
-      {/* Action Controls */}
+      {/* Right Side: Action Controls */}
       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-        {/* Currency Selector Dropdown */}
-        <div className="relative">
-          <select
-            value={settings.currency || '৳'}
-            onChange={(e) => updateSettings({ currency: e.target.value })}
-            className="w-[42px] xs:w-[52px] sm:w-auto bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-[10px] sm:text-xs font-black py-1 sm:py-1.5 px-1 sm:px-2.5 rounded-lg sm:rounded-xl border border-[#E8EEF2] dark:border-slate-800 focus:outline-none focus:border-[#ff5c01] cursor-pointer shadow-2xs truncate"
-            title="Select Store Currency"
-          >
-            <option value="৳">৳ BDT</option>
-            <option value="$">$ USD</option>
-            <option value="€">€ EUR</option>
-            <option value="د.إ">د.إ AED</option>
-            <option value="₹">₹ INR</option>
-            <option value="Rs">Rs PKR</option>
-            <option value="¥">¥ JPY/CNY</option>
-            <option value="£">£ GBP</option>
-            <option value="﷼">﷼ SAR</option>
-          </select>
+        {/* Currency & Language - Desktop / Tablet Only */}
+        <div className="hidden sm:flex items-center gap-1.5 sm:gap-2">
+          {/* Currency Selector Dropdown */}
+          <div className="relative">
+            <select
+              value={settings.currency || '৳'}
+              onChange={(e) => updateSettings({ currency: e.target.value })}
+              className="w-[42px] xs:w-[52px] sm:w-auto bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-[10px] sm:text-xs font-black py-1 sm:py-1.5 px-1 sm:px-2.5 rounded-lg sm:rounded-xl border border-[#E8EEF2] dark:border-slate-800 focus:outline-none focus:border-[#ff5c01] cursor-pointer shadow-2xs truncate"
+              title="Select Store Currency"
+            >
+              <option value="৳">৳ BDT</option>
+              <option value="$">$ USD</option>
+              <option value="€">€ EUR</option>
+              <option value="د.إ">د.إ AED</option>
+              <option value="₹">₹ INR</option>
+              <option value="Rs">Rs PKR</option>
+              <option value="¥">¥ JPY/CNY</option>
+              <option value="£">£ GBP</option>
+              <option value="﷼">﷼ SAR</option>
+            </select>
+          </div>
+
+          {/* Multi-Language Selector Dropdown */}
+          <div className="relative">
+            <select
+              value={language}
+              onChange={(e) => handleLanguageChange(e.target.value as Language)}
+              className="w-[46px] xs:w-[58px] sm:w-auto bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-[10px] sm:text-xs font-bold py-1 sm:py-1.5 px-1 sm:px-2.5 rounded-lg sm:rounded-xl border border-[#E8EEF2] dark:border-slate-800 focus:outline-none focus:border-[#ff5c01] cursor-pointer shadow-2xs truncate"
+              title="Select Language"
+            >
+              <option value="en">EN</option>
+              <option value="bn">BN (বাংলা)</option>
+              <option value="ar">AR (عربي)</option>
+              <option value="hi">HI (हिंदी)</option>
+              <option value="ur">UR (اردو)</option>
+              <option value="fr">FR</option>
+              <option value="de">DE</option>
+              <option value="es">ES</option>
+              <option value="zh">ZH</option>
+              <option value="ja">JA</option>
+            </select>
+          </div>
         </div>
 
-        {/* Multi-Language Selector Dropdown */}
-        <div className="relative">
-          <select
-            value={language}
-            onChange={(e) => handleLanguageChange(e.target.value as Language)}
-            className="w-[46px] xs:w-[58px] sm:w-auto bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-[10px] sm:text-xs font-bold py-1 sm:py-1.5 px-1 sm:px-2.5 rounded-lg sm:rounded-xl border border-[#E8EEF2] dark:border-slate-800 focus:outline-none focus:border-[#ff5c01] cursor-pointer shadow-2xs truncate"
-            title="Select Language"
-          >
-            <option value="en">EN</option>
-            <option value="bn">BN (বাংলা)</option>
-            <option value="ar">AR (عربي)</option>
-            <option value="hi">HI (हिंदी)</option>
-            <option value="ur">UR (اردو)</option>
-            <option value="fr">FR</option>
-            <option value="de">DE</option>
-            <option value="es">ES</option>
-            <option value="zh">ZH</option>
-            <option value="ja">JA</option>
-          </select>
-        </div>
-
-        {/* Theme Toggle */}
+        {/* Theme Toggle - Visible on BOTH Mobile & Desktop */}
         <button
           onClick={toggleTheme}
-          className="p-1.5 sm:p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors rounded-lg sm:rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/60"
+          className="p-1.5 sm:p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors rounded-lg sm:rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/60 cursor-pointer"
           title={theme === 'light' ? t('darkMode') : t('lightMode')}
         >
           {theme === 'light' ? <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-slate-700" /> : <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />}
         </button>
 
-        {/* Notifications Dropdown */}
+        {/* Notifications Dropdown (Visible on both Mobile & Desktop) */}
         <div className="relative">
           <button
-            onClick={() => setShowNotifications(!showNotifications)}
-            className="relative p-1.5 sm:p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors rounded-lg sm:rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/60"
+            onClick={() => {
+              setShowNotifications(!showNotifications);
+              setShowUserMenu(false);
+            }}
+            className="relative p-1.5 sm:p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors rounded-lg sm:rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/60 cursor-pointer"
+            title="Notifications"
           >
-            <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
+            <Bell className="w-5 h-5" />
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-2 h-2 sm:w-2.5 sm:h-2.5 bg-rose-500 rounded-full border-2 border-white dark:border-[#09090b]"></span>
+              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white dark:border-[#09090b]"></span>
             )}
           </button>
 
@@ -211,7 +246,7 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
                 {unreadCount > 0 && (
                   <button
                     onClick={markAllNotificationsRead}
-                    className="text-xs text-[#ff5c01] font-medium hover:underline"
+                    className="text-xs text-[#ff5c01] font-medium hover:underline cursor-pointer"
                   >
                     {t('markAllRead')}
                   </button>
@@ -259,23 +294,32 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
           )}
         </div>
 
-        {/* User Profile */}
-        <div className="relative ml-1 pl-3 border-l border-[#E8EEF2] dark:border-slate-800">
+        {/* Profile / Account Icon */}
+        <div className="relative ml-0.5 sm:ml-1 sm:pl-3 sm:border-l border-[#E8EEF2] dark:border-slate-800">
           <button
-            onClick={() => setShowUserMenu(!showUserMenu)}
-            className="flex items-center gap-1.5 sm:gap-2.5 text-left hover:opacity-90 transition-opacity"
+            onClick={() => {
+              setShowNotifications(false);
+              if (window.innerWidth < 640) {
+                setShowMobileProfileMenu(true);
+              } else {
+                setShowUserMenu(!showUserMenu);
+              }
+            }}
+            className="flex items-center gap-1.5 sm:gap-2.5 text-left hover:opacity-90 transition-opacity cursor-pointer p-0.5"
+            title="Profile & Settings"
           >
             <div className="text-right hidden md:block">
               <p className="text-xs font-semibold leading-tight text-slate-900 dark:text-white">{user?.ownerName || 'Ariful Islam'}</p>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-widest font-semibold">{user?.role || 'Owner'}</p>
             </div>
-            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-[#ff5c01] text-white border border-white/20 flex items-center justify-center font-bold text-xs sm:text-sm shadow-sm shrink-0">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#ff5c01] text-white border border-white/20 flex items-center justify-center font-bold text-xs sm:text-sm shadow-sm shrink-0">
               {user?.ownerName?.[0] || 'A'}
             </div>
           </button>
 
+          {/* Desktop Dropdown User Menu */}
           {showUserMenu && (
-            <div className="absolute right-0 mt-2 w-[260px] max-w-[calc(100vw-24px)] bg-white dark:bg-[#0c0c0e] rounded-2xl shadow-2xl border border-[#E8EEF2] dark:border-slate-800 py-2 z-50">
+            <div className="hidden sm:block absolute right-0 mt-2 w-[260px] bg-white dark:bg-[#0c0c0e] rounded-2xl shadow-2xl border border-[#E8EEF2] dark:border-slate-800 py-2 z-50">
               <div className="px-4 py-3 border-b border-[#E8EEF2] dark:border-slate-800">
                 <p className="text-xs font-bold text-slate-900 dark:text-slate-100">{user?.ownerName}</p>
                 <p className="text-xs text-slate-500 truncate">{user?.email}</p>
@@ -316,6 +360,216 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
           )}
         </div>
       </div>
+
+      {/* Premium Mobile Profile Menu / Right-Side Drawer Overlay */}
+      {showMobileProfileMenu &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] sm:hidden flex justify-end">
+            {/* Dark Semi-Transparent Backdrop */}
+            <div
+              className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity duration-200"
+              onClick={() => setShowMobileProfileMenu(false)}
+            />
+
+            {/* Right-Side Drawer Panel */}
+            <div className="relative z-10 w-[310px] max-w-[85vw] h-full bg-white dark:bg-[#0c0c0e] border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col p-4 sm:p-5 space-y-4 overflow-y-auto animate-in slide-in-from-right duration-200">
+              {/* Drawer Close / Header */}
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <span className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                  <User className="w-4 h-4 text-[#ff5c01]" />
+                  <span>{t('profile') || 'Profile'} & {t('settings') || 'Settings'}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowMobileProfileMenu(false)}
+                  className="p-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                  title="Close Profile Menu"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Profile Avatar & User Info */}
+              <div className="p-3.5 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 text-white border border-slate-800 flex items-center gap-3 shadow-md">
+                <div className="w-11 h-11 rounded-2xl bg-[#ff5c01] text-white flex items-center justify-center font-black text-base shadow-lg shrink-0 border border-white/20">
+                  {user?.ownerName?.[0] || 'A'}
+                </div>
+                <div className="flex-1 min-w-0 space-y-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="font-extrabold text-xs sm:text-sm text-white truncate">
+                      {user?.ownerName || 'Ariful Islam'}
+                    </h3>
+                    <span className="text-[8px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/30 uppercase shrink-0">
+                      {user?.subscriptionPlan || 'Free'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 truncate">{user?.email || 'owner@yearinvo.com'}</p>
+                  <p className="text-[10px] font-bold text-[#ff5c01] uppercase tracking-wide truncate">
+                    {t('role') || 'Role'}: {user?.role || 'Owner'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Account & Store Link */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('settings');
+                  setShowMobileProfileMenu(false);
+                }}
+                className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 hover:border-[#ff5c01]/50 text-slate-800 dark:text-slate-200 font-bold text-xs transition-all active:scale-[0.99] cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded-lg bg-[#ff5c01]/10 text-[#ff5c01] flex items-center justify-center shrink-0">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <div className="text-left truncate">
+                    <span className="block font-bold text-slate-900 dark:text-white text-xs truncate">{t('settings') || 'Account & Store Settings'}</span>
+                    <span className="block text-[9px] text-slate-500 dark:text-slate-400 font-normal truncate">Branding, logo & profile</span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+              </button>
+
+              {/* Language Selector */}
+              <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+                <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                  <Globe className="w-3.5 h-3.5 text-[#ff5c01]" />
+                  <span>Language</span>
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {[
+                    { id: 'en', label: 'English (EN)' },
+                    { id: 'bn', label: 'বাংলা (BN)' },
+                    { id: 'hi', label: 'हिंदी (HI)' },
+                    { id: 'ar', label: 'عربي (AR)' },
+                    { id: 'ur', label: 'اردو (UR)' },
+                    { id: 'fr', label: 'Français (FR)' },
+                    { id: 'de', label: 'Deutsch (DE)' },
+                    { id: 'es', label: 'Español (ES)' },
+                    { id: 'zh', label: '中文 (ZH)' },
+                    { id: 'ja', label: '日本語 (JA)' },
+                  ].map((langItem) => {
+                    const isSelected = language === langItem.id;
+                    return (
+                      <button
+                        key={langItem.id}
+                        type="button"
+                        onClick={() => handleLanguageChange(langItem.id as Language)}
+                        className={`py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition-all border text-left flex items-center justify-between cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#ff5c01] text-white border-[#ff5c01] shadow-2xs'
+                            : 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                        }`}
+                      >
+                        <span className="truncate">{langItem.label}</span>
+                        {isSelected && <CheckCircle2 className="w-3 h-3 text-white shrink-0 ml-1" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Currency Selector */}
+              <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+                <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                  <Coins className="w-3.5 h-3.5 text-[#ff5c01]" />
+                  <span>Currency</span>
+                </label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { id: '৳', label: '৳ BDT' },
+                    { id: '$', label: '$ USD' },
+                    { id: '€', label: '€ EUR' },
+                    { id: 'د.إ', label: 'د.إ AED' },
+                    { id: '₹', label: '₹ INR' },
+                    { id: 'Rs', label: 'Rs PKR' },
+                    { id: '¥', label: '¥ JPY' },
+                    { id: '£', label: '£ GBP' },
+                    { id: '﷼', label: '﷼ SAR' },
+                  ].map((curr) => {
+                    const isSelected = (settings.currency || '৳') === curr.id;
+                    return (
+                      <button
+                        key={curr.id}
+                        type="button"
+                        onClick={() => updateSettings({ currency: curr.id })}
+                        className={`py-1.5 px-1.5 rounded-xl text-[11px] font-bold transition-all border text-center truncate cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#ff5c01] text-white border-[#ff5c01] shadow-2xs'
+                            : 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                        }`}
+                      >
+                        {curr.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Appearance / Theme Selector */}
+              <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+                <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                  <Sparkles className="w-3.5 h-3.5 text-[#ff5c01]" />
+                  <span>Appearance</span>
+                </label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleSetTheme('light')}
+                    className={`py-2 px-1.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 border transition-all cursor-pointer ${
+                      theme === 'light'
+                        ? 'bg-[#ff5c01] text-white border-[#ff5c01] shadow-2xs'
+                        : 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                    }`}
+                  >
+                    <Sun className="w-3.5 h-3.5 shrink-0" />
+                    <span>Light</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSetTheme('dark')}
+                    className={`py-2 px-1.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 border transition-all cursor-pointer ${
+                      theme === 'dark'
+                        ? 'bg-[#ff5c01] text-white border-[#ff5c01] shadow-2xs'
+                        : 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                    }`}
+                  >
+                    <Moon className="w-3.5 h-3.5 shrink-0" />
+                    <span>Dark</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSetTheme('system')}
+                    className="py-2 px-1.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 border transition-all bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 cursor-pointer"
+                  >
+                    <Monitor className="w-3.5 h-3.5 shrink-0" />
+                    <span>System</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Logout Button */}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 mt-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMobileProfileMenu(false);
+                    logout();
+                  }}
+                  className="w-full py-2.5 px-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 font-bold text-xs hover:bg-rose-100 dark:hover:bg-rose-900/60 transition-colors flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>{t('logout') || 'Logout Account'}</span>
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </header>
   );
 };
+

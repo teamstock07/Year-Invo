@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { Product } from '../../types';
+import { findProductByCode, normalizeCode } from '../../utils/scanner';
 import { playBeepSound } from '../../utils/audio';
 import { Camera, X, AlertCircle, CheckCircle, RefreshCw, QrCode } from 'lucide-react';
 
@@ -24,48 +25,71 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
   const [scanSuccessMsg, setScanSuccessMsg] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const html5QrcodeRef = useRef<Html5Qrcode | null>(null);
+  const lastScannedRef = useRef<{ code: string; time: number } | null>(null);
   const scannerContainerId = 'pos-camera-qr-reader';
 
   const isBn = language === 'bn';
 
   const handleProcessCode = (scannedCode: string) => {
-    const code = scannedCode.trim();
+    const code = normalizeCode(scannedCode);
     if (!code) return;
+
+    const now = Date.now();
+    if (
+      lastScannedRef.current &&
+      lastScannedRef.current.code === code &&
+      now - lastScannedRef.current.time < 1500
+    ) {
+      // Cooldown to prevent duplicate scan bursts
+      return;
+    }
+    lastScannedRef.current = { code, time: now };
 
     setScanError(null);
     setScanSuccessMsg(null);
 
-    // Look for matching product by barcode, SKU, or ID
-    const matched = products.find(
-      (p) =>
-        p.barcode.toLowerCase() === code.toLowerCase() ||
-        p.sku.toLowerCase() === code.toLowerCase() ||
-        p.id.toLowerCase() === code.toLowerCase()
-    );
+    // Look for matching product by exact SKU / Barcode / Identifier
+    const matched = findProductByCode(products, code);
 
     if (!matched) {
-      setScanError(isBn ? 'এই QR code-এর জন্য কোনো প্রোডাক্ট পাওয়া যায়নি (Unknown Code)' : `Product not found for QR code: ${code}`);
+      setScanError(
+        isBn
+          ? `কোনো প্রোডাক্ট পাওয়া যায়নি (Code: ${code})`
+          : `Product not found for scanned code: ${code}`
+      );
       return;
     }
 
-    // Check if product is already sold / out of stock
+    // Check stock
     if (matched.currentStock <= 0 || matched.status === 'out_of_stock') {
-      setScanError(isBn ? 'ইতিমধ্যে বিক্রি হয়ে গেছে (Already Sold)' : `Already Sold - Product "${matched.name}" is out of stock!`);
+      setScanError(
+        isBn
+          ? `স্টক শেষ - "${matched.name}" বর্তমানে আউট অফ স্টক!`
+          : `Out of Stock - Product "${matched.name}" is currently out of stock!`
+      );
       return;
     }
 
     // Check expiry
     const todayStr = new Date().toISOString().split('T')[0];
     if (matched.expiryDate && matched.expiryDate <= todayStr) {
-      setScanError(isBn ? 'পণ্যটির মেয়াদ শেষ হয়ে গেছে (Expired Product)' : `Product "${matched.name}" has expired and cannot be sold.`);
+      setScanError(
+        isBn
+          ? `মেয়াদ শেষ - "${matched.name}" প্রোডাক্টের মেয়াদ উত্তীর্ণ!`
+          : `Expired Product - Product "${matched.name}" has expired and cannot be sold.`
+      );
       return;
     }
 
     // Success
     playBeepSound();
     onProductScanned(matched);
-    setScanSuccessMsg(isBn ? `প্রোডাক্ট কার্টে যুক্ত হয়েছে: ${matched.name}` : `Added to POS cart: ${matched.name}`);
-    
+    setScanSuccessMsg(
+      isBn
+        ? `কার্টে যুক্ত হয়েছে: ${matched.name} (SKU: ${matched.sku})`
+        : `Added to cart: ${matched.name} (SKU: ${matched.sku})`
+    );
+
     // Auto-dismiss success notice after 2.5s
     setTimeout(() => {
       setScanSuccessMsg(null);
@@ -81,7 +105,20 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
 
     const startScanner = async () => {
       try {
-        const html5Qrcode = new Html5Qrcode(scannerContainerId);
+        const formatsToSupport = [
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+        ];
+
+        const html5Qrcode = new Html5Qrcode(scannerContainerId, {
+          formatsToSupport,
+          verbose: false,
+        });
         localScanner = html5Qrcode;
         html5QrcodeRef.current = html5Qrcode;
 
@@ -89,7 +126,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
           { facingMode: 'environment' },
           {
             fps: 10,
-            qrbox: { width: 220, height: 220 },
+            qrbox: { width: 250, height: 200 },
           },
           (decodedText) => {
             if (isMounted) {

@@ -24,7 +24,7 @@ export const MainWebsiteLogo: React.FC<MainWebsiteLogoProps> = ({
           src={customUrl}
           alt={siteName}
           style={{ width: size, height: size }}
-          className="object-cover shrink-0 rounded-xl"
+          className="object-contain shrink-0 rounded-xl"
         />
         {showText && (
           <div className="flex flex-col">

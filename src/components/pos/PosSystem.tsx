@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { Product, Sale } from '../../types';
 import { ReceiptModal } from './ReceiptModal';
 import { QrScannerModal } from './QrScannerModal';
+import { findProductByCode } from '../../utils/scanner';
 import { playSuccessSound, playBeepSound } from '../../utils/audio';
 import {
   ShoppingCart,
@@ -30,6 +31,7 @@ import {
   FileSpreadsheet,
   Scan,
   Volume2,
+  Store,
 } from 'lucide-react';
 
 export const PosSystem: React.FC = () => {
@@ -102,7 +104,7 @@ export const PosSystem: React.FC = () => {
     let lastKeyTime = Date.now();
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing inside text input or textarea
+      // Ignore if typing inside text input or textarea (unless Enter pressed in search)
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) {
         return;
       }
@@ -116,17 +118,19 @@ export const PosSystem: React.FC = () => {
       if (e.key === 'Enter') {
         if (barcodeBuffer.trim()) {
           const code = barcodeBuffer.trim();
-          const matchedProd = products.find(
-            (p) => p.barcode === code || p.sku === code
-          );
+          const matchedProd = findProductByCode(products, code);
           if (matchedProd) {
             const todayStr = new Date().toISOString().split('T')[0];
             if (matchedProd.expiryDate && matchedProd.expiryDate <= todayStr) {
               alert(`Product "${matchedProd.name}" has expired and cannot be sold.`);
+            } else if (matchedProd.currentStock <= 0) {
+              alert(`Product "${matchedProd.name}" is out of stock!`);
             } else {
               addToCart(matchedProd);
               playBeepSound();
             }
+          } else {
+            alert(`Product not found for code: "${code}"`);
           }
           barcodeBuffer = '';
         }
@@ -317,13 +321,25 @@ export const PosSystem: React.FC = () => {
               onChange={(e) => {
                 const val = e.target.value;
                 setSearchQuery(val);
-                // Instant barcode match check
+                // Instant code match check
                 if (val.trim()) {
-                  const exactMatch = products.find((p) => p.barcode === val.trim() || p.sku === val.trim());
+                  const exactMatch = findProductByCode(products, val);
                   if (exactMatch) {
                     addToCart(exactMatch);
                     playBeepSound();
                     setSearchQuery('');
+                  }
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchQuery.trim()) {
+                  const matched = findProductByCode(products, searchQuery);
+                  if (matched) {
+                    addToCart(matched);
+                    playBeepSound();
+                    setSearchQuery('');
+                  } else {
+                    alert(`Product not found for code: "${searchQuery.trim()}"`);
                   }
                 }
               }}
@@ -890,37 +906,90 @@ export const PosSystem: React.FC = () => {
 
       {/* QR Code Payment Modal */}
       {isQrPaymentModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4">
-          <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center space-y-4 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 animate-in fade-in">
+          <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center space-y-4 shadow-2xl relative">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="font-bold text-sm text-white flex items-center gap-2">
                 <QrCode className="w-4 h-4 text-[#ff5c01]" />
-                bKash / Mobile QR Payment
+                <span>{settings.paymentSettings?.qrProvider || 'QR'} Payment</span>
               </h3>
-              <button onClick={() => setIsQrPaymentModalOpen(false)} className="text-slate-400 hover:text-white">
+              <button
+                type="button"
+                onClick={() => setIsQrPaymentModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl inline-block shadow-inner mx-auto">
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=BKASH-PAYMENT-${grandTotal}`}
-                alt="QR Payment"
-                className="w-44 h-44 mx-auto"
-              />
-            </div>
+            {settings.paymentSettings?.qrEnabled && (settings.paymentSettings?.qrImageUrl || settings.paymentSettings?.qrProvider) ? (
+              <>
+                <div className="bg-white p-4 rounded-2xl inline-block shadow-inner mx-auto">
+                  {settings.paymentSettings?.qrImageUrl ? (
+                    <img
+                      src={settings.paymentSettings.qrImageUrl}
+                      alt="Store QR Payment"
+                      className="w-48 h-48 object-contain mx-auto"
+                    />
+                  ) : (
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                        `${settings.paymentSettings?.qrProvider || 'PAYMENT'}-${settings.brandName || 'STORE'}-${grandTotal}`
+                      )}`}
+                      alt="Generated QR Payment"
+                      className="w-44 h-44 mx-auto"
+                    />
+                  )}
+                </div>
 
-            <div className="space-y-1 text-xs">
-              <p className="font-bold text-white">Scan to pay: <span className="text-[#ff5c01] text-base font-black">{symbol}{grandTotal}</span></p>
-              <p className="text-[11px] text-slate-400">bKash / Nagad Merchant QR Code</p>
-            </div>
+                <div className="space-y-1 text-xs">
+                  <p className="font-bold text-white">
+                    Scan to pay: <span className="text-[#ff5c01] text-base font-black">{symbol}{grandTotal.toLocaleString()}</span>
+                  </p>
+                  <p className="text-xs text-slate-300 font-semibold">
+                    Provider: <span className="text-[#ff5c01]">{settings.paymentSettings?.qrProvider || 'bKash'}</span>
+                  </p>
+                  {settings.paymentSettings?.accountName && (
+                    <p className="text-[11px] text-slate-300">Account: <strong>{settings.paymentSettings.accountName}</strong></p>
+                  )}
+                  {settings.paymentSettings?.accountNumber && (
+                    <p className="text-[11px] font-mono text-slate-400">A/C No: {settings.paymentSettings.accountNumber}</p>
+                  )}
+                </div>
 
-            <button
-              onClick={() => setIsQrPaymentModalOpen(false)}
-              className="w-full py-2.5 bg-[#ff5c01] text-white font-bold text-xs rounded-xl cursor-pointer"
-            >
-              Confirm QR Payment Received
-            </button>
+                <button
+                  type="button"
+                  onClick={() => setIsQrPaymentModalOpen(false)}
+                  className="w-full py-2.5 bg-[#ff5c01] hover:bg-[#e05100] text-white font-bold text-xs rounded-xl shadow-lg shadow-[#ff5c01]/20 transition-all cursor-pointer"
+                >
+                  Confirm QR Payment Received
+                </button>
+              </>
+            ) : (
+              <div className="py-6 space-y-4 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto">
+                  <QrCode className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-white">QR payment is not configured yet.</h4>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Upload your store's QR code in Store Branding to accept QR payments.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsQrPaymentModalOpen(false);
+                    setActiveTab('branding');
+                  }}
+                  className="w-full py-2.5 bg-[#ff5c01] hover:bg-[#e05100] text-white font-bold text-xs rounded-xl shadow-lg shadow-[#ff5c01]/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Store className="w-4 h-4" />
+                  <span>Configure QR Payment</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

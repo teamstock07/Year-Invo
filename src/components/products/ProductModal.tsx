@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Product } from '../../types';
-import { X, Upload, Sparkles, Image as ImageIcon, Check, Plus, FolderTree } from 'lucide-react';
+import { isSkuUnique, generateUniqueSku, generateUniqueBarcode } from '../../utils/scanner';
+import { X, Upload, Sparkles, Image as ImageIcon, Check, Plus, FolderTree, QrCode, RefreshCw } from 'lucide-react';
 
 interface ProductModalProps {
   isOpen: boolean;
@@ -25,7 +26,7 @@ const PRESET_GALLERY_IMAGES = [
 ];
 
 export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, productToEdit }) => {
-  const { addProduct, updateProduct, addCategory, addBrand, categories, brands, settings, t } = useApp();
+  const { addProduct, updateProduct, addCategory, addBrand, categories, brands, settings, t, products } = useApp();
   const symbol = settings.currency || '৳';
 
   const [formData, setFormData] = useState({
@@ -52,8 +53,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
     if (productToEdit) {
       setFormData({
         name: productToEdit.name,
-        sku: productToEdit.sku,
-        barcode: productToEdit.barcode,
+        sku: productToEdit.sku || generateUniqueSku(products),
+        barcode: productToEdit.barcode || productToEdit.sku || generateUniqueBarcode(products),
         category: productToEdit.category,
         secondaryCategories: (productToEdit as any).secondaryCategories || [],
         brand: productToEdit.brand,
@@ -67,12 +68,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
         imageUrl: productToEdit.imageUrl || PRESET_GALLERY_IMAGES[0].url,
       });
     } else {
-      const randomSku = `SKU-${Math.floor(10000 + Math.random() * 90000)}`;
-      const randomBarcode = `890${Math.floor(100000000 + Math.random() * 900000000)}`;
+      const stableSku = generateUniqueSku(products);
+      const stableBarcode = generateUniqueBarcode(products);
       setFormData({
         name: '',
-        sku: randomSku,
-        barcode: randomBarcode,
+        sku: stableSku,
+        barcode: stableBarcode,
         category: categories[0]?.name || 'Grocery & Staples',
         secondaryCategories: [],
         brand: brands[0]?.name || 'Generic',
@@ -86,7 +87,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
         imageUrl: PRESET_GALLERY_IMAGES[0].url,
       });
     }
-  }, [productToEdit, isOpen, categories, brands]);
+  }, [productToEdit, isOpen, categories, brands, products]);
 
   if (!isOpen) return null;
 
@@ -126,17 +127,38 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
       return;
     }
 
-    if (formData.category) {
-      addCategory(formData.category);
+    let finalSku = formData.sku.trim();
+    if (!finalSku) {
+      finalSku = generateUniqueSku(products);
     }
-    if (formData.brand) {
-      addBrand(formData.brand);
+
+    if (!isSkuUnique(products, finalSku, productToEdit?.id)) {
+      alert(`The SKU "${finalSku}" is already assigned to another product. Please enter a unique SKU.`);
+      return;
+    }
+
+    let finalBarcode = formData.barcode.trim();
+    if (!finalBarcode) {
+      finalBarcode = finalSku;
+    }
+
+    const submissionData = {
+      ...formData,
+      sku: finalSku,
+      barcode: finalBarcode,
+    };
+
+    if (submissionData.category) {
+      addCategory(submissionData.category);
+    }
+    if (submissionData.brand) {
+      addBrand(submissionData.brand);
     }
 
     if (productToEdit) {
-      updateProduct(productToEdit.id, formData);
+      updateProduct(productToEdit.id, submissionData);
     } else {
-      addProduct(formData);
+      addProduct(submissionData);
     }
     onClose();
   };
@@ -187,6 +209,54 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="e.g. Pure Wild Honey 500g"
                 className="w-full px-3.5 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-hidden focus:border-[#ff5c01] text-slate-800 dark:text-slate-100"
+              />
+            </div>
+
+            {/* SKU and Barcode Code Controls */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  SKU (Unique Code) *
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, sku: generateUniqueSku(products) })}
+                  className="text-[10px] font-bold text-[#ff5c01] hover:underline flex items-center gap-1 cursor-pointer"
+                  title="Auto-Generate Unique SKU"
+                >
+                  <RefreshCw className="w-3 h-3" /> Auto SKU
+                </button>
+              </div>
+              <input
+                type="text"
+                required
+                value={formData.sku}
+                onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                placeholder="e.g. SKU-12345"
+                className="w-full px-3.5 py-2 text-xs font-mono font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-hidden focus:border-[#ff5c01] text-slate-800 dark:text-slate-100"
+              />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Barcode Number / Code128
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, barcode: generateUniqueBarcode(products) })}
+                  className="text-[10px] font-bold text-[#ff5c01] hover:underline flex items-center gap-1 cursor-pointer"
+                  title="Auto-Generate Barcode"
+                >
+                  <RefreshCw className="w-3 h-3" /> Auto Barcode
+                </button>
+              </div>
+              <input
+                type="text"
+                value={formData.barcode}
+                onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
+                placeholder="e.g. 890123456789"
+                className="w-full px-3.5 py-2 text-xs font-mono font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-hidden focus:border-[#ff5c01] text-slate-800 dark:text-slate-100"
               />
             </div>
 

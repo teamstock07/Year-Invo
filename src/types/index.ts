@@ -232,6 +232,15 @@ export interface ActivityLog {
   details?: string;
 }
 
+export interface QrPaymentSettings {
+  qrEnabled: boolean;
+  qrProvider: string;
+  qrImageUrl: string;
+  accountName?: string;
+  accountNumber?: string;
+  updatedAt?: string;
+}
+
 export interface BusinessSettings {
   logoUrl: string;
   brandName: string;
@@ -247,4 +256,5 @@ export interface BusinessSettings {
   language: Language;
   theme: ThemeMode;
   autoBackup: boolean;
+  paymentSettings?: QrPaymentSettings;
 }

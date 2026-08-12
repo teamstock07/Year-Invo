@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { generateUniqueSku, generateUniqueBarcode } from '../utils/scanner';
 import { auth, db } from '../lib/firebase';
 import {
   sendPasswordResetEmail,
@@ -54,6 +55,11 @@ import {
   initialActivityLogs,
 } from '../data/mockData';
 import { translations } from '../i18n/translations';
+import {
+  formatNumber as formatNumberHelper,
+  formatCurrency as formatCurrencyHelper,
+  formatDate as formatDateHelper,
+} from '../utils/format';
 
 interface AppContextType {
   // Auth & Profile
@@ -96,8 +102,12 @@ interface AppContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
   theme: ThemeMode;
+  setTheme: (theme: ThemeMode) => void;
   toggleTheme: () => void;
   t: (key: string) => string;
+  formatNumber: (val: number | string | undefined | null, options?: { decimals?: number; useGrouping?: boolean }) => string;
+  formatCurrency: (amount: number | string | undefined | null, options?: { decimals?: number }) => string;
+  formatDate: (dateStr: string | Date | undefined | null) => string;
 
   // Navigation
   activeTab: string;
@@ -210,6 +220,13 @@ const defaultSettings: BusinessSettings = {
   language: 'en',
   theme: 'dark',
   autoBackup: true,
+  paymentSettings: {
+    qrEnabled: true,
+    qrProvider: 'bKash',
+    qrImageUrl: '',
+    accountName: '',
+    accountNumber: '',
+  },
 };
 
 const initialRegisteredUsers: UserProfile[] = [
@@ -358,6 +375,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             setUser(profile);
             if (profile.brandName) {
               setSettings((prev) => ({ ...prev, brandName: profile.brandName }));
+            }
+            if (uData.paymentSettings || uData.storeSettings?.payment) {
+              const pSet = uData.paymentSettings || uData.storeSettings?.payment;
+              setSettings((prev) => ({
+                ...prev,
+                paymentSettings: {
+                  qrEnabled: pSet.qrEnabled ?? true,
+                  qrProvider: pSet.qrProvider || 'bKash',
+                  qrImageUrl: pSet.qrImageUrl || '',
+                  accountName: pSet.accountName || '',
+                  accountNumber: pSet.accountNumber || '',
+                },
+              }));
             }
             if (normalizedRole === 'Owner') {
               setActiveTabState('owner');
@@ -657,17 +687,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('biz_expenses', JSON.stringify(expenses));
   }, [expenses]);
 
-  // Language helper
+  // Language & Theme helpers with persistence
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
+    try {
+      localStorage.setItem('biz_language', lang);
+    } catch (e) {}
+  };
+
+  const setTheme = (newTheme: ThemeMode) => {
+    setThemeState(newTheme);
+    try {
+      localStorage.setItem('biz_theme', newTheme);
+    } catch (e) {}
   };
 
   const toggleTheme = () => {
-    setThemeState((prev) => (prev === 'light' ? 'dark' : 'light'));
+    const nextTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(nextTheme);
   };
 
   const t = (key: string): string => {
-    return translations[language][key] || translations['en'][key] || key;
+    if (!key) return '';
+    return translations[language]?.[key] || translations['en']?.[key] || key;
+  };
+
+  const formatNumber = (val: number | string | undefined | null, options?: { decimals?: number; useGrouping?: boolean }) => {
+    return formatNumberHelper(val, language, options);
+  };
+
+  const formatCurrency = (amount: number | string | undefined | null, options?: { decimals?: number }) => {
+    return formatCurrencyHelper(amount, settings.currency || '৳', language, options);
+  };
+
+  const formatDate = (dateStr: string | Date | undefined | null) => {
+    return formatDateHelper(dateStr, language);
   };
 
   // Log activity helper
@@ -1511,6 +1565,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('biz_settings', JSON.stringify(next));
       return next;
     });
+
+    if (auth.currentUser) {
+      const fsPayload: Record<string, any> = {};
+      if (newSettings.brandName) {
+        fsPayload.brandName = newSettings.brandName;
+        fsPayload.storeName = newSettings.brandName;
+      }
+      if (newSettings.paymentSettings) {
+        fsPayload.paymentSettings = newSettings.paymentSettings;
+        fsPayload['storeSettings.payment'] = {
+          ...newSettings.paymentSettings,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      if (Object.keys(fsPayload).length > 0) {
+        updateDoc(doc(db, 'users', auth.currentUser.uid), fsPayload)
+          .catch((err) => console.warn('Sync settings error:', err));
+      }
+    }
+
     if (newSettings.brandName) {
       setUser((prev) => {
         if (!prev) return prev;
@@ -1518,12 +1592,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localStorage.setItem('biz_user', JSON.stringify(updatedUser));
         return updatedUser;
       });
-      if (auth.currentUser) {
-        updateDoc(doc(db, 'users', auth.currentUser.uid), {
-          brandName: newSettings.brandName,
-          storeName: newSettings.brandName,
-        }).catch((err) => console.warn('Sync brandName settings error:', err));
-      }
     }
     logActivity('Settings Updated', 'সেটিংস সেভ করা হয়েছে');
   };
@@ -1757,8 +1825,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (data.currentStock === 0) status = 'out_of_stock';
     else if (data.currentStock <= data.minStockAlert) status = 'low';
 
+    const sku = (data.sku || '').trim() || generateUniqueSku(products);
+    const barcode = (data.barcode || '').trim() || sku || generateUniqueBarcode(products);
+
     const newProd: Product = {
       ...data,
+      sku,
+      barcode,
       id: `prod-${Date.now()}`,
       status,
       createdAt: new Date().toISOString().split('T')[0],
@@ -1771,7 +1844,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProducts((prev) =>
       prev.map((p) => {
         if (p.id === id) {
-          const merged = { ...p, ...updatedFields };
+          const sku = (updatedFields.sku || p.sku || '').trim() || generateUniqueSku(prev);
+          const barcode = (updatedFields.barcode || p.barcode || '').trim() || sku;
+
+          const merged = { ...p, ...updatedFields, sku, barcode };
           let status = merged.status;
           if (merged.currentStock === 0) status = 'out_of_stock';
           else if (merged.currentStock <= merged.minStockAlert) status = 'low';
@@ -2129,8 +2205,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         language,
         setLanguage,
         theme,
+        setTheme,
         toggleTheme,
         t,
+        formatNumber,
+        formatCurrency,
+        formatDate,
         activeTab,
         setActiveTab,
         globalSearch,

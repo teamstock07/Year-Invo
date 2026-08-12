@@ -36,6 +36,12 @@ export const translations: Record<Language, Record<string, string>> = {
     navBackup: 'Backup & Security',
     navSubscription: 'Subscription Plan',
     navHelp: 'Help & Support',
+    navHome: 'Home',
+    navQuickSale: 'Quick Sale',
+    navMore: 'More',
+    navAbout: 'About',
+    navSettings: 'Settings',
+    navOwnerPanel: 'Owner Panel',
 
     // Roles & Badges
     roleOwner: 'Owner',
@@ -245,6 +251,12 @@ export const translations: Record<Language, Record<string, string>> = {
     navBackup: 'ব্যাকআপ ও নিরাপত্তা',
     navSubscription: 'সাবস্ক্রিপশন প্ল্যান',
     navHelp: 'সাহায্য ও সহায়তা',
+    navHome: 'হোম',
+    navQuickSale: 'কুইক সেল',
+    navMore: 'আরও',
+    navAbout: 'সম্পর্কে',
+    navSettings: 'সেটিংস',
+    navOwnerPanel: 'ওনার প্যানেল',
 
     // Roles & Badges
     roleOwner: 'মালিক (Owner)',

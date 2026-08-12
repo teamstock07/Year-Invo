@@ -82,6 +82,10 @@ export const OwnerDashboard: React.FC = () => {
     settings,
     updateSettings,
     sales,
+    t,
+    formatNumber,
+    formatCurrency,
+    formatDate,
   } = useApp();
 
   // Tab State
@@ -496,17 +500,17 @@ export const OwnerDashboard: React.FC = () => {
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3 shadow-md relative overflow-hidden">
               <div className="flex items-center justify-between text-slate-400">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider">Total Users</span>
+                <span className="text-[11px] font-extrabold uppercase tracking-wider">{t('users') || 'Total Users'}</span>
                 <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
                   <Users className="w-5 h-5" />
                 </div>
               </div>
               <div>
-                <p className="text-3xl font-black text-white tracking-tight">{totalUsers}</p>
+                <p className="text-3xl font-black text-white tracking-tight">{formatNumber(totalUsers)}</p>
                 <p className="text-xs text-slate-400 font-medium mt-1 flex items-center gap-1">
-                  <span className="text-emerald-400 font-bold">{activeUsers} Active</span>
+                  <span className="text-emerald-400 font-bold">{formatNumber(activeUsers)} {t('active') || 'Active'}</span>
                   <span>•</span>
-                  <span>{blockedUsers} Resticted</span>
+                  <span>{formatNumber(blockedUsers)} {t('blocked') || 'Restricted'}</span>
                 </p>
               </div>
             </div>
@@ -519,7 +523,7 @@ export const OwnerDashboard: React.FC = () => {
                 </div>
               </div>
               <div>
-                <p className="text-3xl font-black text-emerald-400 tracking-tight">+{todayRegistrations}</p>
+                <p className="text-3xl font-black text-emerald-400 tracking-tight">+{formatNumber(todayRegistrations)}</p>
                 <p className="text-xs text-slate-400 font-medium mt-1">New store signups today</p>
               </div>
             </div>
@@ -532,7 +536,7 @@ export const OwnerDashboard: React.FC = () => {
                 </div>
               </div>
               <div>
-                <p className="text-3xl font-black text-amber-400 tracking-tight">{premiumUsers}</p>
+                <p className="text-3xl font-black text-amber-400 tracking-tight">{formatNumber(premiumUsers)}</p>
                 <p className="text-xs text-slate-400 font-medium mt-1">Pro, Business &amp; Lifetime</p>
               </div>
             </div>
@@ -545,7 +549,7 @@ export const OwnerDashboard: React.FC = () => {
                 </div>
               </div>
               <div>
-                <p className="text-3xl font-black text-rose-400 tracking-tight">{blockedUsers}</p>
+                <p className="text-3xl font-black text-rose-400 tracking-tight">{formatNumber(blockedUsers)}</p>
                 <p className="text-xs text-slate-400 font-medium mt-1">Access restricted users</p>
               </div>
             </div>
@@ -558,7 +562,7 @@ export const OwnerDashboard: React.FC = () => {
                 <span className="text-xs font-bold uppercase">Total Platform Volume</span>
                 <DollarSign className="w-5 h-5 text-emerald-400" />
               </div>
-              <p className="text-2xl font-black text-white">৳ {totalSalesRevenue.toLocaleString()}</p>
+              <p className="text-2xl font-black text-white">{formatCurrency(totalSalesRevenue)}</p>
               <p className="text-xs text-slate-400">Cumulative store transactions processed</p>
             </div>
 

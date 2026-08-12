@@ -36,7 +36,7 @@ import {
 } from 'recharts';
 
 export const DashboardView: React.FC = () => {
-  const { metrics, settings, user, setActiveTab, t, products, language } = useApp();
+  const { metrics, settings, user, setActiveTab, t, products, language, formatNumber, formatCurrency } = useApp();
   const symbol = settings.currency || '৳';
   const planName = user?.subscriptionPlan || 'Free';
 
@@ -52,7 +52,6 @@ export const DashboardView: React.FC = () => {
   ];
 
   const calcBalance = metrics.todaySales - metrics.todayExpense;
-  const formatAmount = (amt: number) => (amt === 0 ? '0' : amt.toLocaleString());
 
   const rawStore = settings.brandName || user?.brandName || '';
   const storeName = getCustomerStoreName(rawStore) || rawStore || 'Your Store Name';
@@ -61,8 +60,8 @@ export const DashboardView: React.FC = () => {
   const metricCards = [
     {
       id: 'balance',
-      label: language === 'bn' ? 'মোট ব্যালেন্স' : 'Current Balance',
-      value: `${symbol} ${formatAmount(calcBalance)}`,
+      label: t('totalBalance') || (language === 'bn' ? 'মোট ব্যালেন্স' : 'Current Balance'),
+      value: formatCurrency(calcBalance),
       icon: Wallet,
       color: 'text-[#ff5c01]',
       bg: 'bg-[#ff5c01]/10',
@@ -70,7 +69,7 @@ export const DashboardView: React.FC = () => {
     {
       id: 'sales',
       label: t('todaySales'),
-      value: `${symbol} ${formatAmount(metrics.todaySales)}`,
+      value: formatCurrency(metrics.todaySales),
       icon: ShoppingCart,
       color: 'text-emerald-500',
       bg: 'bg-emerald-500/10',
@@ -78,7 +77,7 @@ export const DashboardView: React.FC = () => {
     {
       id: 'expense',
       label: t('todayExpense'),
-      value: `${symbol} ${formatAmount(metrics.todayExpense)}`,
+      value: formatCurrency(metrics.todayExpense),
       icon: Receipt,
       color: 'text-rose-500',
       bg: 'bg-rose-500/10',
@@ -86,7 +85,7 @@ export const DashboardView: React.FC = () => {
     {
       id: 'profit',
       label: t('todayProfit'),
-      value: `${symbol} ${formatAmount(metrics.todayProfit)}`,
+      value: formatCurrency(metrics.todayProfit),
       icon: TrendingUp,
       color: 'text-indigo-500',
       bg: 'bg-indigo-500/10',
@@ -94,7 +93,7 @@ export const DashboardView: React.FC = () => {
     {
       id: 'due',
       label: t('totalDueCustomers'),
-      value: `${symbol} ${formatAmount(metrics.totalDueCustomers)}`,
+      value: formatCurrency(metrics.totalDueCustomers),
       icon: CreditCard,
       color: 'text-amber-500',
       bg: 'bg-amber-500/10',
@@ -102,8 +101,8 @@ export const DashboardView: React.FC = () => {
     },
     {
       id: 'stock',
-      label: language === 'bn' ? 'মোট প্রোডাক্ট স্টক' : 'Total Product Stock',
-      value: `${metrics.totalStockQty === 0 ? '0' : metrics.totalStockQty.toLocaleString()} pcs`,
+      label: t('stockQty') || (language === 'bn' ? 'মোট প্রোডাক্ট স্টক' : 'Total Product Stock'),
+      value: `${formatNumber(metrics.totalStockQty)} pcs`,
       icon: Boxes,
       color: 'text-purple-500',
       bg: 'bg-purple-500/10',

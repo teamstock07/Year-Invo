@@ -79,29 +79,33 @@ export const BarcodeGeneratorView: React.FC = () => {
     setIsGenerating(true);
 
     try {
-      // 1. Generate Barcode PNG Data URL
+      // 1. Generate Barcode PNG Data URL (CODE128 encoding product SKU / barcode)
       let barcodeDataUrl = '';
-      const barcodeValue =
-        selectedProduct.barcode || selectedProduct.sku || '890123456789';
+      const barcodeValue = selectedProduct.sku || selectedProduct.barcode || selectedProduct.id;
 
       const canvas = document.createElement('canvas');
       JsBarcode(canvas, barcodeValue, {
         format: 'CODE128',
         width: 2,
-        height: 50,
+        height: 60,
         displayValue: true,
-        fontSize: 13,
-        margin: 4,
+        fontSize: 14,
+        margin: 10,
         background: '#ffffff',
         lineColor: '#000000',
       });
       barcodeDataUrl = canvas.toDataURL('image/png');
 
-      // 2. Generate QR Code PNG Data URL
-      const qrDataUrl = await QRCode.toDataURL(
-        `SKU:${selectedProduct.sku}|NAME:${selectedProduct.name}|PRICE:${selectedProduct.sellingPrice}`,
-        { width: 140, margin: 1 }
-      );
+      // 2. Generate QR Code PNG Data URL (encoding exact product SKU)
+      const qrDataUrl = await QRCode.toDataURL(selectedProduct.sku || barcodeValue, {
+        width: 200,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#ffffff',
+        },
+        errorCorrectionLevel: 'M',
+      });
 
       setGeneratedConfig({
         productId: selectedProduct.id,
