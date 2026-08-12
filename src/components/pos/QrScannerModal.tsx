@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { Product } from '../../types';
-import { findProductByCode, normalizeCode } from '../../utils/scanner';
+import { findProductWithStoreCheck, normalizeCode } from '../../utils/scanner';
 import { playBeepSound } from '../../utils/audio';
+import { useApp } from '../../context/AppContext';
 import { Camera, X, AlertCircle, CheckCircle, RefreshCw, QrCode } from 'lucide-react';
 
 interface QrScannerModalProps {
@@ -20,6 +21,9 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
   onProductScanned,
   language = 'en',
 }) => {
+  const { user } = useApp();
+  const currentStoreId = user?.id || user?.brandName || '';
+
   const [manualCode, setManualCode] = useState('');
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanSuccessMsg, setScanSuccessMsg] = useState<string | null>(null);
@@ -48,14 +52,35 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
     setScanError(null);
     setScanSuccessMsg(null);
 
-    // Look for matching product by exact SKU / Barcode / Identifier
-    const matched = findProductByCode(products, code);
+    // Look for matching product using store-checked scanner logic
+    const result = findProductWithStoreCheck(products, code, currentStoreId);
+
+    if (result.error === 'different_store') {
+      setScanError(
+        isBn
+          ? 'এই স্টোরে পণ্যটি পাওয়া যায়নি (অন্যান্য স্টোরের QR কোড)'
+          : 'Product not found in this store.'
+      );
+      return;
+    }
+
+    const matched = result.product;
 
     if (!matched) {
       setScanError(
         isBn
           ? `কোনো প্রোডাক্ট পাওয়া যায়নি (Code: ${code})`
           : `Product not found for scanned code: ${code}`
+      );
+      return;
+    }
+
+    // Check status
+    if (matched.status === 'damaged') {
+      setScanError(
+        isBn
+          ? `ক্ষতিগ্রস্ত পণ্য - "${matched.name}" বিক্রি করা যাবে না!`
+          : `Damaged Product - "${matched.name}" cannot be sold.`
       );
       return;
     }
@@ -86,8 +111,8 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
     onProductScanned(matched);
     setScanSuccessMsg(
       isBn
-        ? `কার্টে যুক্ত হয়েছে: ${matched.name} (SKU: ${matched.sku})`
-        : `Added to cart: ${matched.name} (SKU: ${matched.sku})`
+        ? `কার্টে যুক্ত হয়েছে: ${matched.name} (SKU: ${matched.sku || matched.id})`
+        : `Added to cart: ${matched.name} (SKU: ${matched.sku || matched.id})`
     );
 
     // Auto-dismiss success notice after 2.5s

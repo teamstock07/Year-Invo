@@ -96,8 +96,17 @@ export const BarcodeGeneratorView: React.FC = () => {
       });
       barcodeDataUrl = canvas.toDataURL('image/png');
 
-      // 2. Generate QR Code PNG Data URL (encoding exact product SKU)
-      const qrDataUrl = await QRCode.toDataURL(selectedProduct.sku || barcodeValue, {
+      // 2. Generate QR Code PNG Data URL (encoding structured YearInvo payload with productId)
+      const currentStoreId = user?.id || user?.brandName || '';
+      const qrPayload = JSON.stringify({
+        type: 'yearinvo_product',
+        productId: selectedProduct.id,
+        sku: selectedProduct.sku || '',
+        barcode: selectedProduct.barcode || '',
+        storeId: currentStoreId,
+      });
+
+      const qrDataUrl = await QRCode.toDataURL(qrPayload, {
         width: 200,
         margin: 2,
         color: {

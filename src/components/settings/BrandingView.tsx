@@ -229,6 +229,9 @@ export const BrandingView: React.FC = () => {
                     <h2 className="font-black text-white text-base leading-tight">
                       {storeName || (isBn ? 'আপনার দোকানের নাম' : 'Your Store Name')}
                     </h2>
+                    <span className="text-[9px] font-semibold text-slate-400 leading-none truncate block mt-0.5">
+                      Powered by <span className="font-bold text-[#ff5c01]">YearInvo</span>
+                    </span>
                   </div>
                 </div>
 

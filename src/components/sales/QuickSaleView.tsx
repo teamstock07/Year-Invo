@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Sale } from '../../types';
 import { QuickReceiptModal } from './QuickReceiptModal';
-import { findProductByCode } from '../../utils/scanner';
+import { findProductByCode, findProductWithStoreCheck } from '../../utils/scanner';
 import { playSuccessSound, playBeepSound } from '../../utils/audio';
 import {
   Zap,
@@ -22,6 +22,7 @@ import {
 
 export const QuickSaleView: React.FC = () => {
   const {
+    user,
     products,
     customers,
     cart,
@@ -140,21 +141,41 @@ export const QuickSaleView: React.FC = () => {
               const val = e.target.value;
               setSearchQuery(val);
               if (val.trim()) {
-                const exactMatch = findProductByCode(products, val);
-                if (exactMatch) {
-                  addToCart(exactMatch);
-                  playBeepSound();
-                  setSearchQuery('');
+                const currentStoreId = user?.id || user?.brandName || '';
+                const result = findProductWithStoreCheck(products, val, currentStoreId);
+                if (result.product) {
+                  const matched = result.product;
+                  const todayStr = new Date().toISOString().split('T')[0];
+                  if (
+                    (!matched.expiryDate || matched.expiryDate > todayStr) &&
+                    matched.currentStock > 0 &&
+                    matched.status !== 'out_of_stock'
+                  ) {
+                    addToCart(matched);
+                    playBeepSound();
+                    setSearchQuery('');
+                  }
                 }
               }
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && searchQuery.trim()) {
-                const matched = findProductByCode(products, searchQuery);
-                if (matched) {
-                  addToCart(matched);
-                  playBeepSound();
-                  setSearchQuery('');
+                const currentStoreId = user?.id || user?.brandName || '';
+                const result = findProductWithStoreCheck(products, searchQuery, currentStoreId);
+                if (result.error === 'different_store') {
+                  alert('Product not found in this store.');
+                } else if (result.product) {
+                  const matched = result.product;
+                  const todayStr = new Date().toISOString().split('T')[0];
+                  if (matched.expiryDate && matched.expiryDate <= todayStr) {
+                    alert(`Product "${matched.name}" has expired and cannot be sold.`);
+                  } else if (matched.currentStock <= 0 || matched.status === 'out_of_stock') {
+                    alert(`Product "${matched.name}" is out of stock!`);
+                  } else {
+                    addToCart(matched);
+                    playBeepSound();
+                    setSearchQuery('');
+                  }
                 } else {
                   alert(`Product not found for code: "${searchQuery.trim()}"`);
                 }

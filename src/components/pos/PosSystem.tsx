@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { Product, Sale } from '../../types';
 import { ReceiptModal } from './ReceiptModal';
 import { QrScannerModal } from './QrScannerModal';
-import { findProductByCode } from '../../utils/scanner';
+import { findProductByCode, findProductWithStoreCheck } from '../../utils/scanner';
 import { playSuccessSound, playBeepSound } from '../../utils/audio';
 import {
   ShoppingCart,
@@ -118,12 +118,17 @@ export const PosSystem: React.FC = () => {
       if (e.key === 'Enter') {
         if (barcodeBuffer.trim()) {
           const code = barcodeBuffer.trim();
-          const matchedProd = findProductByCode(products, code);
-          if (matchedProd) {
+          const currentStoreId = user?.id || user?.brandName || '';
+          const result = findProductWithStoreCheck(products, code, currentStoreId);
+
+          if (result.error === 'different_store') {
+            alert('Product not found in this store.');
+          } else if (result.product) {
+            const matchedProd = result.product;
             const todayStr = new Date().toISOString().split('T')[0];
             if (matchedProd.expiryDate && matchedProd.expiryDate <= todayStr) {
               alert(`Product "${matchedProd.name}" has expired and cannot be sold.`);
-            } else if (matchedProd.currentStock <= 0) {
+            } else if (matchedProd.currentStock <= 0 || matchedProd.status === 'out_of_stock') {
               alert(`Product "${matchedProd.name}" is out of stock!`);
             } else {
               addToCart(matchedProd);
@@ -323,21 +328,41 @@ export const PosSystem: React.FC = () => {
                 setSearchQuery(val);
                 // Instant code match check
                 if (val.trim()) {
-                  const exactMatch = findProductByCode(products, val);
-                  if (exactMatch) {
-                    addToCart(exactMatch);
-                    playBeepSound();
-                    setSearchQuery('');
+                  const currentStoreId = user?.id || user?.brandName || '';
+                  const result = findProductWithStoreCheck(products, val, currentStoreId);
+                  if (result.product) {
+                    const matched = result.product;
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    if (
+                      (!matched.expiryDate || matched.expiryDate > todayStr) &&
+                      matched.currentStock > 0 &&
+                      matched.status !== 'out_of_stock'
+                    ) {
+                      addToCart(matched);
+                      playBeepSound();
+                      setSearchQuery('');
+                    }
                   }
                 }
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && searchQuery.trim()) {
-                  const matched = findProductByCode(products, searchQuery);
-                  if (matched) {
-                    addToCart(matched);
-                    playBeepSound();
-                    setSearchQuery('');
+                  const currentStoreId = user?.id || user?.brandName || '';
+                  const result = findProductWithStoreCheck(products, searchQuery, currentStoreId);
+                  if (result.error === 'different_store') {
+                    alert('Product not found in this store.');
+                  } else if (result.product) {
+                    const matched = result.product;
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    if (matched.expiryDate && matched.expiryDate <= todayStr) {
+                      alert(`Product "${matched.name}" has expired and cannot be sold.`);
+                    } else if (matched.currentStock <= 0 || matched.status === 'out_of_stock') {
+                      alert(`Product "${matched.name}" is out of stock!`);
+                    } else {
+                      addToCart(matched);
+                      playBeepSound();
+                      setSearchQuery('');
+                    }
                   } else {
                     alert(`Product not found for code: "${searchQuery.trim()}"`);
                   }

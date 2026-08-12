@@ -10,57 +10,119 @@ export function normalizeCode(raw: string): string {
 
 /**
  * Searches the products array for a product matching the scanned code.
- * Matching strategy:
- * 1. Exact match on product.sku or product.barcode or product.id (case-insensitive)
- * 2. Formatted string fallback (e.g., SKU:XXXX|NAME:... or SKU:XXXX)
- * 3. JSON fallback (e.g., {"sku":"XXXX"})
+ * Supporting:
+ * 1. YearInvo Structured JSON payloads (with productId, sku, barcode, storeId)
+ * 2. Exact match on product.id, product.sku, or product.barcode
+ * 3. Formatted string fallbacks (e.g. SKU:XXXX, ID:XXXX)
  */
-export function findProductByCode(products: Product[], rawCode: string): Product | undefined {
+export interface ScanResult {
+  product?: Product;
+  error?: 'not_found' | 'different_store' | 'out_of_stock' | 'expired' | 'inactive';
+}
+
+export function findProductWithStoreCheck(
+  products: Product[],
+  rawCode: string,
+  currentStoreId?: string
+): ScanResult {
   const code = normalizeCode(rawCode);
-  if (!code) return undefined;
+  if (!code) return { error: 'not_found' };
 
-  const lower = code.toLowerCase();
+  let scannedStoreId: string | undefined = undefined;
+  let targetId: string | undefined = undefined;
+  let targetSku: string | undefined = undefined;
+  let targetBarcode: string | undefined = undefined;
 
-  // 1. Primary: Exact match on SKU or Barcode or ID (case-insensitive)
-  let match = products.find((p) => {
-    const sku = (p.sku || '').trim().toLowerCase();
-    const barcode = (p.barcode || '').trim().toLowerCase();
-    const id = (p.id || '').trim().toLowerCase();
-    return sku === lower || barcode === lower || id === lower;
-  });
-  if (match) return match;
-
-  // 2. Secondary: If QR code contains formatted string with "SKU:"
-  if (code.includes('SKU:')) {
-    const extracted = code.match(/SKU:\s*([^|\r\n]+)/i);
-    if (extracted && extracted[1]) {
-      const skuVal = extracted[1].trim().toLowerCase();
-      match = products.find((p) => {
-        const sku = (p.sku || '').trim().toLowerCase();
-        const barcode = (p.barcode || '').trim().toLowerCase();
-        return sku === skuVal || barcode === skuVal;
-      });
-      if (match) return match;
-    }
-  }
-
-  // 3. Secondary: JSON payload
-  if (code.startsWith('{') && code.endsWith('}')) {
+  // 1. Try JSON payload parsing
+  if ((code.startsWith('{') && code.endsWith('}')) || code.includes('"productId"') || code.includes('"sku"')) {
     try {
       const parsed = JSON.parse(code);
-      const targetSku = (parsed.sku || parsed.barcode || parsed.id || '').toString().trim().toLowerCase();
-      if (targetSku) {
-        match = products.find((p) => {
-          const sku = (p.sku || '').trim().toLowerCase();
-          const barcode = (p.barcode || '').trim().toLowerCase();
-          return sku === targetSku || barcode === targetSku;
-        });
-        if (match) return match;
+      if (parsed && typeof parsed === 'object') {
+        if (parsed.storeId) scannedStoreId = String(parsed.storeId).trim();
+        if (parsed.productId) targetId = String(parsed.productId).trim();
+        if (parsed.id && !targetId) targetId = String(parsed.id).trim();
+        if (parsed.sku) targetSku = String(parsed.sku).trim();
+        if (parsed.barcode) targetBarcode = String(parsed.barcode).trim();
       }
     } catch (_) {}
   }
 
-  return undefined;
+  // 2. Try formatted prefix strings (e.g., SKU:XXXX or ID:XXXX)
+  if (!targetId && !targetSku && !targetBarcode) {
+    if (code.includes('SKU:')) {
+      const match = code.match(/SKU:\s*([^|\r\n]+)/i);
+      if (match && match[1]) targetSku = match[1].trim();
+    }
+    if (code.includes('ID:')) {
+      const match = code.match(/ID:\s*([^|\r\n]+)/i);
+      if (match && match[1]) targetId = match[1].trim();
+    }
+  }
+
+  // 3. Store Security Check: If scanned QR belongs strictly to a different store
+  if (
+    scannedStoreId &&
+    currentStoreId &&
+    scannedStoreId.toLowerCase() !== currentStoreId.toLowerCase()
+  ) {
+    return { error: 'different_store' };
+  }
+
+  let matched: Product | undefined = undefined;
+
+  // Lookup Priority 1: Exact Match by Product ID
+  if (targetId) {
+    const tid = targetId.toLowerCase();
+    matched = products.find((p) => (p.id || '').trim().toLowerCase() === tid);
+  }
+
+  // Lookup Priority 2: Exact Match by SKU
+  if (!matched && targetSku) {
+    const tsku = targetSku.toLowerCase();
+    matched = products.find((p) => (p.sku || '').trim().toLowerCase() === tsku);
+  }
+
+  // Lookup Priority 3: Exact Match by Barcode
+  if (!matched && targetBarcode) {
+    const tbarcode = targetBarcode.toLowerCase();
+    matched = products.find((p) => (p.barcode || '').trim().toLowerCase() === tbarcode);
+  }
+
+  // Lookup Priority 4: Direct Raw Code search against Product ID, SKU, or Barcode
+  if (!matched) {
+    const lower = code.toLowerCase();
+    matched = products.find((p) => {
+      const id = (p.id || '').trim().toLowerCase();
+      const sku = (p.sku || '').trim().toLowerCase();
+      const barcode = (p.barcode || '').trim().toLowerCase();
+      return id === lower || sku === lower || barcode === lower;
+    });
+  }
+
+  if (!matched) {
+    return { error: 'not_found' };
+  }
+
+  // 4. Verify product ownership if product object holds store/userId
+  const prodStoreId = (matched as any).storeId || (matched as any).userId;
+  if (
+    prodStoreId &&
+    currentStoreId &&
+    String(prodStoreId).toLowerCase() !== String(currentStoreId).toLowerCase()
+  ) {
+    return { error: 'different_store' };
+  }
+
+  return { product: matched };
+}
+
+export function findProductByCode(
+  products: Product[],
+  rawCode: string,
+  currentStoreId?: string
+): Product | undefined {
+  const result = findProductWithStoreCheck(products, rawCode, currentStoreId);
+  return result.product;
 }
 
 /**
