@@ -158,6 +158,12 @@ interface AppContextType {
   deleteProduct: (id: string) => void;
   clearAllProducts: () => void;
 
+  // POS / QR Code Limit Helpers
+  generatedProductCodes: string[];
+  recordGeneratedCode: (productId: string) => boolean;
+  isCodeGenerated: (productId: string) => boolean;
+  removeGeneratedCode: (productId: string) => void;
+
   // Stock Actions
   adjustStock: (productId: string, quantityDelta: number, reason: string, type: 'addition' | 'reduction' | 'damage_writeoff' | 'audit_correction') => void;
 
@@ -686,6 +692,66 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('biz_expenses', JSON.stringify(expenses));
   }, [expenses]);
+
+  // Generated Product POS / QR Code Limit Tracking State (Store Isolated)
+  const [generatedProductCodes, setGeneratedProductCodes] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(`biz_generated_codes_${user?.id || 'default'}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  // Re-sync when store/user changes
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`biz_generated_codes_${user?.id || 'default'}`);
+      setGeneratedProductCodes(saved ? JSON.parse(saved) : []);
+    } catch (e) {
+      setGeneratedProductCodes([]);
+    }
+  }, [user?.id]);
+
+  // Persist to LocalStorage per store
+  useEffect(() => {
+    try {
+      localStorage.setItem(`biz_generated_codes_${user?.id || 'default'}`, JSON.stringify(generatedProductCodes));
+    } catch (e) {}
+  }, [generatedProductCodes, user?.id]);
+
+  // Real-time cleanup: automatically remove orphaned product codes when a product is deleted
+  useEffect(() => {
+    setGeneratedProductCodes((prev) => {
+      const valid = prev.filter((id) => products.some((p) => p.id === id));
+      if (valid.length !== prev.length) {
+        return valid;
+      }
+      return prev;
+    });
+  }, [products]);
+
+  const recordGeneratedCode = (productId: string): boolean => {
+    if (!productId) return false;
+    // If code is already generated for this product, allow (reuses existing code slot)
+    if (generatedProductCodes.includes(productId)) {
+      return true;
+    }
+    // Limit Rule: Maximum generated codes cannot exceed total active products in current store
+    if (generatedProductCodes.length >= products.length) {
+      return false; // Limit reached!
+    }
+    setGeneratedProductCodes((prev) => [...prev, productId]);
+    return true;
+  };
+
+  const isCodeGenerated = (productId: string): boolean => {
+    return generatedProductCodes.includes(productId);
+  };
+
+  const removeGeneratedCode = (productId: string) => {
+    setGeneratedProductCodes((prev) => prev.filter((id) => id !== productId));
+  };
 
   // Language & Theme helpers with persistence
   const setLanguage = (lang: Language) => {
@@ -2241,6 +2307,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateProduct,
         deleteProduct,
         clearAllProducts,
+        generatedProductCodes,
+        recordGeneratedCode,
+        isCodeGenerated,
+        removeGeneratedCode,
         adjustStock,
         addCustomer,
         updateCustomer,

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Sale } from '../../types';
 import { QuickReceiptModal } from './QuickReceiptModal';
+import { CustomerSelector } from '../common/CustomerSelector';
 import { findProductByCode, findProductWithStoreCheck } from '../../utils/scanner';
 import { playSuccessSound, playBeepSound } from '../../utils/audio';
 import {
@@ -25,6 +26,7 @@ export const QuickSaleView: React.FC = () => {
     user,
     products,
     customers,
+    addCustomer,
     cart,
     addToCart,
     removeFromCart,
@@ -39,6 +41,9 @@ export const QuickSaleView: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [isAddCustModalOpen, setIsAddCustModalOpen] = useState(false);
+  const [newCustName, setNewCustName] = useState('');
+  const [newCustPhone, setNewCustPhone] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Card' | 'Due/Credit' | 'bKash/Mobile'>('Cash');
   const [isQrModalOpen, setIsQrModalOpen] = useState<boolean>(false);
   const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed');
@@ -113,6 +118,18 @@ export const QuickSaleView: React.FC = () => {
     setIsReceiptOpen(true);
     setDiscountValue(0);
     setPaidAmountInput('');
+  };
+
+  const handleAddQuickCustomer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCustName.trim()) return;
+    const created = addCustomer({ name: newCustName.trim(), phone: newCustPhone.trim() });
+    if (created && created.id) {
+      setSelectedCustomerId(created.id);
+    }
+    setNewCustName('');
+    setNewCustPhone('');
+    setIsAddCustModalOpen(false);
   };
 
   return (
@@ -247,21 +264,11 @@ export const QuickSaleView: React.FC = () => {
       {/* Right Column: Quick Sale Cart & Payment Options */}
       <div className="lg:col-span-5 flex flex-col bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-3">
         {/* Customer Choice */}
-        <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/80 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700">
-          <User className="w-4 h-4 text-[#ff5c01]" />
-          <select
-            value={selectedCustomerId}
-            onChange={(e) => setSelectedCustomerId(e.target.value)}
-            className="flex-1 text-xs font-bold bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none"
-          >
-            <option value="">Walk-in Customer</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} ({c.phone || 'No Phone'})
-              </option>
-            ))}
-          </select>
-        </div>
+        <CustomerSelector
+          selectedCustomerId={selectedCustomerId}
+          onSelectCustomer={setSelectedCustomerId}
+          onQuickAdd={() => setIsAddCustModalOpen(true)}
+        />
 
         {/* Cart Item Rows */}
         <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 min-h-36 max-h-48 pr-1 custom-scrollbar">
@@ -558,6 +565,47 @@ export const QuickSaleView: React.FC = () => {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add Customer Modal */}
+      {isAddCustModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
+          <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xl">
+            <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">Add Quick Customer</h3>
+            <form onSubmit={handleAddQuickCustomer} className="space-y-3">
+              <input
+                type="text"
+                required
+                placeholder="Customer Name *"
+                value={newCustName}
+                onChange={(e) => setNewCustName(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#ff5c01]"
+              />
+              <input
+                type="text"
+                placeholder="Mobile Number"
+                value={newCustPhone}
+                onChange={(e) => setNewCustPhone(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#ff5c01]"
+              />
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddCustModalOpen(false)}
+                  className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-[#ff5c01] hover:bg-[#e05100] text-white font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                >
+                  Save
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

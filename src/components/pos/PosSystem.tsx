@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { Product, Sale } from '../../types';
 import { ReceiptModal } from './ReceiptModal';
 import { QrScannerModal } from './QrScannerModal';
+import { CustomerSelector } from '../common/CustomerSelector';
 import { findProductByCode, findProductWithStoreCheck } from '../../utils/scanner';
 import { playSuccessSound, playBeepSound } from '../../utils/audio';
 import {
@@ -622,30 +623,12 @@ export const PosSystem: React.FC = () => {
       {/* Right Column: POS Cart & Checkout Panel (5 cols) */}
       <div className="lg:col-span-5 flex flex-col h-full bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs space-y-3">
         {/* Customer Selector & Quick Add */}
-        <div className="flex items-center gap-2 mb-1 pb-2 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-2 flex-1 bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
-            <User className="w-4 h-4 text-[#ff5c01]" />
-            <select
-              value={selectedCustomerId}
-              onChange={(e) => setSelectedCustomerId(e.target.value)}
-              className="flex-1 text-xs font-bold bg-transparent text-slate-800 dark:text-slate-100 focus:outline-hidden"
-            >
-              <option value="">Walk-in Customer</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.phone || 'No Phone'}) {c.dueAmount > 0 ? `[Due: ${symbol}${c.dueAmount}]` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <button
-            onClick={() => setIsAddCustModalOpen(true)}
-            className="p-2 bg-[#ff5c01]/10 hover:bg-[#ff5c01] text-[#ff5c01] hover:text-white rounded-xl transition-colors cursor-pointer"
-            title="Quick Add Customer"
-          >
-            <UserPlus className="w-4 h-4" />
-          </button>
+        <div className="mb-1 pb-2 border-b border-slate-100 dark:border-slate-800">
+          <CustomerSelector
+            selectedCustomerId={selectedCustomerId}
+            onSelectCustomer={setSelectedCustomerId}
+            onQuickAdd={() => setIsAddCustModalOpen(true)}
+          />
         </div>
 
         {/* Cart Items List */}
@@ -1022,7 +1005,7 @@ export const PosSystem: React.FC = () => {
       {/* Quick Add Customer Modal */}
       {isAddCustModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
-          <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 space-y-4">
+          <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xl">
             <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">Add Quick Customer</h3>
             <form onSubmit={handleAddQuickCustomer} className="space-y-3">
               <input
@@ -1031,26 +1014,26 @@ export const PosSystem: React.FC = () => {
                 placeholder="Customer Name *"
                 value={newCustName}
                 onChange={(e) => setNewCustName(e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#ff5c01]"
               />
               <input
                 type="text"
                 placeholder="Mobile Number"
                 value={newCustPhone}
                 onChange={(e) => setNewCustPhone(e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#ff5c01]"
               />
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setIsAddCustModalOpen(false)}
-                  className="px-3 py-1.5 text-xs font-semibold text-slate-500"
+                  className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-blue-600 text-white font-bold text-xs rounded-xl"
+                  className="px-4 py-1.5 bg-[#ff5c01] hover:bg-[#e05100] text-white font-bold text-xs rounded-xl transition-colors cursor-pointer"
                 >
                   Save
                 </button>

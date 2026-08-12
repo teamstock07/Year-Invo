@@ -16,6 +16,8 @@ import {
   Barcode,
   Search,
   Check,
+  AlertTriangle,
+  Plus,
 } from 'lucide-react';
 
 interface GeneratedLabelConfig {
@@ -34,7 +36,16 @@ interface GeneratedLabelConfig {
 }
 
 export const BarcodeGeneratorView: React.FC = () => {
-  const { user, setActiveTab, products, settings, t } = useApp();
+  const {
+    user,
+    setActiveTab,
+    products,
+    settings,
+    t,
+    generatedProductCodes,
+    recordGeneratedCode,
+    isCodeGenerated,
+  } = useApp();
   const symbol = settings.currency || '৳';
   const plan = user?.subscriptionPlan || 'Free';
   const isPremiumPlan =
@@ -56,6 +67,11 @@ export const BarcodeGeneratorView: React.FC = () => {
   const selectedProduct =
     products.find((p) => p.id === selectedProductId) || products[0];
 
+  const totalProductsCount = products.length;
+  const usedCodesCount = generatedProductCodes.length;
+  const isLimitReached = usedCodesCount >= totalProductsCount;
+  const isSelectedProductGenerated = selectedProduct ? isCodeGenerated(selectedProduct.id) : false;
+
   const filteredProducts = products.filter(
     (p) =>
       p.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
@@ -72,6 +88,13 @@ export const BarcodeGeneratorView: React.FC = () => {
   const handleGenerate = async () => {
     if (!selectedProduct) {
       alert('Please select a product first.');
+      return;
+    }
+
+    // Check & record POS/QR code limit
+    const allowed = recordGeneratedCode(selectedProduct.id);
+    if (!allowed) {
+      alert('You have reached the maximum number of product codes. Add another product to generate a new code.');
       return;
     }
 
@@ -288,6 +311,47 @@ export const BarcodeGeneratorView: React.FC = () => {
         )}
       </div>
 
+      {/* Usage Limit Summary Banner */}
+      <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
+        <div className="flex items-center gap-3">
+          <div className={`p-3 rounded-2xl ${isLimitReached ? 'bg-amber-500/10 text-amber-600' : 'bg-[#ff5c01]/10 text-[#ff5c01]'}`}>
+            <QrCode className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-extrabold text-sm text-slate-800 dark:text-slate-200">
+                Product Codes Capacity
+              </h3>
+              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black ${
+                isLimitReached
+                  ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
+                  : 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+              }`}>
+                {usedCodesCount} / {totalProductsCount} Used
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              {totalProductsCount === 0
+                ? 'No products found in store. Add products to enable code generation.'
+                : isLimitReached
+                ? 'Maximum code limit reached (1 unique code per product). Add a new product to increase available capacity.'
+                : `Capacity available to generate codes for ${totalProductsCount - usedCodesCount} more product(s).`}
+            </p>
+          </div>
+        </div>
+
+        {isLimitReached && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('products')}
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[#ff5c01] hover:bg-[#e05100] text-white font-extrabold text-xs rounded-xl shadow-xs transition-all shrink-0 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Product to Expand Limit</span>
+          </button>
+        )}
+      </div>
+
       {/* Main Controls Card */}
       <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-6 no-print">
         <h2 className="text-sm font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -316,26 +380,54 @@ export const BarcodeGeneratorView: React.FC = () => {
               onChange={(e) => setSelectedProductId(e.target.value)}
               className="w-full px-3 py-2 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 focus:outline-none focus:border-[#ff5c01]"
             >
-              {filteredProducts.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} — SKU: {p.sku} ({symbol}{p.sellingPrice})
-                </option>
-              ))}
+              {filteredProducts.map((p) => {
+                const hasCode = isCodeGenerated(p.id);
+                return (
+                  <option key={p.id} value={p.id}>
+                    {p.name} — SKU: {p.sku} ({symbol}{p.sellingPrice}) {hasCode ? '✓ [Code Generated]' : '⚪ [Not Generated]'}
+                  </option>
+                );
+              })}
             </select>
+
             {selectedProduct && (
-              <div className="p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200/60 dark:border-slate-700/60 text-[11px] space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Selected Product:</span>
-                  <strong className="text-slate-800 dark:text-slate-200">{selectedProduct.name}</strong>
+              <div className="space-y-2">
+                <div className="p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200/60 dark:border-slate-700/60 text-[11px] space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Selected Product:</span>
+                    <strong className="text-slate-800 dark:text-slate-200">{selectedProduct.name}</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">SKU / Code:</span>
+                    <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{selectedProduct.sku}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Price:</span>
+                    <strong className="text-[#ff5c01]">{symbol}{selectedProduct.sellingPrice}</strong>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">SKU / Code:</span>
-                  <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{selectedProduct.sku}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Price:</span>
-                  <strong className="text-[#ff5c01]">{symbol}{selectedProduct.sellingPrice}</strong>
-                </div>
+
+                {/* Status indicator badge */}
+                {isSelectedProductGenerated ? (
+                  <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold border border-emerald-200 dark:border-emerald-800/60">
+                    <Check className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
+                    <span>POS/QR code generated for this product. You can regenerate or print labels anytime.</span>
+                  </div>
+                ) : isLimitReached ? (
+                  <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 text-[11px] font-semibold space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-200">
+                      <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
+                      <span>Code Generation Limit Reached ({usedCodesCount} / {totalProductsCount})</span>
+                    </div>
+                    <p className="leading-relaxed text-amber-700 dark:text-amber-400">
+                      You have reached the maximum number of product codes. Add another product to generate a new code.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[11px] font-medium border border-slate-200 dark:border-slate-700">
+                    <span>⚪ Ready to generate new code for this product ({usedCodesCount + 1} of {totalProductsCount} available).</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -454,11 +546,21 @@ export const BarcodeGeneratorView: React.FC = () => {
           <button
             type="button"
             onClick={handleGenerate}
-            disabled={isGenerating || !selectedProduct}
-            className="w-full sm:w-auto px-8 py-3 bg-[#ff5c01] hover:bg-[#e05100] text-white font-black text-xs rounded-xl shadow-lg shadow-[#ff5c01]/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            disabled={isGenerating || !selectedProduct || (!isSelectedProductGenerated && isLimitReached)}
+            className={`w-full sm:w-auto px-8 py-3 font-black text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              !isSelectedProductGenerated && isLimitReached
+                ? 'bg-slate-200 dark:bg-slate-800 text-slate-500 border border-slate-300 dark:border-slate-700 cursor-not-allowed'
+                : 'bg-[#ff5c01] hover:bg-[#e05100] text-white shadow-lg shadow-[#ff5c01]/20 disabled:opacity-50'
+            }`}
           >
             <Sparkles className="w-4 h-4" />
-            <span>{isGenerating ? 'Generating Labels...' : `Generate ${copiesInput} Printable Labels`}</span>
+            <span>
+              {isGenerating
+                ? 'Generating Labels...'
+                : !isSelectedProductGenerated && isLimitReached
+                ? `Limit Reached (${usedCodesCount}/${totalProductsCount} Codes Used)`
+                : `Generate ${copiesInput} Printable Labels`}
+            </span>
           </button>
 
           {generatedConfig && (

@@ -395,8 +395,8 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
           title="Account Profile"
           aria-label="Account Profile"
         >
-          <div className="w-8 h-8 rounded-xl bg-[#ff5c01] text-white border border-white/20 flex items-center justify-center font-bold text-xs shadow-xs shrink-0">
-            {user?.ownerName?.[0] || 'A'}
+          <div className="w-8 h-8 rounded-xl bg-[#ff5c01] text-white border border-white/20 flex items-center justify-center shadow-xs shrink-0">
+            <User className="w-4 h-4 text-white" />
           </div>
         </button>
 
