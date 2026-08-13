@@ -22,7 +22,7 @@ export const initializePaddle = (): Promise<any> => {
 
     if (!clientToken) {
       const err = new Error('VITE_PADDLE_CLIENT_TOKEN environment variable is missing.');
-      console.error('[Paddle Initialization Failed]: Client token is missing.');
+      console.error('[PADDLE DEBUG] Initialization Failed:', err.message);
       paddleInitPromise = null;
       reject(err);
       return;
@@ -36,7 +36,7 @@ export const initializePaddle = (): Promise<any> => {
             if (typeof PaddleInstance.Environment?.set === 'function') {
               PaddleInstance.Environment.set('sandbox');
             } else {
-              console.warn('[Paddle Warning]: Paddle.Environment.set is not a function on window.Paddle');
+              console.warn('[PADDLE DEBUG] Warning: Paddle.Environment.set is not a function on window.Paddle');
             }
           }
 
@@ -45,20 +45,25 @@ export const initializePaddle = (): Promise<any> => {
             PaddleInstance.Initialize({
               token: clientToken,
               eventCallback: (event: any) => {
-                if (process.env.NODE_ENV !== 'production') {
-                  console.log('[Paddle Checkout Event]:', event?.name || event?.type || event);
+                const eventName = event?.name || event?.type || 'event';
+                console.log(`[PADDLE DEBUG] Paddle Event: ${eventName}`, event);
+                if (eventName === 'checkout.error' || eventName === 'error') {
+                  console.error('[PADDLE DEBUG] Paddle Checkout Error Event:', event);
                 }
               },
             });
             isPaddleInitialized = true;
-            console.log('[Paddle Service]: Paddle.js v2 successfully initialized in sandbox mode.');
+            console.log('[PADDLE DEBUG] Paddle.js v2 successfully initialized.', {
+              environment: PADDLE_CONFIG.environment,
+              tokenPrefix: clientToken ? clientToken.slice(0, 5) : 'none',
+            });
           } else {
             throw new Error('Paddle.Initialize is not available on loaded Paddle SDK.');
           }
         }
         resolve(PaddleInstance);
       } catch (initErr) {
-        console.error('[Paddle Setup Error]:', initErr);
+        console.error('[PADDLE DEBUG] Setup Error:', initErr);
         paddleInitPromise = null;
         reject(initErr);
       }
@@ -79,14 +84,14 @@ export const initializePaddle = (): Promise<any> => {
       } else {
         paddleInitPromise = null;
         const err = new Error('Paddle SDK loaded from CDN but window.Paddle is undefined.');
-        console.error('[Paddle Load Error]:', err);
+        console.error('[PADDLE DEBUG] CDN Load Error:', err);
         reject(err);
       }
     };
     script.onerror = (e) => {
       paddleInitPromise = null;
       const err = new Error('Failed to load Paddle.js CDN script (https://cdn.paddle.com/paddle/v2/paddle.js).');
-      console.error('[Paddle Network Error]:', e);
+      console.error('[PADDLE DEBUG] Script Network Error:', e);
       reject(err);
     };
 
@@ -113,64 +118,63 @@ export interface OpenCheckoutOptions {
 export const openPaddleCheckout = async (options: OpenCheckoutOptions): Promise<void> => {
   const priceId = getPaddlePriceId(options.plan, options.billingCycle);
 
-  // --- Pre-flight Checks (Requirement 10) ---
-  const tokenExists = Boolean(PADDLE_CONFIG.clientToken);
+  // --- Pre-flight Diagnostics & Debug Logging ---
+  const tokenPresent = Boolean(PADDLE_CONFIG.clientToken);
+  const tokenPrefix = PADDLE_CONFIG.clientToken ? PADDLE_CONFIG.clientToken.slice(0, 5) : 'none';
   const isSandbox = PADDLE_CONFIG.environment === 'sandbox';
-  const priceExists = Boolean(priceId);
   const isPriceIdValid = Boolean(priceId && priceId.startsWith('pri_'));
   const isUserAuthenticated = Boolean(options.userId && options.userEmail);
 
-  if (!tokenExists || !isPriceIdValid || !isUserAuthenticated) {
-    const errorDetails = {
-      tokenExists,
-      isSandbox,
-      priceExists,
-      isPriceIdValid,
-      priceId,
-      isUserAuthenticated,
-      environment: PADDLE_CONFIG.environment,
-      currentOrigin: window.location.origin,
+  console.log('[PADDLE DEBUG]', {
+    environment: PADDLE_CONFIG.environment,
+    tokenPresent,
+    tokenPrefix,
+    selectedPriceId: priceId,
+    paddleInitialized: isPaddleInitialized,
+    checkoutAttempt: {
+      plan: options.plan,
+      billingCycle: options.billingCycle,
+      userId: options.userId,
+      userEmail: options.userEmail,
+      origin: window.location.origin,
       hostname: window.location.hostname,
-    };
+    },
+  });
 
-    console.error('[Paddle Checkout Validation Failed]:', errorDetails);
-
-    if (!isUserAuthenticated) {
-      throw new Error('Please log in to your account before upgrading your subscription.');
-    }
-    if (!tokenExists) {
-      throw new Error('Payment gateway token is not configured. Please contact support or try again later.');
-    }
-    if (!isPriceIdValid) {
-      throw new Error('Invalid subscription Price ID configured. Expected prefix "pri_".');
-    }
+  if (!tokenPresent) {
+    const err = new Error('VITE_PADDLE_CLIENT_TOKEN environment variable is missing.');
+    console.error('[PADDLE DEBUG] checkoutError:', err.message);
+    throw err;
   }
 
-  // Check token prefix vs environment consistency (Requirement 12)
-  if (isSandbox && PADDLE_CONFIG.clientToken && !PADDLE_CONFIG.clientToken.startsWith('test_')) {
+  if (isSandbox && !tokenPrefix.startsWith('test_')) {
     console.warn(
-      '[Paddle Environment Mismatch Warning]: Sandbox environment is configured, but VITE_PADDLE_CLIENT_TOKEN does not start with "test_".'
+      '[PADDLE DEBUG] Environment Mismatch Warning: Environment is "sandbox" but clientToken prefix is not "test_".'
     );
+  }
+
+  if (!isPriceIdValid) {
+    const err = new Error(`Invalid Price ID "${priceId}". Price IDs must start with "pri_".`);
+    console.error('[PADDLE DEBUG] checkoutError:', err.message);
+    throw err;
+  }
+
+  if (!isUserAuthenticated) {
+    const err = new Error('User is not authenticated. Cannot attach custom user data to checkout.');
+    console.error('[PADDLE DEBUG] checkoutError:', err.message);
+    throw err;
   }
 
   try {
     const Paddle = await initializePaddle();
 
     if (!Paddle || typeof Paddle.Checkout?.open !== 'function') {
-      throw new Error('Paddle.Checkout.open method is unavailable on Paddle SDK.');
+      throw new Error('Paddle.Checkout.open method is unavailable on window.Paddle SDK.');
     }
 
     const targetPlan = options.plan === 'Business' ? 'Premium' : options.plan;
 
-    console.log('[Paddle Opening Checkout]:', {
-      priceId,
-      plan: targetPlan,
-      billingCycle: options.billingCycle,
-      userEmail: options.userEmail,
-      origin: window.location.origin,
-    });
-
-    Paddle.Checkout.open({
+    const checkoutConfig: any = {
       items: [
         {
           priceId: priceId,
@@ -192,21 +196,17 @@ export const openPaddleCheckout = async (options: OpenCheckoutOptions): Promise<
         theme: 'dark',
         locale: 'en',
       },
-    });
-  } catch (checkoutErr: any) {
-    // Diagnostic logging (Requirement 9 & 11)
-    console.error('[Paddle Checkout Diagnostic Log]:', {
-      environment: PADDLE_CONFIG.environment,
-      hasClientToken: Boolean(PADDLE_CONFIG.clientToken),
-      clientTokenPrefix: PADDLE_CONFIG.clientToken ? PADDLE_CONFIG.clientToken.slice(0, 7) + '...' : 'none',
-      selectedPriceId: priceId,
-      paddleLoaded: Boolean((window as any).Paddle),
-      paddleInitialized: isPaddleInitialized,
-      currentHostname: window.location.hostname,
-      currentOrigin: window.location.origin,
-      error: checkoutErr?.message || checkoutErr,
-    });
+    };
 
-    throw new Error('Unable to open secure payment checkout. Please try again.');
+    console.log('[PADDLE DEBUG] Opening Paddle Checkout with config:', checkoutConfig);
+
+    Paddle.Checkout.open(checkoutConfig);
+    console.log('[PADDLE DEBUG] Paddle.Checkout.open invoked.');
+  } catch (checkoutErr: any) {
+    const actualErrorMsg = checkoutErr?.message || String(checkoutErr);
+    console.error('[PADDLE DEBUG] checkoutError:', checkoutErr);
+    // Display the actual technical error to caller and console rather than replacing it with generic text
+    throw new Error(actualErrorMsg);
   }
 };
+
