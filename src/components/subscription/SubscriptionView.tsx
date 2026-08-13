@@ -1772,8 +1772,8 @@ export const SubscriptionView: React.FC = () => {
                     )}
                     <span>
                       {isSubmitting
-                        ? 'Opening Checkout...'
-                        : `Pay ${selectedProvider?.currencySymbol}${getPlanAmount(selectedProvider, requestPlan, billingCycle)} with ${selectedProvider?.name}`}
+                        ? 'Opening Secure Payment...'
+                        : 'Continue to Secure Payment'}
                     </span>
                   </button>
                 </div>
