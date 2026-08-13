@@ -50,49 +50,28 @@ export const PAYMENT_REGIONS: PaymentRegionConfig[] = [
 export const PAYMENT_PROVIDERS: PaymentProviderConfig[] = [
   // --- International Payment Providers ---
   {
-    id: 'paddle',
-    name: 'Paddle Billing (Cards & PayPal)',
+    id: 'paypal',
+    name: 'PayPal',
     region: 'international',
     enabled: true,
     currency: 'USD',
     currencySymbol: '$',
-    description: 'Instant Paddle Billing checkout supporting Global Credit/Debit Cards, PayPal & Apple Pay (Sandbox)',
-    badge: 'Official Paddle',
-    logoType: 'card',
-    instructions: {
-      note: 'Click "Proceed to Paddle Checkout" below to open the secure Paddle checkout modal for your selected plan.',
-    },
-    supportedPlans: {
-      Pro: { monthly: 2.99, yearly: 26.91 },
-      Business: { monthly: 5.00, yearly: 45.00 },
-    },
-  },
-  {
-    id: 'paypal',
-    name: 'PayPal / Credit Card (Manual)',
-    region: 'international',
-    enabled: true, // Configured & active
-    currency: 'USD',
-    currencySymbol: '$',
-    description: 'Manual transaction submission via PayPal account or International Cards',
+    description: 'Fast & secure checkout using your PayPal account',
     logoType: 'paypal',
-    instructions: {
-      note: 'Complete your payment via PayPal and enter your PayPal Transaction ID / Payment Reference below for manual verification.',
-    },
     supportedPlans: {
       Pro: { monthly: 2.99, yearly: 26.91 },
       Business: { monthly: 5.00, yearly: 45.00 },
     },
   },
   {
-    id: 'stripe',
-    name: 'Stripe Direct Card',
+    id: 'card',
+    name: 'Credit / Debit Card',
     region: 'international',
-    enabled: false, // Set to true when configured
+    enabled: true,
     currency: 'USD',
     currencySymbol: '$',
-    description: 'Direct credit or debit card processing via Stripe payment gateway',
-    logoType: 'stripe',
+    description: 'Visa, Mastercard, American Express & major debit/credit cards',
+    logoType: 'card',
     supportedPlans: {
       Pro: { monthly: 2.99, yearly: 26.91 },
       Business: { monthly: 5.00, yearly: 45.00 },

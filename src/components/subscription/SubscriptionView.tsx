@@ -63,6 +63,29 @@ const formatPrice = (usdAmount: number, currencySymbol: string) => {
   return isSuffix ? `${numStr}${sep}${currencySymbol}` : `${currencySymbol}${numStr}`;
 };
 
+const PayPalLogo = () => (
+  <svg className="h-4.5 w-auto" viewBox="0 0 124 33" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M46.211 6.749h-6.839a.95.95 0 00-.939.803l-4.225 26.732a.571.571 0 00.564.66h3.407c.471 0 .873-.346.947-.811l1.196-7.58a.95.95 0 01.939-.803h2.383c4.78 0 7.502-2.316 8.232-6.953.33-2.091-.122-3.693-1.303-4.764-1.233-1.121-3.176-1.684-5.562-1.684zm.824 6.726c-.41 2.684-2.476 2.684-4.482 2.684h-1.258l1.002-6.347h1.28c1.328 0 2.531 0 3.125.69.412.48.514 1.256.333 2.973z" fill="#003087"/>
+    <path d="M68.512 13.977h-3.41c-.413 0-.77.291-.845.698l-.364 2.052h-.132c-.588-1.229-2.28-2.001-4.271-2.001-4.047 0-7.391 3.064-8.064 7.327-.376 2.384.148 4.618 1.438 6.136 1.206 1.419 2.923 2.062 4.836 2.062 3.447 0 5.344-2.186 5.344-2.186l-.37 2.278a.571.571 0 00.564.66h3.197a.95.95 0 00.939-.803l2.253-14.288a.57.57 0 00-.565-.635zm-5.787 7.078c-.347 2.115-2.039 3.529-4.144 3.529-1.077 0-1.921-.366-2.438-1.058-.512-.686-.68-1.637-.472-2.956.326-2.072 2.023-3.529 4.101-3.529 1.054 0 1.908.371 2.434 1.07.525.698.694 1.666.519 2.944z" fill="#003087"/>
+    <path d="M89.262 13.977h-3.441a.95.95 0 00-.939.803l-1.396 8.835-2.39-8.995a.952.952 0 00-.918-.643h-3.493a.57.57 0 00-.547.733l4.673 13.882-3.593 5.064a.571.571 0 00.465.901h3.415a.95.95 0 00.772-.397l11.458-18.991a.571.571 0 00-.566-.192z" fill="#003087"/>
+    <path d="M12.871 1.052H4.636a1.593 1.593 0 00-1.575 1.348L.022 21.689a.956.956 0 00.945 1.107h4.31a1.593 1.593 0 001.575-1.348l.945-5.981a1.593 1.593 0 011.575-1.348h2.646c5.234 0 9.256-2.126 10.05-7.181.36-2.285-.09-4.156-1.339-5.385C19.349 2.21 16.637 1.052 12.871 1.052zm.824 6.726c-.41 2.684-2.476 2.684-4.482 2.684H7.955l1.002-6.347h1.28c1.328 0 2.531 0 3.125.69.412.48.514 1.256.333 2.973z" fill="#003087"/>
+    <path d="M22.894 8.233c-.36 2.285-.09 4.156-1.339 5.385-1.38 1.343-4.092 2.501-7.858 2.501H11.05a1.593 1.593 0 00-1.575 1.348l-1.93 12.215a.956.956 0 00.945 1.107h3.834a1.593 1.593 0 001.575-1.348l1.09-6.904a1.593 1.593 0 011.575-1.348h1.646c5.234 0 9.256-2.126 10.05-7.181.411-2.612-.036-4.631-1.466-5.775z" fill="#0079C1"/>
+    <path d="M21.57 7.781a10.872 10.872 0 00-2.222-1.838c-1.38-1.343-4.092-2.501-7.858-2.501H6.027a1.593 1.593 0 00-1.575 1.348L1.413 23.989a.956.956 0 00.945 1.107h4.31a1.593 1.593 0 001.575-1.348l.945-5.981a1.593 1.593 0 011.575-1.348h2.646c5.234 0 9.256-2.126 10.05-7.181.36-2.285-.09-4.156-1.339-5.385z" fill="#00457C"/>
+  </svg>
+);
+
+const CardLogos = () => (
+  <div className="flex items-center gap-1.5">
+    <span className="px-1.5 py-0.5 bg-[#1A1F71] text-white font-extrabold italic text-[10px] rounded tracking-wider shadow-sm">
+      VISA
+    </span>
+    <div className="flex items-center -space-x-1">
+      <div className="w-3.5 h-3.5 rounded-full bg-[#EB001B]" />
+      <div className="w-3.5 h-3.5 rounded-full bg-[#F79E1B] opacity-90" />
+    </div>
+  </div>
+);
+
 interface SubDict {
   badge: string;
   title: string;
@@ -1579,10 +1602,10 @@ export const SubscriptionView: React.FC = () => {
               </div>
             </div>
 
-            {/* Provider Selection (Requirement 3, 4, 5, 7, 8) */}
+            {/* Provider Selection */}
             <div className="space-y-2">
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
-                2. Select Configured Payment Provider
+                2. Select Payment Method
               </label>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1595,69 +1618,68 @@ export const SubscriptionView: React.FC = () => {
                       key={provider.id}
                       type="button"
                       onClick={() => setSelectedProviderId(provider.id)}
-                      className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer space-y-2 relative ${
+                      className={`p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer relative flex flex-col justify-between space-y-3 ${
                         isSelected
-                          ? 'bg-[#ff5c01]/10 border-[#ff5c01] ring-1 ring-[#ff5c01]'
-                          : 'bg-slate-950/80 border-slate-800 hover:border-slate-700 hover:bg-slate-900/60'
+                          ? 'bg-slate-900 border-blue-500 ring-2 ring-blue-500/30 shadow-lg shadow-blue-500/10'
+                          : 'bg-slate-950/80 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900/60'
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <div
-                            className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs ${
-                              provider.logoType === 'paypal'
-                                ? 'bg-blue-500/20 text-blue-400'
-                                : provider.logoType === 'bkash'
-                                ? 'bg-pink-500/20 text-pink-400'
-                                : provider.logoType === 'nagad'
-                                ? 'bg-orange-500/20 text-orange-400'
-                                : provider.logoType === 'rocket'
-                                ? 'bg-purple-500/20 text-purple-400'
-                                : 'bg-cyan-500/20 text-cyan-400'
-                            }`}
-                          >
-                            {provider.logoType === 'paypal' ? (
-                              <CreditCard className="w-4 h-4" />
-                            ) : provider.logoType === 'bank' ? (
-                              <Building className="w-4 h-4" />
-                            ) : (
-                              <Wallet className="w-4 h-4" />
-                            )}
-                          </div>
-                          <div>
-                            <span className="font-extrabold text-xs text-white block">
-                              {provider.name}
-                            </span>
-                            {provider.badge && (
-                              <span className="text-[9px] font-black uppercase text-amber-400 tracking-wider">
-                                {provider.badge}
-                              </span>
-                            )}
-                          </div>
+                          {provider.logoType === 'paypal' ? (
+                            <PayPalLogo />
+                          ) : provider.logoType === 'card' ? (
+                            <CardLogos />
+                          ) : (
+                            <div
+                              className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs ${
+                                provider.logoType === 'bkash'
+                                  ? 'bg-pink-500/20 text-pink-400'
+                                  : provider.logoType === 'nagad'
+                                  ? 'bg-orange-500/20 text-orange-400'
+                                  : provider.logoType === 'rocket'
+                                  ? 'bg-purple-500/20 text-purple-400'
+                                  : 'bg-cyan-500/20 text-cyan-400'
+                              }`}
+                            >
+                              {provider.logoType === 'bank' ? (
+                                <Building className="w-4 h-4" />
+                              ) : (
+                                <Wallet className="w-4 h-4" />
+                              )}
+                            </div>
+                          )}
                         </div>
 
-                        <div className="text-right">
-                          <span className="font-extrabold text-xs text-emerald-400 block">
-                            {provider.currencySymbol}
-                            {providerCost}
+                        {isSelected && (
+                          <span className="w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center text-[10px] font-black shrink-0">
+                            ✓
                           </span>
-                          <span className="text-[10px] text-slate-400">
-                            /{billingCycle === 'yearly' ? 'yr' : 'mo'}
-                          </span>
-                        </div>
+                        )}
                       </div>
 
-                      <p className="text-[11px] text-slate-400 line-clamp-2">
-                        {provider.description}
-                      </p>
+                      <div>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="font-extrabold text-xs text-white block">
+                            {provider.name}
+                          </span>
+                          <span className="font-extrabold text-xs text-emerald-400 block">
+                            {provider.currencySymbol}{providerCost}{' '}
+                            <span className="text-[10px] font-normal text-slate-400">/{billingCycle === 'yearly' ? 'yr' : 'mo'}</span>
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 line-clamp-1">
+                          {provider.description}
+                        </p>
+                      </div>
                     </button>
                   );
                 })}
               </div>
             </div>
 
-            {/* Provider Instructions Card */}
-            {selectedProvider && (
+            {/* Provider Instructions Card (Only for Bangladesh manual payment methods) */}
+            {selectedProvider && selectedProvider.region === 'bangladesh' && (
               <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
                 <div className="flex items-center gap-2 border-b border-slate-800/80 pb-2.5">
                   <Info className="w-4 h-4 text-[#ff5c01]" />
@@ -1693,9 +1715,9 @@ export const SubscriptionView: React.FC = () => {
               </div>
             )}
 
-            {/* Transaction ID Form Submission or Instant Paddle Checkout */}
-            {selectedProvider?.id === 'paddle' ? (
-              <div className="space-y-4">
+            {/* Transaction ID Form Submission or Instant Automated Checkout */}
+            {selectedProvider?.region === 'international' ? (
+              <div className="space-y-4 pt-1">
                 {submitError && (
                   <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs font-medium">
                     {submitError}
@@ -1703,11 +1725,13 @@ export const SubscriptionView: React.FC = () => {
                 )}
 
                 {/* Amount Summary */}
-                <div className="p-4 bg-purple-950/20 rounded-2xl border border-purple-500/30 flex justify-between items-center text-xs shadow-inner">
+                <div className="p-4 bg-slate-950/90 rounded-2xl border border-slate-800 flex justify-between items-center text-xs shadow-inner">
                   <div>
-                    <span className="text-purple-300 font-extrabold block text-sm">Paddle Sandbox Checkout</span>
-                    <span className="text-[11px] text-slate-400">
-                      {requestPlan} Plan ({billingCycle}) • Instant Activation via Webhook
+                    <span className="text-slate-200 font-extrabold block text-sm">
+                      {requestPlan} Plan Upgrade
+                    </span>
+                    <span className="text-[11px] text-slate-400 capitalize">
+                      {billingCycle} Billing • {selectedProvider?.name}
                     </span>
                   </div>
                   <div className="text-right">
@@ -1719,25 +1743,19 @@ export const SubscriptionView: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-300 space-y-1.5">
-                  <p className="font-bold text-white flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-amber-400" />
-                    <span>How Paddle Subscription Works:</span>
-                  </p>
-                  <ul className="list-disc list-inside space-y-1 text-slate-400 text-[11px]">
-                    <li>Clicking below launches the official Paddle Checkout window.</li>
-                    <li>Complete sandbox payment with test cards or PayPal.</li>
-                    <li>Paddle server-side webhooks automatically verify and upgrade your store plan instantly.</li>
-                  </ul>
-                </div>
+                {/* Security Badge */}
+                <p className="text-[11px] text-slate-400 flex items-center gap-2 justify-center py-1">
+                  <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>256-bit SSL Encrypted • Instant Plan Activation</span>
+                </p>
 
-                {/* Paddle Primary Button */}
-                <div className="flex flex-col sm:flex-row justify-end gap-2.5 pt-2">
+                {/* Primary Action Button */}
+                <div className="flex flex-col sm:flex-row justify-end gap-2.5">
                   <button
                     type="button"
                     disabled={isSubmitting}
                     onClick={() => setRequestPlan(null)}
-                    className="px-4 py-2.5 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-700 disabled:opacity-50 transition-colors"
+                    className="px-4 py-3 bg-slate-800/80 text-slate-300 rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-800 disabled:opacity-50 transition-colors"
                   >
                     Cancel
                   </button>
@@ -1745,14 +1763,18 @@ export const SubscriptionView: React.FC = () => {
                     type="button"
                     disabled={isSubmitting}
                     onClick={handleLaunchPaddleCheckout}
-                    className="px-6 py-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-black cursor-pointer shadow-xl shadow-purple-900/30 disabled:opacity-50 flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02]"
+                    className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-extrabold cursor-pointer shadow-lg shadow-blue-600/25 disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
                   >
                     {isSubmitting ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <CreditCard className="w-4 h-4" />
                     )}
-                    <span>{isSubmitting ? 'Opening Paddle Checkout...' : 'Proceed to Paddle Checkout'}</span>
+                    <span>
+                      {isSubmitting
+                        ? 'Opening Checkout...'
+                        : `Pay ${selectedProvider?.currencySymbol}${getPlanAmount(selectedProvider, requestPlan, billingCycle)} with ${selectedProvider?.name}`}
+                    </span>
                   </button>
                 </div>
               </div>
