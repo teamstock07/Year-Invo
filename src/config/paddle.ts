@@ -15,25 +15,32 @@ const getMetaEnv = (): Record<string, string> => {
 const metaEnv = getMetaEnv();
 
 const getEnv = (metaVal: string | undefined, processKey: string, fallback: string): string => {
-  if (metaVal) return metaVal;
-  if (typeof process !== 'undefined' && process.env && process.env[processKey]) {
-    return process.env[processKey]!;
+  let val = metaVal;
+  if (!val && typeof process !== 'undefined' && process.env && process.env[processKey]) {
+    val = process.env[processKey];
   }
-  return fallback;
+  if (!val) {
+    val = fallback;
+  }
+  return val.trim().replace(/^["']|["']$/g, '').trim();
 };
+
+const rawToken = getEnv(
+  metaEnv.VITE_PADDLE_CLIENT_TOKEN,
+  'VITE_PADDLE_CLIENT_TOKEN',
+  'live_ff98bcb698b681e88f039a1097b'
+);
+
+const defaultEnv = rawToken.startsWith('live_') ? 'production' : 'sandbox';
 
 export const PADDLE_CONFIG = {
   environment: (getEnv(
     metaEnv.VITE_PADDLE_ENVIRONMENT,
     'VITE_PADDLE_ENVIRONMENT',
-    'sandbox'
-  ) as 'sandbox' | 'production') || 'sandbox',
+    defaultEnv
+  ) as 'sandbox' | 'production') || defaultEnv,
 
-  clientToken: getEnv(
-    metaEnv.VITE_PADDLE_CLIENT_TOKEN,
-    'VITE_PADDLE_CLIENT_TOKEN',
-    'test_82d63f916d56d10fa09ecf385c5'
-  ),
+  clientToken: rawToken,
 
   priceIds: {
     proMonthly: getEnv(

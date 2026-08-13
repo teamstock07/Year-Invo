@@ -151,6 +151,10 @@ export const openPaddleCheckout = async (options: OpenCheckoutOptions): Promise<
     console.warn(
       '[PADDLE DEBUG] Environment Mismatch Warning: Environment is "sandbox" but clientToken prefix is not "test_".'
     );
+  } else if (!isSandbox && !tokenPrefix.startsWith('live_')) {
+    console.warn(
+      '[PADDLE DEBUG] Environment Mismatch Warning: Environment is "production" but clientToken prefix is not "live_".'
+    );
   }
 
   if (!isPriceIdValid) {
