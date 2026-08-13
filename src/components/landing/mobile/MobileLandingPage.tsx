@@ -190,6 +190,80 @@ export const MobileLandingPage: React.FC<MobileLandingPageProps> = ({
     },
   ];
 
+  const isBDT = symbol === '৳';
+
+  const getPlanPricing = (planId: string) => {
+    if (planId === 'free') {
+      return {
+        amount: '0',
+        note: isBn ? '১ মাসের জন্য ফ্রি' : 'Free for 1 Month',
+        subtext: isBn ? 'ফ্রি ট্রায়াল' : '1 Month Free Trial',
+      };
+    }
+
+    if (planId === 'pro') {
+      if (isBDT) {
+        if (billingCycle === 'yearly') {
+          return {
+            amount: '3,600',
+            note: isBn ? '/বছর' : '/year',
+            subtext: isBn ? '৳৩৬০ × ১০ মাস (২ মাস ফ্রি)' : '৳360 × 10 months (2 months free)',
+          };
+        }
+        return {
+          amount: '150',
+          note: isBn ? ' ১ম মাস (এরপর ৳৩৬০/মাস)' : ' 1st mo (then ৳360/mo)',
+          subtext: isBn ? 'প্রোমোশনাল অফার (এরপর ৳৩৬০/মাস)' : 'Introductory Offer (Then ৳360/mo)',
+        };
+      } else {
+        if (billingCycle === 'yearly') {
+          return {
+            amount: '25.00',
+            note: '/year',
+            subtext: '$2.50 × 10 months (2 months free)',
+          };
+        }
+        return {
+          amount: '2.50',
+          note: '/month',
+          subtext: '$2.50 1st month, then $2.50/month',
+        };
+      }
+    }
+
+    if (planId === 'premium') {
+      if (isBDT) {
+        if (billingCycle === 'yearly') {
+          return {
+            amount: '6,000',
+            note: isBn ? '/বছর' : '/year',
+            subtext: isBn ? '৳৬০০ × ১০ মাস (২ মাস ফ্রি)' : '৳600 × 10 months (2 months free)',
+          };
+        }
+        return {
+          amount: '600',
+          note: isBn ? '/মাস' : '/month',
+          subtext: isBn ? 'চেইন শপ ও আনলিমিটেড ব্রাঞ্চ' : 'Unrestricted Multi-Branch Power',
+        };
+      } else {
+        if (billingCycle === 'yearly') {
+          return {
+            amount: '50.00',
+            note: '/year',
+            subtext: '$5.00 × 10 months (2 months free)',
+          };
+        }
+        return {
+          amount: '5.00',
+          note: '/month',
+          subtext: 'Unrestricted Multi-Branch Power',
+        };
+      }
+    }
+
+    return { amount: '0', note: '', subtext: '' };
+  };
+
   // Mobile Pricing Tiers
   const pricingPlans = [
     {
@@ -197,8 +271,6 @@ export const MobileLandingPage: React.FC<MobileLandingPageProps> = ({
       name: 'Free Starter',
       badge: isBn ? 'ফ্রি ১ মাস' : '1 Month Free Trial',
       desc: isBn ? 'ছোট ব্যবসার জন্য ১ মাসের ফ্রি ট্রায়াল' : 'Perfect for small retail shops with 1 month free trial',
-      price: getPrice(0),
-      period: isBn ? '১ মাসের জন্য ফ্রি' : 'Free for 1 Month',
       features: [
         isBn ? '১টি শোরুম / দোকান শাখা' : '1 Store Branch',
         isBn ? 'সর্বোচ্চ ১০০টি প্রোডাক্ট' : 'Up to 100 Products',
@@ -214,8 +286,6 @@ export const MobileLandingPage: React.FC<MobileLandingPageProps> = ({
       name: 'Pro Business',
       badge: isBn ? 'সবচেয়ে জনপ্রিয়' : 'MOST POPULAR',
       desc: isBn ? 'আনলিমিটেড প্রোডাক্ট ও বারকোড প্রিন্টিং' : 'Best for growing retail stores with unlimited inventory',
-      price: getPrice(499),
-      period: billingCycle === 'yearly' ? (isBn ? '/বছর' : '/year') : (isBn ? '/মাস' : '/month'),
       features: [
         isBn ? 'আনলিমিটেড প্রোডাক্ট ও ভ্যারিয়েন্ট' : 'Unlimited Products & Variants',
         isBn ? 'হাই-স্পীড বারকোড স্টিকার প্রিন্ট' : 'High-Speed Barcode Label Printing',
@@ -232,8 +302,6 @@ export const MobileLandingPage: React.FC<MobileLandingPageProps> = ({
       name: 'Premium Enterprise',
       badge: isBn ? 'সুপারস্টার' : 'ENTERPRISE',
       desc: isBn ? 'একাধিক শাখা ও সুপারমার্কেটের জন্য' : 'For multi-branch chains & high-volume supermarkets',
-      price: getPrice(999),
-      period: billingCycle === 'yearly' ? (isBn ? '/বছর' : '/year') : (isBn ? '/মাস' : '/month'),
       features: [
         isBn ? 'আনলিমিটেড দোকান শাখা (Multi-Branch)' : 'Unlimited Store Branches',
         isBn ? 'এআই স্মার্ট লাভ ও ইনভেন্টরি প্রিডিক্টর' : 'AI Profit & Sales Predictor',
@@ -781,31 +849,38 @@ export const MobileLandingPage: React.FC<MobileLandingPageProps> = ({
         {/* Display Single Active Mobile Plan Card */}
         {pricingPlans
           .filter((p) => p.id === selectedPlanTab)
-          .map((plan) => (
-            <motion.div
-              key={plan.id}
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.25 }}
-              className={`bg-white dark:bg-slate-900 rounded-3xl p-5 border-2 ${
-                plan.popular ? 'border-[#7C3AED] shadow-xl' : 'border-slate-200 dark:border-slate-800'
-              } space-y-4`}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] font-black uppercase text-[#7C3AED] dark:text-[#a78bfa] block">
-                    {plan.badge}
-                  </span>
-                  <h3 className="text-lg font-black text-slate-900 dark:text-white">{plan.name}</h3>
-                </div>
+          .map((plan) => {
+            const pricingInfo = getPlanPricing(plan.id);
+            return (
+              <motion.div
+                key={plan.id}
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.25 }}
+                className={`bg-white dark:bg-slate-900 rounded-3xl p-5 border-2 ${
+                  plan.popular ? 'border-[#7C3AED] shadow-xl' : 'border-slate-200 dark:border-slate-800'
+                } space-y-4`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-black uppercase text-[#7C3AED] dark:text-[#a78bfa] block">
+                      {plan.badge}
+                    </span>
+                    <h3 className="text-lg font-black text-slate-900 dark:text-white">{plan.name}</h3>
+                  </div>
 
-                <div className="text-right">
-                  <span className="text-2xl font-black text-slate-900 dark:text-white">
-                    {symbol}{plan.price}
-                  </span>
-                  <span className="text-[10px] font-bold text-slate-400 block">{plan.period}</span>
+                  <div className="text-right">
+                    <span className="text-2xl font-black text-slate-900 dark:text-white">
+                      {symbol}{pricingInfo.amount}
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400 block">{pricingInfo.note}</span>
+                    {pricingInfo.subtext && (
+                      <span className="text-[9px] font-extrabold text-purple-600 dark:text-purple-400 block mt-0.5">
+                        {pricingInfo.subtext}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
 
               <p className="text-xs text-slate-600 dark:text-slate-400 leading-normal">{plan.desc}</p>
 
@@ -832,7 +907,8 @@ export const MobileLandingPage: React.FC<MobileLandingPageProps> = ({
                 <ArrowRight className="w-4 h-4" />
               </button>
             </motion.div>
-          ))}
+          );
+        })}
 
       </section>
 

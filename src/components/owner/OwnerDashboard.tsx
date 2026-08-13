@@ -68,6 +68,13 @@ import {
   CartesianGrid,
 } from 'recharts';
 
+import {
+  BkashLogo,
+  NagadLogo,
+  RocketLogo,
+  BankTransferLogo,
+} from '../common/PaymentLogos';
+
 export const OwnerDashboard: React.FC = () => {
   const {
     user,
@@ -211,10 +218,17 @@ export const OwnerDashboard: React.FC = () => {
   );
 
   const [rocketEnabled, setRocketEnabled] = useState<boolean>(
-    initialBd.methods?.rocket?.enabled ?? false
+    initialBd.methods?.rocket?.enabled ?? true
   );
   const [rocketNumber, setRocketNumber] = useState<string>(
-    initialBd.methods?.rocket?.number || settings.paymentSettings?.paymentNumber || '01700000000'
+    initialBd.methods?.rocket?.number || settings.paymentSettings?.paymentNumber || '01900000000-1'
+  );
+
+  const [bankEnabled, setBankEnabled] = useState<boolean>(
+    (initialBd.methods as any)?.bank?.enabled ?? true
+  );
+  const [bankAccountNumber, setBankAccountNumber] = useState<string>(
+    (initialBd.methods as any)?.bank?.accountNumber || '1501203948501001'
   );
 
   const [receiverName, setReceiverName] = useState<string>(
@@ -240,8 +254,10 @@ export const OwnerDashboard: React.FC = () => {
         setBkashNumber(bd.methods?.bkash?.number || '');
         setNagadEnabled(bd.methods?.nagad?.enabled ?? true);
         setNagadNumber(bd.methods?.nagad?.number || '');
-        setRocketEnabled(bd.methods?.rocket?.enabled ?? false);
+        setRocketEnabled(bd.methods?.rocket?.enabled ?? true);
         setRocketNumber(bd.methods?.rocket?.number || '');
+        setBankEnabled((bd.methods as any)?.bank?.enabled ?? true);
+        setBankAccountNumber((bd.methods as any)?.bank?.accountNumber || '1501203948501001');
         setReceiverName(bd.receiverName || '');
         setOwnerStoreName(bd.storeName || '');
         setTransactionIdInstruction(bd.transactionIdInstruction || '');
@@ -552,8 +568,8 @@ export const OwnerDashboard: React.FC = () => {
     setPaymentValidationError(null);
 
     if (localPaymentEnabled) {
-      if (!bkashEnabled && !nagadEnabled && !rocketEnabled) {
-        setPaymentValidationError('At least ONE Bangladesh payment method must be selected (bKash, Nagad, or Rocket).');
+      if (!bkashEnabled && !nagadEnabled && !rocketEnabled && !bankEnabled) {
+        setPaymentValidationError('At least ONE Bangladesh payment method must be selected (bKash, Nagad, Rocket, or Bank Transfer).');
         return;
       }
       if (bkashEnabled && !bkashNumber.trim()) {
@@ -566,6 +582,10 @@ export const OwnerDashboard: React.FC = () => {
       }
       if (rocketEnabled && !rocketNumber.trim()) {
         setPaymentValidationError('Rocket number cannot be empty when Rocket is selected.');
+        return;
+      }
+      if (bankEnabled && !bankAccountNumber.trim()) {
+        setPaymentValidationError('Bank Account Number cannot be empty when Bank Wire is selected.');
         return;
       }
       if (!receiverName.trim()) {
@@ -585,11 +605,13 @@ export const OwnerDashboard: React.FC = () => {
     const activeList: string[] = [];
     if (bkashEnabled) activeList.push('bKash');
     if (nagadEnabled) activeList.push('Nagad');
-    if (rocketEnabled) activeList.push('Rocket');
+    if (rocketEnabled) activeList.push('Rocket DBBL');
+    if (bankEnabled) activeList.push('Bank Wire');
 
     const primaryNumber = (bkashEnabled && bkashNumber.trim()) ||
                           (nagadEnabled && nagadNumber.trim()) ||
-                          (rocketEnabled && rocketNumber.trim()) || '';
+                          (rocketEnabled && rocketNumber.trim()) ||
+                          (bankEnabled && bankAccountNumber.trim()) || '';
 
     updateSettings({
       paymentSettings: {
@@ -613,6 +635,10 @@ export const OwnerDashboard: React.FC = () => {
             rocket: {
               enabled: rocketEnabled,
               number: rocketNumber.trim(),
+            },
+            bank: {
+              enabled: bankEnabled,
+              accountNumber: bankAccountNumber.trim(),
             },
           },
           receiverName: receiverName.trim(),
@@ -2035,6 +2061,37 @@ export const OwnerDashboard: React.FC = () => {
                               {rocketEnabled ? 'Active' : 'Off'}
                             </span>
                           </div>
+
+                          {/* Bank Transfer */}
+                          <div
+                            onClick={() => setBankEnabled(!bankEnabled)}
+                            className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                              bankEnabled
+                                ? 'bg-blue-950/40 border-blue-500/50 text-white shadow-lg shadow-blue-950/30'
+                                : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <input
+                                type="checkbox"
+                                checked={bankEnabled}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  setBankEnabled(e.target.checked);
+                                }}
+                                className="w-4 h-4 accent-blue-500 rounded cursor-pointer"
+                              />
+                              <div>
+                                <span className="font-extrabold text-xs block text-blue-400">Bank Wire</span>
+                                <span className="text-[10px] text-slate-400">BEFTN / NPSB</span>
+                              </div>
+                            </div>
+                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                              bankEnabled ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-slate-800 text-slate-500'
+                            }`}>
+                              {bankEnabled ? 'Active' : 'Off'}
+                            </span>
+                          </div>
                         </div>
                       </div>
 
@@ -2088,6 +2145,22 @@ export const OwnerDashboard: React.FC = () => {
                               onChange={(e) => setRocketNumber(e.target.value)}
                               placeholder="01XXXXXXXXX"
                               className="w-full py-2.5 px-3.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-mono font-extrabold text-amber-400 focus:outline-none focus:border-purple-500"
+                            />
+                          </div>
+                        )}
+
+                        {bankEnabled && (
+                          <div>
+                            <label className="block text-xs font-bold text-blue-400 mb-1 flex items-center gap-1.5">
+                              <span>Bank Account Number</span>
+                              <span className="text-rose-400">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={bankAccountNumber}
+                              onChange={(e) => setBankAccountNumber(e.target.value)}
+                              placeholder="1501203948501001"
+                              className="w-full py-2.5 px-3.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-mono font-extrabold text-amber-400 focus:outline-none focus:border-blue-500"
                             />
                           </div>
                         )}

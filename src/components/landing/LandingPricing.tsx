@@ -19,13 +19,80 @@ export const LandingPricing: React.FC<LandingPricingProps> = ({ onOpenSignup }) 
   const { settings, language } = useApp();
   const isBn = language === 'bn';
   const symbol = settings.currency || '৳';
+  const isBDT = symbol === '৳';
 
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
 
-  const getPrice = (monthlyAmount: number) => {
-    if (monthlyAmount === 0) return '0';
-    const amount = billingCycle === 'yearly' ? Math.round(monthlyAmount * 10) : monthlyAmount;
-    return amount.toLocaleString();
+  const getPlanPricing = (planId: string) => {
+    if (planId === 'free') {
+      return {
+        amount: '0',
+        note: isBn ? '১ মাসের জন্য ফ্রি' : 'Free for 1 Month',
+        subtext: isBn ? 'ফ্রি ট্রায়াল' : '1 Month Free Trial',
+      };
+    }
+
+    if (planId === 'pro') {
+      if (isBDT) {
+        if (billingCycle === 'yearly') {
+          return {
+            amount: '3,600',
+            note: isBn ? '/বছর' : '/year',
+            subtext: isBn ? '৳৩৬০ × ১০ মাস (২ মাস ফ্রি)' : '৳360 × 10 months (2 months free)',
+          };
+        }
+        return {
+          amount: '150',
+          note: isBn ? ' ১ম মাস (এরপর ৳৩৬০/মাস)' : ' 1st mo (then ৳360/mo)',
+          subtext: isBn ? 'প্রোমোশনাল প্রারম্ভিক অফার (এরপর ৳৩৬০/মাস)' : 'Introductory Offer (Then ৳360/mo)',
+        };
+      } else {
+        if (billingCycle === 'yearly') {
+          return {
+            amount: '25.00',
+            note: '/year',
+            subtext: '$2.50 × 10 months (2 months free)',
+          };
+        }
+        return {
+          amount: '2.50',
+          note: '/month',
+          subtext: '$2.50 1st month, then $2.50/month',
+        };
+      }
+    }
+
+    if (planId === 'premium') {
+      if (isBDT) {
+        if (billingCycle === 'yearly') {
+          return {
+            amount: '6,000',
+            note: isBn ? '/বছর' : '/year',
+            subtext: isBn ? '৳৬০০ × ১০ মাস (২ মাস ফ্রি)' : '৳600 × 10 months (2 months free)',
+          };
+        }
+        return {
+          amount: '600',
+          note: isBn ? '/মাস' : '/month',
+          subtext: isBn ? 'চেইন শপ ও আনলিমিটেড ব্রাঞ্চ' : 'Unrestricted Multi-Branch Power',
+        };
+      } else {
+        if (billingCycle === 'yearly') {
+          return {
+            amount: '50.00',
+            note: '/year',
+            subtext: '$5.00 × 10 months (2 months free)',
+          };
+        }
+        return {
+          amount: '5.00',
+          note: '/month',
+          subtext: 'Unrestricted Multi-Branch Power',
+        };
+      }
+    }
+
+    return { amount: '0', note: '', subtext: '' };
   };
 
   const plans = [
@@ -36,8 +103,6 @@ export const LandingPricing: React.FC<LandingPricingProps> = ({ onOpenSignup }) 
       desc: isBn
         ? 'নতুন দোকান বা ছোট ব্যবসার জন্য ১ মাসের ফ্রি ট্রায়াল ব্যবস্থার সুবিধা।'
         : 'Perfect for small retail shops with a 1 month free trial access.',
-      price: getPrice(0),
-      period: isBn ? '১ মাসের জন্য ফ্রি' : 'Free for 1 Month',
       popular: false,
       features: [
         isBn ? '১টি শোরুম / দোকান শাখা' : '1 Store Branch',
@@ -62,8 +127,6 @@ export const LandingPricing: React.FC<LandingPricingProps> = ({ onOpenSignup }) 
       desc: isBn
         ? 'মাঝারি ও দ্রুত বর্ধনশীল দোকানের সকল আধুনিক ফিচারের জন্য সেরা প্ল্যান।'
         : 'Best for growing retail stores needing unlimited products & barcode printing.',
-      price: getPrice(499),
-      period: billingCycle === 'yearly' ? (isBn ? '/বছর' : '/year') : (isBn ? '/মাস' : '/month'),
       popular: true,
       features: [
         isBn ? 'আনলিমিটেড প্রোডাক্ট ও ভ্যারিয়েন্ট' : 'Unlimited Active Products',
@@ -88,8 +151,6 @@ export const LandingPricing: React.FC<LandingPricingProps> = ({ onOpenSignup }) 
       desc: isBn
         ? 'একাধিক শাখা, সুপারমার্কেট এবং চেইন শপের জন্য সম্পূর্ণ পাওয়ার প্যাক।'
         : 'For large supermarkets, multi-branch chains, and wholesale businesses.',
-      price: getPrice(999),
-      period: billingCycle === 'yearly' ? (isBn ? '/বছর' : '/year') : (isBn ? '/মাস' : '/month'),
       popular: false,
       features: [
         isBn ? 'আনলিমিটেড দোকান শাখা (Multi-Branch)' : 'Unlimited Store Branches',
@@ -162,6 +223,7 @@ export const LandingPricing: React.FC<LandingPricingProps> = ({ onOpenSignup }) 
         {/* 3 Pricing Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2 items-stretch">
           {plans.map((plan, index) => {
+            const pricingInfo = getPlanPricing(plan.id);
             return (
               <motion.div
                 key={plan.id}
@@ -199,13 +261,20 @@ export const LandingPricing: React.FC<LandingPricingProps> = ({ onOpenSignup }) 
                   </div>
 
                   {/* Price */}
-                  <div className="flex items-baseline gap-1 border-b border-slate-100 dark:border-slate-800/80 pb-4">
-                    <span className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white">
-                      {symbol}{plan.price}
-                    </span>
-                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                      {plan.period}
-                    </span>
+                  <div className="border-b border-slate-100 dark:border-slate-800/80 pb-4 space-y-1">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white">
+                        {symbol}{pricingInfo.amount}
+                      </span>
+                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                        {pricingInfo.note}
+                      </span>
+                    </div>
+                    {pricingInfo.subtext && (
+                      <p className="text-[11px] text-purple-600 dark:text-purple-400 font-extrabold">
+                        {pricingInfo.subtext}
+                      </p>
+                    )}
                   </div>
 
                   {/* Included Features List */}

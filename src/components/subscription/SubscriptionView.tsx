@@ -28,6 +28,15 @@ import {
   getEnabledProviders,
   getProviderById,
 } from '../../config/paymentProviders';
+import {
+  BkashLogo,
+  NagadLogo,
+  RocketLogo,
+  BankTransferLogo,
+  PayPalLogoComponent,
+  CardLogosComponent,
+  BangladeshPaymentMethodsBar,
+} from '../common/PaymentLogos';
 
 // Price & Currency Converter Engine
 const getCurrencyDetails = (currencySymbol: string) => {
@@ -1647,26 +1656,20 @@ export const SubscriptionView: React.FC = () => {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           {provider.logoType === 'paypal' ? (
-                            <PayPalLogo />
+                            <PayPalLogoComponent />
                           ) : provider.logoType === 'card' ? (
-                            <CardLogos />
+                            <CardLogosComponent />
+                          ) : provider.logoType === 'bkash' ? (
+                            <BkashLogo />
+                          ) : provider.logoType === 'nagad' ? (
+                            <NagadLogo />
+                          ) : provider.logoType === 'rocket' ? (
+                            <RocketLogo />
+                          ) : provider.logoType === 'bank' ? (
+                            <BankTransferLogo />
                           ) : (
-                            <div
-                              className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs ${
-                                provider.logoType === 'bkash'
-                                  ? 'bg-pink-500/20 text-pink-400'
-                                  : provider.logoType === 'nagad'
-                                  ? 'bg-orange-500/20 text-orange-400'
-                                  : provider.logoType === 'rocket'
-                                  ? 'bg-purple-500/20 text-purple-400'
-                                  : 'bg-cyan-500/20 text-cyan-400'
-                              }`}
-                            >
-                              {provider.logoType === 'bank' ? (
-                                <Building className="w-4 h-4" />
-                              ) : (
-                                <Wallet className="w-4 h-4" />
-                              )}
+                            <div className="w-8 h-8 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-xs">
+                              <Wallet className="w-4 h-4" />
                             </div>
                           )}
                         </div>

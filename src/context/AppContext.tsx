@@ -57,7 +57,7 @@ import {
   initialActivityLogs,
 } from '../data/mockData';
 import { translations } from '../i18n/translations';
-import { isRtlLanguage, getDefaultLanguageForCountry } from '../i18n/languages';
+import { isRtlLanguage, getDefaultLanguageForCountry, SUPPORTED_LANGUAGES } from '../i18n/languages';
 import {
   formatNumber as formatNumberHelper,
   formatCurrency as formatCurrencyHelper,
@@ -429,6 +429,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               } catch (e) {}
             }
 
+            const userPreferredLang = uData.preferredLanguage || uData.language;
             const profile: UserProfile = {
               id: firebaseUser.uid,
               brandName: effectiveBrandName,
@@ -437,6 +438,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               email: firebaseUser.email || uData.email || userEmail,
               businessType: uData.businessType || uData.storeType || 'General Retail & Grocery',
               country: uData.country || 'Bangladesh',
+              preferredLanguage: userPreferredLang && SUPPORTED_LANGUAGES.some((l) => l.code === userPreferredLang) ? (userPreferredLang as Language) : undefined,
               currency: uData.currency || '৳',
               timeZone: uData.timeZone || 'Asia/Dhaka',
               role: normalizedRole,
@@ -452,6 +454,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             };
 
             setUser(profile);
+            if (userPreferredLang && SUPPORTED_LANGUAGES.some((l) => l.code === userPreferredLang)) {
+              setLanguageState(userPreferredLang as Language);
+              localStorage.setItem('biz_language', userPreferredLang);
+            }
             if (profile.brandName) {
               setSettings((prev) => ({ ...prev, brandName: profile.brandName }));
             }
@@ -941,6 +947,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setLanguageState(lang);
     try {
       localStorage.setItem('biz_language', lang);
+      localStorage.setItem('biz_landing_language', lang);
       localStorage.setItem('biz_language_manually_set', 'true');
     } catch (e) {}
 
@@ -953,6 +960,74 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (e) {}
     }
   };
+
+  // Landing Page Auto Country-Based Language Detection for unauthenticated visitors
+  useEffect(() => {
+    // DO NOT run auto-detection if user is authenticated or if language was manually set by visitor
+    if (user) return;
+
+    const manuallySet = localStorage.getItem('biz_language_manually_set');
+    if (manuallySet === 'true') return;
+
+    const savedLang = localStorage.getItem('biz_landing_language') || localStorage.getItem('biz_language');
+    if (savedLang && SUPPORTED_LANGUAGES.some((l) => l.code === savedLang)) {
+      setLanguageState(savedLang as Language);
+      return;
+    }
+
+    let isMounted = true;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2500);
+
+    const detectVisitorCountry = async () => {
+      try {
+        let countryName = '';
+        let countryCode = '';
+
+        try {
+          const res = await fetch('https://ipapi.co/json/', { signal: controller.signal });
+          if (res.ok) {
+            const data = await res.json();
+            countryName = data.country_name || '';
+            countryCode = data.country_code || data.country || '';
+          }
+        } catch (e) {
+          try {
+            const res2 = await fetch('https://ipwho.is/', { signal: controller.signal });
+            if (res2.ok) {
+              const data2 = await res2.json();
+              countryName = data2.country || '';
+              countryCode = data2.country_code || '';
+            }
+          } catch (e2) {}
+        }
+
+        if (!isMounted) return;
+
+        if (countryName || countryCode) {
+          const detected = getDefaultLanguageForCountry(countryName || countryCode);
+          setLanguageState(detected);
+        } else {
+          const browserLang = (navigator.language || '').split('-')[0];
+          if (SUPPORTED_LANGUAGES.some((l) => l.code === browserLang)) {
+            setLanguageState(browserLang as Language);
+          }
+        }
+      } catch (err) {
+        // Silent fallback
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+
+    detectVisitorCountry();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [user]);
 
   const setTheme = (newTheme: ThemeMode) => {
     setThemeState(newTheme);
@@ -1188,6 +1263,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const assignedRole: UserRole = isAdmin ? 'Owner' : 'Manager';
       const assignedPlan: SubscriptionPlan = isAdmin ? 'Lifetime' : 'Free';
 
+      const userCountry = data.country || 'Bangladesh';
+      const userPrefLang = data.preferredLanguage || language || 'en';
+
       const userDocData = {
         uid: firebaseUser.uid,
         fullName,
@@ -1196,6 +1274,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         storeType,
         phone,
         address,
+        country: userCountry,
+        preferredLanguage: userPrefLang,
+        language: userPrefLang,
         affiliateCode,
         role: isAdmin ? 'owner' : 'manager',
         subscription: isAdmin ? 'lifetime' : 'free',
@@ -1235,21 +1316,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         mobile: phone,
         email: cleanEmail,
         businessType: storeType,
-        country: data.country || 'Bangladesh',
-        currency: data.currency || '৳',
-        timeZone: data.timeZone || 'Asia/Dhaka',
+        country: userCountry,
+        preferredLanguage: userPrefLang as Language,
+        currency: data.currency || (userCountry === 'Bangladesh' ? '৳' : '$'),
+        timeZone: data.timeZone || (userCountry === 'Bangladesh' ? 'Asia/Dhaka' : 'UTC'),
         role: assignedRole,
         subscriptionPlan: assignedPlan,
         subscriptionStatus: 'active',
-        status: 'active',
         storeAddress: address,
-        affiliateCode: affiliateCode,
-        affiliateProgram: affiliateCode ? 'Mazbi Affiliate Program' : undefined,
+        affiliateCode,
         verifiedEmail: true,
         verifiedPhone: true,
         createdAt: new Date().toISOString().split('T')[0],
       };
 
+      setLanguageState(userPrefLang as Language);
+      localStorage.setItem('biz_language', userPrefLang);
+      localStorage.setItem('biz_language_manually_set', 'true');
       setUser(newUser);
       if (storeName) {
         setSettings((prev) => ({ ...prev, brandName: storeName }));

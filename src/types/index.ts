@@ -12,6 +12,7 @@ export interface UserProfile {
   password?: string;
   businessType: string;
   country: string;
+  preferredLanguage?: Language;
   currency: string; // e.g. "৳" or "$" or "€"
   timeZone: string;
   role: UserRole;

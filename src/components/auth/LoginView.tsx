@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { LandingPage } from '../landing/LandingPage';
 import { LanguageSelector } from '../common/LanguageSelector';
+import { SUPPORTED_LANGUAGES, getDefaultLanguageForCountry } from '../../i18n/languages';
+import { Language } from '../../types';
 import {
   Lock,
   Mail,
@@ -57,6 +59,15 @@ export const LoginView: React.FC = () => {
   const [storeAddress, setStoreAddress] = useState('');
   const [storePhone, setStorePhone] = useState('');
   const [affiliateCode, setAffiliateCode] = useState('');
+  const [signupCountry, setSignupCountry] = useState('Bangladesh');
+  const [signupLanguage, setSignupLanguage] = useState<Language>(language || 'bn');
+
+  const handleCountryChange = (cName: string) => {
+    setSignupCountry(cName);
+    const mapped = getDefaultLanguageForCountry(cName);
+    setSignupLanguage(mapped);
+    setLanguage(mapped);
+  };
 
   const [error, setError] = useState('');
 
@@ -118,6 +129,8 @@ export const LoginView: React.FC = () => {
       mobile: storePhone,
       businessType: storeType,
       storeAddress: storeAddress,
+      country: signupCountry,
+      preferredLanguage: signupLanguage,
       affiliateCode: affiliateCode.trim() || undefined,
       affiliateProgram: affiliateCode.trim() ? 'Mazbi Affiliate Program' : undefined,
     });
@@ -505,6 +518,55 @@ export const LoginView: React.FC = () => {
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#ff5c01] focus:ring-2 focus:ring-[#ff5c01]/20 transition-all font-medium"
                         required
                       />
+                    </div>
+                  </div>
+
+                  {/* Country & Language Selection */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">
+                        Country *
+                      </label>
+                      <select
+                        value={signupCountry}
+                        onChange={(e) => handleCountryChange(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff5c01] focus:ring-2 focus:ring-[#ff5c01]/20 transition-all font-medium cursor-pointer"
+                        required
+                      >
+                        <option value="Bangladesh">🇧🇩 Bangladesh</option>
+                        <option value="India">🇮🇳 India</option>
+                        <option value="Saudi Arabia">🇸🇦 Saudi Arabia</option>
+                        <option value="United Arab Emirates">🇦🇪 United Arab Emirates</option>
+                        <option value="United Kingdom">🇬🇧 United Kingdom</option>
+                        <option value="United States">🇺🇸 United States</option>
+                        <option value="France">🇫🇷 France</option>
+                        <option value="Spain">🇪🇸 Spain</option>
+                        <option value="Canada">🇨🇦 Canada</option>
+                        <option value="Australia">🇦🇺 Australia</option>
+                        <option value="Other International">🌍 Other International</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">
+                        Preferred Language *
+                      </label>
+                      <select
+                        value={signupLanguage}
+                        onChange={(e) => {
+                          const l = e.target.value as Language;
+                          setSignupLanguage(l);
+                          setLanguage(l);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff5c01] focus:ring-2 focus:ring-[#ff5c01]/20 transition-all font-medium cursor-pointer"
+                        required
+                      >
+                        {SUPPORTED_LANGUAGES.map((lang) => (
+                          <option key={lang.code} value={lang.code}>
+                            {lang.flag} {lang.nativeName} ({lang.name})
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 
