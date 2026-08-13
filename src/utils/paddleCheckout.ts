@@ -8,6 +8,7 @@ declare global {
 
 let paddleInitPromise: Promise<any> | null = null;
 let isPaddleInitialized = false;
+let activeOnErrorCallback: ((err: any) => void) | null = null;
 
 /**
  * Dynamically loads official Paddle.js Billing (v2) from CDN and initializes it once.
@@ -49,6 +50,22 @@ export const initializePaddle = (): Promise<any> => {
                 console.log(`[PADDLE DEBUG] Paddle Event: ${eventName}`, event);
                 if (eventName === 'checkout.error' || eventName === 'error') {
                   console.error('[PADDLE DEBUG] Paddle Checkout Error Event:', event);
+
+                  let userMsg = 'Paddle checkout encountered an error.';
+                  const detail = event?.detail || event?.error?.detail || '';
+                  const errMessage = event?.errors?.[0]?.message || event?.error?.message || '';
+
+                  if (detail === 'transaction_checkout_not_enabled' || errMessage === 'transaction_checkout_not_enabled') {
+                    userMsg = 'Paddle checkout is not enabled for live transactions on this account, or the Price IDs belong to Sandbox. To test checkouts, use Sandbox mode or complete Paddle live account approval.';
+                  } else if (errMessage) {
+                    userMsg = `Paddle Checkout Error: ${errMessage}`;
+                  } else if (detail) {
+                    userMsg = `Paddle Checkout Error: ${detail}`;
+                  }
+
+                  if (activeOnErrorCallback) {
+                    activeOnErrorCallback(new Error(userMsg));
+                  }
                 }
               },
             });
@@ -116,6 +133,7 @@ export interface OpenCheckoutOptions {
  * Pre-flight validation and launch for Paddle Checkout overlay
  */
 export const openPaddleCheckout = async (options: OpenCheckoutOptions): Promise<void> => {
+  activeOnErrorCallback = options.onError || null;
   const priceId = getPaddlePriceId(options.plan, options.billingCycle);
 
   // --- Pre-flight Diagnostics & Debug Logging ---

@@ -25,22 +25,41 @@ const getEnv = (metaVal: string | undefined, processKey: string, fallback: strin
   return val.trim().replace(/^["']|["']$/g, '').trim();
 };
 
-const rawToken = getEnv(
-  metaEnv.VITE_PADDLE_CLIENT_TOKEN,
-  'VITE_PADDLE_CLIENT_TOKEN',
-  'live_ff98bcb698b681e88f039a1097b'
-);
+const explicitEnv = getEnv(metaEnv.VITE_PADDLE_ENVIRONMENT, 'VITE_PADDLE_ENVIRONMENT', '');
+const explicitToken = getEnv(metaEnv.VITE_PADDLE_CLIENT_TOKEN, 'VITE_PADDLE_CLIENT_TOKEN', '');
 
-const defaultEnv = rawToken.startsWith('live_') ? 'production' : 'sandbox';
+// Determine environment
+const environment: 'sandbox' | 'production' =
+  explicitEnv === 'production'
+    ? 'production'
+    : explicitEnv === 'sandbox'
+    ? 'sandbox'
+    : explicitToken.startsWith('live_')
+    ? 'production'
+    : 'sandbox';
+
+// Determine clientToken: ensure token prefix matches target environment
+let clientToken = explicitToken;
+if (!clientToken) {
+  clientToken =
+    environment === 'production'
+      ? 'live_ff98bcb698b681e88f039a1097b'
+      : 'test_4edba2ed321c928c96b435a966d';
+} else if (environment === 'sandbox' && clientToken.startsWith('live_')) {
+  console.warn(
+    '[PADDLE CONFIG] Live token provided for Sandbox environment. Falling back to Sandbox token (test_...) to match Sandbox Price IDs.'
+  );
+  clientToken = 'test_4edba2ed321c928c96b435a966d';
+} else if (environment === 'production' && clientToken.startsWith('test_')) {
+  console.warn(
+    '[PADDLE CONFIG] Test token provided for Production environment. Falling back to Live token for Production.'
+  );
+  clientToken = 'live_ff98bcb698b681e88f039a1097b';
+}
 
 export const PADDLE_CONFIG = {
-  environment: (getEnv(
-    metaEnv.VITE_PADDLE_ENVIRONMENT,
-    'VITE_PADDLE_ENVIRONMENT',
-    defaultEnv
-  ) as 'sandbox' | 'production') || defaultEnv,
-
-  clientToken: rawToken,
+  environment,
+  clientToken,
 
   priceIds: {
     proMonthly: getEnv(
