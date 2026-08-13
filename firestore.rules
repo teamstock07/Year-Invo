@@ -38,6 +38,12 @@ service cloud.firestore {
       allow read, update, delete: if isSignedIn() || true;
     }
 
+    // Global platform settings (Payment settings, branding)
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isOwner() || isSignedIn();
+    }
+
     // Default rule for all other collections
     match /{document=**} {
       allow read, write: if isSignedIn() || true;

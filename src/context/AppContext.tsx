@@ -41,6 +41,8 @@ import {
   SubscriptionRequest,
   SubscriptionPlan,
   UserRole,
+  OwnerPaymentSettings,
+  BangladeshPaymentConfig,
 } from '../types';
 import {
   initialCategories,
@@ -55,6 +57,7 @@ import {
   initialActivityLogs,
 } from '../data/mockData';
 import { translations } from '../i18n/translations';
+import { isRtlLanguage, getDefaultLanguageForCountry } from '../i18n/languages';
 import {
   formatNumber as formatNumberHelper,
   formatCurrency as formatCurrencyHelper,
@@ -218,6 +221,52 @@ interface AppContextType {
   };
 }
 
+function parseOwnerPaymentSettings(pData: any): OwnerPaymentSettings {
+  const bdData = pData?.bangladesh || {};
+  const bdMethods = bdData?.methods || {};
+
+  const defaultBkashNum = bdMethods?.bkash?.number ?? pData?.paymentNumber ?? pData?.accountNumber ?? '01700000000';
+  const defaultNagadNum = bdMethods?.nagad?.number ?? pData?.paymentNumber ?? pData?.accountNumber ?? '01700000000';
+  const defaultRocketNum = bdMethods?.rocket?.number ?? pData?.paymentNumber ?? pData?.accountNumber ?? '01700000000';
+
+  const bangladeshConfig: BangladeshPaymentConfig = {
+    enabled: bdData?.enabled ?? pData?.localPaymentEnabled ?? true,
+    methods: {
+      bkash: {
+        enabled: bdMethods?.bkash?.enabled ?? true,
+        number: defaultBkashNum,
+      },
+      nagad: {
+        enabled: bdMethods?.nagad?.enabled ?? true,
+        number: defaultNagadNum,
+      },
+      rocket: {
+        enabled: bdMethods?.rocket?.enabled ?? false,
+        number: defaultRocketNum,
+      },
+    },
+    receiverName: bdData?.receiverName || pData?.receiverName || pData?.accountName || 'YearInvo Store',
+    storeName: bdData?.storeName || pData?.storeName || 'YearInvo Store',
+    transactionIdInstruction: bdData?.transactionIdInstruction || pData?.transactionIdInstruction || 'Copy your transaction ID and enter it below.',
+  };
+
+  return {
+    localPaymentEnabled: bangladeshConfig.enabled,
+    paymentMethod: pData?.paymentMethod || 'bKash / Nagad / Rocket',
+    paymentNumber: defaultBkashNum,
+    receiverName: bangladeshConfig.receiverName,
+    storeName: bangladeshConfig.storeName,
+    transactionIdInstruction: bangladeshConfig.transactionIdInstruction,
+    bangladesh: bangladeshConfig,
+    qrEnabled: pData?.qrEnabled ?? true,
+    qrProvider: pData?.qrProvider || 'bKash',
+    qrImageUrl: pData?.qrImageUrl || '',
+    accountName: bangladeshConfig.receiverName,
+    accountNumber: defaultBkashNum,
+    updatedAt: pData?.updatedAt,
+  };
+}
+
 const defaultSettings: BusinessSettings = {
   logoUrl: '',
   brandName: 'Your Store Name',
@@ -234,11 +283,28 @@ const defaultSettings: BusinessSettings = {
   theme: 'dark',
   autoBackup: true,
   paymentSettings: {
+    localPaymentEnabled: true,
+    paymentMethod: 'bKash',
+    paymentNumber: '01700000000',
+    receiverName: 'YearInvo Store',
+    storeName: 'YearInvo Store',
+    transactionIdInstruction: 'Copy your transaction ID and enter it below.',
+    bangladesh: {
+      enabled: true,
+      methods: {
+        bkash: { enabled: true, number: '01700000000' },
+        nagad: { enabled: true, number: '01700000000' },
+        rocket: { enabled: false, number: '01700000000' },
+      },
+      receiverName: 'YearInvo Store',
+      storeName: 'YearInvo Store',
+      transactionIdInstruction: 'Copy your transaction ID and enter it below.',
+    },
     qrEnabled: true,
     qrProvider: 'bKash',
     qrImageUrl: '',
-    accountName: '',
-    accountNumber: '',
+    accountName: 'YearInvo Store',
+    accountNumber: '01700000000',
   },
 };
 
@@ -393,13 +459,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const pSet = uData.paymentSettings || uData.storeSettings?.payment;
               setSettings((prev) => ({
                 ...prev,
-                paymentSettings: {
-                  qrEnabled: pSet.qrEnabled ?? true,
-                  qrProvider: pSet.qrProvider || 'bKash',
-                  qrImageUrl: pSet.qrImageUrl || '',
-                  accountName: pSet.accountName || '',
-                  accountNumber: pSet.accountNumber || '',
-                },
+                paymentSettings: parseOwnerPaymentSettings(pSet),
               }));
             }
             if (normalizedRole === 'Owner') {
@@ -415,6 +475,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     return () => unsubscribeAuth();
+  }, []);
+
+  // Realtime global owner payment settings listener from Firestore doc(db, 'settings', 'payment')
+  useEffect(() => {
+    try {
+      const unsubPaymentSettings = onSnapshot(
+        doc(db, 'settings', 'payment'),
+        (docSnap) => {
+          if (docSnap.exists()) {
+            const pData = docSnap.data();
+            setSettings((prev) => ({
+              ...prev,
+              paymentSettings: parseOwnerPaymentSettings(pData),
+            }));
+          }
+        },
+        (err) => {
+          console.warn('Realtime listener error for settings/payment:', err);
+        }
+      );
+      return () => unsubPaymentSettings();
+    } catch (err) {
+      console.warn('Failed to attach listener for settings/payment:', err);
+    }
   }, []);
 
   // Registered Users Directory (Realtime Firestore Collection)
@@ -847,12 +931,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  // Language & Theme helpers with persistence
+  // Language & Theme helpers with persistence and document direction (RTL)
+  useEffect(() => {
+    document.documentElement.lang = language;
+    document.documentElement.dir = isRtlLanguage(language) ? 'rtl' : 'ltr';
+  }, [language]);
+
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
     try {
       localStorage.setItem('biz_language', lang);
+      localStorage.setItem('biz_language_manually_set', 'true');
     } catch (e) {}
+
+    if (user && user.id) {
+      try {
+        const userRef = doc(db, 'users', user.id);
+        updateDoc(userRef, { preferredLanguage: lang }).catch((err) => {
+          console.warn('Failed to update preferredLanguage in Firestore:', err);
+        });
+      } catch (e) {}
+    }
   };
 
   const setTheme = (newTheme: ThemeMode) => {
@@ -869,7 +968,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const t = (key: string): string => {
     if (!key) return '';
-    return translations[language]?.[key] || translations['en']?.[key] || key;
+    let val = translations[language]?.[key] || translations['en']?.[key];
+    if (val) return val;
+
+    if (key.includes('.')) {
+      const parts = key.split('.');
+      let currLang: any = translations[language];
+      let currEn: any = translations['en'];
+      for (const p of parts) {
+        if (currLang && typeof currLang === 'object') currLang = currLang[p];
+        else currLang = undefined;
+        if (currEn && typeof currEn === 'object') currEn = currEn[p];
+        else currEn = undefined;
+      }
+      if (typeof currLang === 'string') return currLang;
+      if (typeof currEn === 'string') return currEn;
+    }
+
+    return translations['en']?.[key] || key;
   };
 
   const formatNumber = (val: number | string | undefined | null, options?: { decimals?: number; useGrouping?: boolean }) => {
@@ -1957,6 +2073,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ...newSettings.paymentSettings,
           updatedAt: new Date().toISOString(),
         };
+        // Also save to global platform settings doc in Firestore for all customer apps to access
+        setDoc(doc(db, 'settings', 'payment'), {
+          ...newSettings.paymentSettings,
+          updatedAt: new Date().toISOString(),
+        }, { merge: true }).catch((err) => console.warn('Sync global settings/payment error:', err));
       }
       if (Object.keys(fsPayload).length > 0) {
         updateDoc(doc(db, 'users', auth.currentUser.uid), fsPayload)

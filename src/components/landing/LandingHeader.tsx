@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { MainWebsiteLogo } from '../common/MainWebsiteLogo';
+import { LanguageSelector } from '../common/LanguageSelector';
 import {
   Moon,
   Sun,
@@ -15,7 +16,6 @@ import {
   ShieldCheck,
   CheckCircle2,
 } from 'lucide-react';
-import { Language } from '../../types';
 
 interface LandingHeaderProps {
   activeSection: string;
@@ -30,18 +30,16 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({
   onOpenLogin,
   onOpenSignup,
 }) => {
-  const { settings, updateSettings, language, setLanguage, theme, toggleTheme } = useApp();
+  const { settings, updateSettings, language, theme, toggleTheme, t } = useApp();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const isBn = language === 'bn';
-
   const navItems = [
-    { id: 'home', label: isBn ? 'হোম' : 'Home' },
-    { id: 'features', label: isBn ? 'ফিচার সমূহ' : 'Features' },
-    { id: 'pricing', label: isBn ? 'প্রাইসিং' : 'Pricing' },
-    { id: 'about', label: isBn ? 'আমাদের কথা' : 'About' },
-    { id: 'support', label: isBn ? 'সাপোর্ট ও সাহায্য' : 'Support' },
-    { id: 'contact', label: isBn ? 'যোগাযোগ' : 'Contact' },
+    { id: 'home', label: t('navHome') || 'Home' },
+    { id: 'features', label: t('landing.features') || 'Features' },
+    { id: 'pricing', label: t('landing.pricing') || 'Pricing' },
+    { id: 'about', label: t('navAbout') || 'About' },
+    { id: 'support', label: t('navHelp') || 'Support' },
+    { id: 'contact', label: t('landing.contact') || 'Contact' },
   ];
 
   const handleNavClick = (id: string) => {
@@ -120,31 +118,13 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({
           </div>
 
           {/* Language Selector */}
-          <div className="relative">
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value as Language)}
-              className="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-[10px] sm:text-xs font-extrabold py-1.5 px-2 rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-purple-500 cursor-pointer shadow-2xs"
-              title="Select Language"
-            >
-              <option value="en">EN</option>
-              <option value="bn">BN (বাংলা)</option>
-              <option value="ar">AR (عربي)</option>
-              <option value="hi">HI (हिंदी)</option>
-              <option value="ur">UR (اردو)</option>
-              <option value="fr">FR</option>
-              <option value="de">DE</option>
-              <option value="es">ES</option>
-              <option value="zh">ZH</option>
-              <option value="ja">JA</option>
-            </select>
-          </div>
+          <LanguageSelector variant="dropdown" />
 
           {/* Light / Dark Mode Toggle */}
           <button
             onClick={toggleTheme}
             className="p-1.5 sm:p-2 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer"
-            title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+            title={theme === 'light' ? t('darkMode') : t('lightMode')}
           >
             {theme === 'light' ? (
               <Moon className="w-4 h-4 text-slate-700" />
@@ -159,7 +139,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({
               onClick={onOpenLogin}
               className="px-3.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl transition-all cursor-pointer"
             >
-              {isBn ? 'লগইন' : 'Log In'}
+              {t('landing.signIn') || t('login')}
             </button>
 
             <button
@@ -167,7 +147,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({
               className="px-4 py-1.5 text-xs font-black text-white bg-[#7C3AED] hover:bg-[#6d28d9] rounded-xl shadow-md shadow-[#7C3AED]/25 transition-all cursor-pointer flex items-center gap-1.5"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>{isBn ? 'ফ্রি স্টোর তৈরি করুন' : 'Sign Up Free'}</span>
+              <span>{t('landing.getStarted') || t('signUp')}</span>
             </button>
           </div>
 
@@ -209,7 +189,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({
               }}
               className="flex-1 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-center"
             >
-              {isBn ? 'লগইন' : 'Log In'}
+              {t('landing.signIn') || t('login')}
             </button>
             <button
               onClick={() => {
@@ -219,7 +199,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({
               className="flex-1 py-2 text-xs font-black text-white bg-[#7C3AED] rounded-xl text-center shadow-md shadow-[#7C3AED]/20 flex items-center justify-center gap-1"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>{isBn ? 'ফ্রি স্টোর তৈরি' : 'Sign Up Free'}</span>
+              <span>{t('landing.getStarted') || t('signUp')}</span>
             </button>
           </div>
         </div>

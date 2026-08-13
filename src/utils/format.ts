@@ -8,7 +8,7 @@ export const convertDigitsInString = (str: string, lang: Language): string => {
   } else if (lang === 'hi') {
     const hiDigits = ['०', '१', '२', '३', '४', '५', '६', '७', '८', '९'];
     return str.replace(/[0-9]/g, (w) => hiDigits[parseInt(w, 10)]);
-  } else if (lang === 'ar' || lang === 'ur' || lang === 'ae') {
+  } else if (lang === 'ar') {
     const arDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
     return str.replace(/[0-9]/g, (w) => arDigits[parseInt(w, 10)]);
   }
@@ -30,14 +30,9 @@ export const formatNumber = (
     bn: 'bn-BD',
     hi: 'hi-IN-u-nu-deva',
     ar: 'ar-EG',
-    ur: 'ur-PK',
     en: 'en-US',
     fr: 'fr-FR',
-    de: 'de-DE',
     es: 'es-ES',
-    zh: 'zh-CN',
-    ja: 'ja-JP',
-    ae: 'ar-AE',
   };
 
   const locale = localeMap[lang] || 'en-US';
@@ -76,14 +71,9 @@ export const formatDate = (
     bn: 'bn-BD',
     hi: 'hi-IN',
     ar: 'ar-EG',
-    ur: 'ur-PK',
     en: 'en-US',
     fr: 'fr-FR',
-    de: 'de-DE',
     es: 'es-ES',
-    zh: 'zh-CN',
-    ja: 'ja-JP',
-    ae: 'ar-AE',
   };
 
   try {

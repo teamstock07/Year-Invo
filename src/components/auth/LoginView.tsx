@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { LandingPage } from '../landing/LandingPage';
+import { LanguageSelector } from '../common/LanguageSelector';
 import {
   Lock,
   Mail,
@@ -30,7 +31,7 @@ import {
 } from 'lucide-react';
 
 export const LoginView: React.FC = () => {
-  const { login, signup, sendFirebasePasswordReset, settings, language, setLanguage } = useApp();
+  const { login, signup, sendFirebasePasswordReset, settings, language, setLanguage, t } = useApp();
 
   const [mode, setMode] = useState<'landing' | 'login' | 'signup' | 'forgot'>('landing');
   const [email, setEmail] = useState('');
@@ -148,18 +149,21 @@ export const LoginView: React.FC = () => {
             {mode === 'login' ? (
               /* LOGIN MODE FORM */
               <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative">
-                <button
-                  type="button"
-                  onClick={() => setMode('landing')}
-                  className="absolute top-6 right-6 p-2 rounded-full text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer shadow-xs"
-                  title="Close / Back to Dashboard Overview"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                <div className="absolute top-6 right-6 flex items-center gap-2">
+                  <LanguageSelector variant="dropdown" />
+                  <button
+                    type="button"
+                    onClick={() => setMode('landing')}
+                    className="p-2 rounded-full text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer shadow-xs"
+                    title="Close / Back to Dashboard Overview"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
 
-                <div className="text-center mb-6 pr-8">
-                  <h2 className="text-2xl font-black text-white">Sign In to Dashboard</h2>
-                  <p className="text-xs text-slate-400 mt-1">Enter your login credentials to manage your store</p>
+                <div className="text-center mb-6 pr-16 pt-2">
+                  <h2 className="text-2xl font-black text-white">{t('landing.signIn') || t('login')}</h2>
+                  <p className="text-xs text-slate-400 mt-1">{t('landing.heroSubtitle') || 'Enter your login credentials to manage your store'}</p>
                 </div>
 
                 {error && (
@@ -335,15 +339,18 @@ export const LoginView: React.FC = () => {
             ) : (
               /* SIGNUP MODE FORM - DIRECT ENTRY TO MAIN INTERFACE UPON SIGNUP */
               <div className="relative bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto custom-scrollbar">
-                {/* Close / Cancel Signup Button */}
-                <button
-                  type="button"
-                  onClick={() => setMode('landing')}
-                  className="absolute top-6 right-6 p-2 rounded-full text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer shadow-xs z-10"
-                  title="Close signup / Back to Dashboard Overview"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                {/* Language Selector & Close Button */}
+                <div className="absolute top-6 right-6 flex items-center gap-2 z-10">
+                  <LanguageSelector variant="dropdown" />
+                  <button
+                    type="button"
+                    onClick={() => setMode('landing')}
+                    className="p-2 rounded-full text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer shadow-xs"
+                    title="Close signup / Back to Dashboard Overview"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
 
                 {/* Top Pill Badge */}
                 <div>

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';
 import { Language } from '../../types';
 import { MainWebsiteLogo } from '../common/MainWebsiteLogo';
+import { LanguageSelector } from '../common/LanguageSelector';
 import {
   Search,
   Bell,
@@ -195,25 +196,7 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
           </div>
 
           {/* Multi-Language Selector Dropdown */}
-          <div className="relative">
-            <select
-              value={language}
-              onChange={(e) => handleLanguageChange(e.target.value as Language)}
-              className="w-auto bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs font-bold py-1.5 px-2.5 rounded-xl border border-[#E8EEF2] dark:border-slate-800 focus:outline-none focus:border-[#ff5c01] cursor-pointer shadow-2xs truncate"
-              title="Select Language"
-            >
-              <option value="en">EN</option>
-              <option value="bn">BN (বাংলা)</option>
-              <option value="ar">AR (عربي)</option>
-              <option value="hi">HI (हिंदी)</option>
-              <option value="ur">UR (اردو)</option>
-              <option value="fr">FR</option>
-              <option value="de">DE</option>
-              <option value="es">ES</option>
-              <option value="zh">ZH</option>
-              <option value="ja">JA</option>
-            </select>
-          </div>
+          <LanguageSelector variant="dropdown" />
         </div>
 
         {/* Theme Toggle Button */}

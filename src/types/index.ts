@@ -1,4 +1,4 @@
-export type Language = 'en' | 'ar' | 'bn' | 'hi' | 'ur' | 'fr' | 'de' | 'es' | 'zh' | 'ja' | 'ae';
+export type Language = 'en' | 'bn' | 'hi' | 'ar' | 'es' | 'fr';
 export type ThemeMode = 'light' | 'dark';
 export type UserRole = 'Owner' | 'Manager' | 'Staff' | 'Accountant' | 'PlatformOwner';
 export type SubscriptionPlan = 'Starter' | 'Tier2' | 'Lifetime' | 'Free' | 'Pro' | 'Business';
@@ -261,9 +261,48 @@ export interface ActivityLog {
 }
 
 export interface QrPaymentSettings {
+  localPaymentEnabled?: boolean;
+  paymentMethod?: string;
+  paymentNumber?: string;
+  receiverName?: string;
+  storeName?: string;
+  transactionIdInstruction?: string;
   qrEnabled: boolean;
   qrProvider: string;
   qrImageUrl: string;
+  accountName?: string;
+  accountNumber?: string;
+  updatedAt?: string;
+}
+
+export interface BangladeshMethodConfig {
+  enabled: boolean;
+  number: string;
+}
+
+export interface BangladeshPaymentConfig {
+  enabled: boolean;
+  methods: {
+    bkash: BangladeshMethodConfig;
+    nagad: BangladeshMethodConfig;
+    rocket: BangladeshMethodConfig;
+  };
+  receiverName: string;
+  storeName: string;
+  transactionIdInstruction: string;
+}
+
+export interface OwnerPaymentSettings {
+  localPaymentEnabled: boolean;
+  paymentMethod: string;
+  paymentNumber: string;
+  receiverName: string;
+  storeName: string;
+  transactionIdInstruction: string;
+  bangladesh?: BangladeshPaymentConfig;
+  qrEnabled?: boolean;
+  qrProvider?: string;
+  qrImageUrl?: string;
   accountName?: string;
   accountNumber?: string;
   updatedAt?: string;
@@ -284,5 +323,5 @@ export interface BusinessSettings {
   language: Language;
   theme: ThemeMode;
   autoBackup: boolean;
-  paymentSettings?: QrPaymentSettings;
+  paymentSettings?: OwnerPaymentSettings;
 }

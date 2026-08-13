@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { SubscriptionPlan, UserProfile, UserRole, SubscriptionRequest } from '../../types';
 import {
@@ -24,6 +24,9 @@ import {
   Settings as SettingsIcon,
   Crown,
   DollarSign,
+  CreditCard,
+  AlertTriangle,
+  Save,
   TrendingUp,
   AlertCircle,
   Eye,
@@ -48,7 +51,6 @@ import {
   UserPlus,
   RotateCcw,
   FileText,
-  AlertTriangle,
   History,
 } from 'lucide-react';
 import {
@@ -164,6 +166,96 @@ export const OwnerDashboard: React.FC = () => {
   const [siteSubBrand, setSiteSubBrand] = useState(settings.siteSubBrandName || 'by Year Media');
   const [siteLogoUrl, setSiteLogoUrl] = useState(settings.siteLogoUrl || '');
   const [settingsSaved, setSettingsSaved] = useState(false);
+
+  // Settings Sub-tab State
+  const [settingsSubTab, setSettingsSubTab] = useState<'payment' | 'branding'>('payment');
+
+  // Owner Payment Settings State
+  const initialBd = settings.paymentSettings?.bangladesh || {
+    enabled: settings.paymentSettings?.localPaymentEnabled ?? true,
+    methods: {
+      bkash: {
+        enabled: true,
+        number: settings.paymentSettings?.paymentNumber || '01700000000',
+      },
+      nagad: {
+        enabled: true,
+        number: settings.paymentSettings?.paymentNumber || '01700000000',
+      },
+      rocket: {
+        enabled: false,
+        number: settings.paymentSettings?.paymentNumber || '01700000000',
+      },
+    },
+    receiverName: settings.paymentSettings?.receiverName || 'YearInvo Store',
+    storeName: settings.paymentSettings?.storeName || 'YearInvo Store',
+    transactionIdInstruction: settings.paymentSettings?.transactionIdInstruction || 'Copy your transaction ID and enter it below.',
+  };
+
+  const [localPaymentEnabled, setLocalPaymentEnabled] = useState<boolean>(
+    initialBd.enabled ?? true
+  );
+
+  const [bkashEnabled, setBkashEnabled] = useState<boolean>(
+    initialBd.methods?.bkash?.enabled ?? true
+  );
+  const [bkashNumber, setBkashNumber] = useState<string>(
+    initialBd.methods?.bkash?.number || settings.paymentSettings?.paymentNumber || '01700000000'
+  );
+
+  const [nagadEnabled, setNagadEnabled] = useState<boolean>(
+    initialBd.methods?.nagad?.enabled ?? true
+  );
+  const [nagadNumber, setNagadNumber] = useState<string>(
+    initialBd.methods?.nagad?.number || settings.paymentSettings?.paymentNumber || '01700000000'
+  );
+
+  const [rocketEnabled, setRocketEnabled] = useState<boolean>(
+    initialBd.methods?.rocket?.enabled ?? false
+  );
+  const [rocketNumber, setRocketNumber] = useState<string>(
+    initialBd.methods?.rocket?.number || settings.paymentSettings?.paymentNumber || '01700000000'
+  );
+
+  const [receiverName, setReceiverName] = useState<string>(
+    initialBd.receiverName || settings.paymentSettings?.receiverName || 'YearInvo Store'
+  );
+  const [ownerStoreName, setOwnerStoreName] = useState<string>(
+    initialBd.storeName || settings.paymentSettings?.storeName || 'YearInvo Store'
+  );
+  const [transactionIdInstruction, setTransactionIdInstruction] = useState<string>(
+    initialBd.transactionIdInstruction || settings.paymentSettings?.transactionIdInstruction || 'Copy your transaction ID and enter it below.'
+  );
+
+  const [paymentSettingsSaved, setPaymentSettingsSaved] = useState(false);
+  const [paymentValidationError, setPaymentValidationError] = useState<string | null>(null);
+
+  // Sync state when settings context changes
+  useEffect(() => {
+    if (settings.paymentSettings) {
+      const bd = settings.paymentSettings.bangladesh;
+      if (bd) {
+        setLocalPaymentEnabled(bd.enabled ?? true);
+        setBkashEnabled(bd.methods?.bkash?.enabled ?? true);
+        setBkashNumber(bd.methods?.bkash?.number || '');
+        setNagadEnabled(bd.methods?.nagad?.enabled ?? true);
+        setNagadNumber(bd.methods?.nagad?.number || '');
+        setRocketEnabled(bd.methods?.rocket?.enabled ?? false);
+        setRocketNumber(bd.methods?.rocket?.number || '');
+        setReceiverName(bd.receiverName || '');
+        setOwnerStoreName(bd.storeName || '');
+        setTransactionIdInstruction(bd.transactionIdInstruction || '');
+      } else if (settings.paymentSettings.paymentNumber) {
+        setLocalPaymentEnabled(settings.paymentSettings.localPaymentEnabled ?? true);
+        setBkashNumber(settings.paymentSettings.paymentNumber);
+        setNagadNumber(settings.paymentSettings.paymentNumber);
+        setRocketNumber(settings.paymentSettings.paymentNumber);
+        setReceiverName(settings.paymentSettings.receiverName || '');
+        setOwnerStoreName(settings.paymentSettings.storeName || '');
+        setTransactionIdInstruction(settings.paymentSettings.transactionIdInstruction || '');
+      }
+    }
+  }, [settings.paymentSettings]);
 
   // Strict Security Check: Only Owner / Admin can view
   if (user?.role !== 'Owner') {
@@ -452,6 +544,92 @@ export const OwnerDashboard: React.FC = () => {
     });
     setSettingsSaved(true);
     setTimeout(() => setSettingsSaved(false), 3000);
+  };
+
+  // Payment Settings Handler with Validation
+  const handleSavePaymentSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPaymentValidationError(null);
+
+    if (localPaymentEnabled) {
+      if (!bkashEnabled && !nagadEnabled && !rocketEnabled) {
+        setPaymentValidationError('At least ONE Bangladesh payment method must be selected (bKash, Nagad, or Rocket).');
+        return;
+      }
+      if (bkashEnabled && !bkashNumber.trim()) {
+        setPaymentValidationError('bKash number cannot be empty when bKash is selected.');
+        return;
+      }
+      if (nagadEnabled && !nagadNumber.trim()) {
+        setPaymentValidationError('Nagad number cannot be empty when Nagad is selected.');
+        return;
+      }
+      if (rocketEnabled && !rocketNumber.trim()) {
+        setPaymentValidationError('Rocket number cannot be empty when Rocket is selected.');
+        return;
+      }
+      if (!receiverName.trim()) {
+        setPaymentValidationError('Receiver Name cannot be empty.');
+        return;
+      }
+      if (!ownerStoreName.trim()) {
+        setPaymentValidationError('Store Name cannot be empty.');
+        return;
+      }
+      if (!transactionIdInstruction.trim()) {
+        setPaymentValidationError('Transaction ID Instruction cannot be empty.');
+        return;
+      }
+    }
+
+    const activeList: string[] = [];
+    if (bkashEnabled) activeList.push('bKash');
+    if (nagadEnabled) activeList.push('Nagad');
+    if (rocketEnabled) activeList.push('Rocket');
+
+    const primaryNumber = (bkashEnabled && bkashNumber.trim()) ||
+                          (nagadEnabled && nagadNumber.trim()) ||
+                          (rocketEnabled && rocketNumber.trim()) || '';
+
+    updateSettings({
+      paymentSettings: {
+        localPaymentEnabled,
+        paymentMethod: activeList.join(' + ') || 'bKash',
+        paymentNumber: primaryNumber,
+        receiverName: receiverName.trim(),
+        storeName: ownerStoreName.trim(),
+        transactionIdInstruction: transactionIdInstruction.trim(),
+        bangladesh: {
+          enabled: localPaymentEnabled,
+          methods: {
+            bkash: {
+              enabled: bkashEnabled,
+              number: bkashNumber.trim(),
+            },
+            nagad: {
+              enabled: nagadEnabled,
+              number: nagadNumber.trim(),
+            },
+            rocket: {
+              enabled: rocketEnabled,
+              number: rocketNumber.trim(),
+            },
+          },
+          receiverName: receiverName.trim(),
+          storeName: ownerStoreName.trim(),
+          transactionIdInstruction: transactionIdInstruction.trim(),
+        },
+        qrEnabled: settings.paymentSettings?.qrEnabled ?? true,
+        qrProvider: activeList[0] || 'bKash',
+        qrImageUrl: settings.paymentSettings?.qrImageUrl || '',
+        accountName: receiverName.trim(),
+        accountNumber: primaryNumber,
+        updatedAt: new Date().toISOString(),
+      },
+    });
+
+    setPaymentSettingsSaved(true);
+    setTimeout(() => setPaymentSettingsSaved(false), 3500);
   };
 
   // Export User CSV
@@ -1672,68 +1850,366 @@ export const OwnerDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 5: PLATFORM BRANDING SETTINGS */}
+      {/* TAB 5: PLATFORM BRANDING & PAYMENT SETTINGS */}
       {activeTab === 'settings' && (
         <div className="max-w-3xl space-y-6">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-lg">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-2xl text-purple-400">
-                <SettingsIcon className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-extrabold text-base text-white">Platform System Branding</h3>
-                <p className="text-xs text-slate-400">Configure global site branding for YearInvo platform</p>
-              </div>
-            </div>
-
-            {settingsSaved && (
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs font-bold flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Branding settings saved successfully!</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSaveSettings} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">Primary Site Brand Name</label>
-                <input
-                  type="text"
-                  required
-                  value={siteBrandName}
-                  onChange={(e) => setSiteBrandName(e.target.value)}
-                  className="w-full py-2.5 px-3.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">Sub-Brand Tagline</label>
-                <input
-                  type="text"
-                  value={siteSubBrand}
-                  onChange={(e) => setSiteSubBrand(e.target.value)}
-                  className="w-full py-2.5 px-3.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">Platform Logo Image URL</label>
-                <input
-                  type="text"
-                  value={siteLogoUrl}
-                  onChange={(e) => setSiteLogoUrl(e.target.value)}
-                  placeholder="https://example.com/logo.png"
-                  className="w-full py-2.5 px-3.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all cursor-pointer"
-              >
-                Save Branding Settings
-              </button>
-            </form>
+          {/* Sub-tab Navigation */}
+          <div className="flex items-center gap-2 p-1.5 bg-slate-900 border border-slate-800 rounded-2xl shadow-sm">
+            <button
+              type="button"
+              onClick={() => setSettingsSubTab('payment')}
+              className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                settingsSubTab === 'payment'
+                  ? 'bg-purple-600 text-white shadow-md shadow-purple-600/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              }`}
+            >
+              <CreditCard className="w-4 h-4" />
+              <span>Payment Settings</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSettingsSubTab('branding')}
+              className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                settingsSubTab === 'branding'
+                  ? 'bg-purple-600 text-white shadow-md shadow-purple-600/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              }`}
+            >
+              <SettingsIcon className="w-4 h-4" />
+              <span>Platform Branding</span>
+            </button>
           </div>
+
+          {settingsSubTab === 'payment' ? (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5 shadow-lg">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-2xl text-purple-400">
+                    <CreditCard className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-base text-white">Payment Settings</h3>
+                    <p className="text-xs text-slate-400">Manage manual payment parameters for Bangladesh local subscriptions</p>
+                  </div>
+                </div>
+                <span className="px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 text-[10px] font-extrabold uppercase">
+                  Owner Panel
+                </span>
+              </div>
+
+              {paymentSettingsSaved && (
+                <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>✓ Payment settings saved successfully</span>
+                </div>
+              )}
+
+              {paymentValidationError && (
+                <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs font-bold flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>{paymentValidationError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSavePaymentSettings} className="space-y-5">
+                {/* Bangladesh Payment Section */}
+                <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+                    <div>
+                      <h4 className="font-extrabold text-xs text-white uppercase tracking-wider flex items-center gap-2">
+                        <span>🇧🇩</span> Bangladesh Payment
+                      </h4>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Select multiple payment methods and specify independent numbers for each.
+                      </p>
+                    </div>
+                    <label className="flex items-center gap-2 text-xs text-slate-300 font-bold cursor-pointer bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800">
+                      <input
+                        type="checkbox"
+                        checked={localPaymentEnabled}
+                        onChange={(e) => setLocalPaymentEnabled(e.target.checked)}
+                        className="w-4 h-4 accent-purple-600 rounded cursor-pointer"
+                      />
+                      <span>Active</span>
+                    </label>
+                  </div>
+
+                  {localPaymentEnabled && (
+                    <div className="space-y-4">
+                      {/* Payment Methods Selector */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-300 mb-2">
+                          Select Payment Methods
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          {/* bKash */}
+                          <div
+                            onClick={() => setBkashEnabled(!bkashEnabled)}
+                            className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                              bkashEnabled
+                                ? 'bg-pink-950/40 border-pink-500/50 text-white shadow-lg shadow-pink-950/30'
+                                : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <input
+                                type="checkbox"
+                                checked={bkashEnabled}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  setBkashEnabled(e.target.checked);
+                                }}
+                                className="w-4 h-4 accent-pink-500 rounded cursor-pointer"
+                              />
+                              <div>
+                                <span className="font-extrabold text-xs block text-pink-400">bKash</span>
+                                <span className="text-[10px] text-slate-400">Mobile Financial</span>
+                              </div>
+                            </div>
+                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                              bkashEnabled ? 'bg-pink-500/20 text-pink-300 border border-pink-500/30' : 'bg-slate-800 text-slate-500'
+                            }`}>
+                              {bkashEnabled ? 'Active' : 'Off'}
+                            </span>
+                          </div>
+
+                          {/* Nagad */}
+                          <div
+                            onClick={() => setNagadEnabled(!nagadEnabled)}
+                            className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                              nagadEnabled
+                                ? 'bg-orange-950/40 border-orange-500/50 text-white shadow-lg shadow-orange-950/30'
+                                : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <input
+                                type="checkbox"
+                                checked={nagadEnabled}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  setNagadEnabled(e.target.checked);
+                                }}
+                                className="w-4 h-4 accent-orange-500 rounded cursor-pointer"
+                              />
+                              <div>
+                                <span className="font-extrabold text-xs block text-orange-400">Nagad</span>
+                                <span className="text-[10px] text-slate-400">Postal Financial</span>
+                              </div>
+                            </div>
+                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                              nagadEnabled ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30' : 'bg-slate-800 text-slate-500'
+                            }`}>
+                              {nagadEnabled ? 'Active' : 'Off'}
+                            </span>
+                          </div>
+
+                          {/* Rocket */}
+                          <div
+                            onClick={() => setRocketEnabled(!rocketEnabled)}
+                            className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                              rocketEnabled
+                                ? 'bg-purple-950/40 border-purple-500/50 text-white shadow-lg shadow-purple-950/30'
+                                : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <input
+                                type="checkbox"
+                                checked={rocketEnabled}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  setRocketEnabled(e.target.checked);
+                                }}
+                                className="w-4 h-4 accent-purple-500 rounded cursor-pointer"
+                              />
+                              <div>
+                                <span className="font-extrabold text-xs block text-purple-400">Rocket</span>
+                                <span className="text-[10px] text-slate-400">DBBL Mobile</span>
+                              </div>
+                            </div>
+                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                              rocketEnabled ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-slate-800 text-slate-500'
+                            }`}>
+                              {rocketEnabled ? 'Active' : 'Off'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Dynamic Payment Number Inputs */}
+                      <div className="space-y-3 pt-1 border-t border-slate-800/60">
+                        <p className="text-[11px] text-slate-400 font-medium">
+                          Enter payment numbers for each enabled method below. You may use the same number for all services or assign unique numbers:
+                        </p>
+
+                        {bkashEnabled && (
+                          <div>
+                            <label className="block text-xs font-bold text-pink-400 mb-1 flex items-center gap-1.5">
+                              <span>bKash Number</span>
+                              <span className="text-rose-400">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={bkashNumber}
+                              onChange={(e) => setBkashNumber(e.target.value)}
+                              placeholder="01XXXXXXXXX"
+                              className="w-full py-2.5 px-3.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-mono font-extrabold text-amber-400 focus:outline-none focus:border-pink-500"
+                            />
+                          </div>
+                        )}
+
+                        {nagadEnabled && (
+                          <div>
+                            <label className="block text-xs font-bold text-orange-400 mb-1 flex items-center gap-1.5">
+                              <span>Nagad Number</span>
+                              <span className="text-rose-400">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={nagadNumber}
+                              onChange={(e) => setNagadNumber(e.target.value)}
+                              placeholder="01XXXXXXXXX"
+                              className="w-full py-2.5 px-3.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-mono font-extrabold text-amber-400 focus:outline-none focus:border-orange-500"
+                            />
+                          </div>
+                        )}
+
+                        {rocketEnabled && (
+                          <div>
+                            <label className="block text-xs font-bold text-purple-400 mb-1 flex items-center gap-1.5">
+                              <span>Rocket Number</span>
+                              <span className="text-rose-400">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={rocketNumber}
+                              onChange={(e) => setRocketNumber(e.target.value)}
+                              placeholder="01XXXXXXXXX"
+                              className="w-full py-2.5 px-3.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-mono font-extrabold text-amber-400 focus:outline-none focus:border-purple-500"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Common Store & Instruction Information */}
+                      <div className="space-y-3 pt-2 border-t border-slate-800/60">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-300 mb-1">
+                            Receiver Name
+                          </label>
+                          <input
+                            type="text"
+                            value={receiverName}
+                            onChange={(e) => setReceiverName(e.target.value)}
+                            placeholder="e.g. Store Owner Name"
+                            className="w-full py-2.5 px-3.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-300 mb-1">
+                            Store Name
+                          </label>
+                          <input
+                            type="text"
+                            value={ownerStoreName}
+                            onChange={(e) => setOwnerStoreName(e.target.value)}
+                            placeholder="e.g. My Store Name"
+                            className="w-full py-2.5 px-3.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-300 mb-1">
+                            Transaction ID Instruction
+                          </label>
+                          <textarea
+                            rows={3}
+                            value={transactionIdInstruction}
+                            onChange={(e) => setTransactionIdInstruction(e.target.value)}
+                            placeholder="Copy your transaction ID and enter it below."
+                            className="w-full py-2.5 px-3.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <button
+                    type="submit"
+                    className="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-600/25 transition-all flex items-center gap-2 cursor-pointer"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Save Payment Settings</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-lg">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-2xl text-purple-400">
+                  <SettingsIcon className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-white">Platform System Branding</h3>
+                  <p className="text-xs text-slate-400">Configure global site branding for YearInvo platform</p>
+                </div>
+              </div>
+
+              {settingsSaved && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Branding settings saved successfully!</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSaveSettings} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Primary Site Brand Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={siteBrandName}
+                    onChange={(e) => setSiteBrandName(e.target.value)}
+                    className="w-full py-2.5 px-3.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Sub-Brand Tagline</label>
+                  <input
+                    type="text"
+                    value={siteSubBrand}
+                    onChange={(e) => setSiteSubBrand(e.target.value)}
+                    className="w-full py-2.5 px-3.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Platform Logo Image URL</label>
+                  <input
+                    type="text"
+                    value={siteLogoUrl}
+                    onChange={(e) => setSiteLogoUrl(e.target.value)}
+                    placeholder="https://example.com/logo.png"
+                    className="w-full py-2.5 px-3.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all cursor-pointer"
+                >
+                  Save Branding Settings
+                </button>
+              </form>
+            </div>
+          )}
         </div>
       )}
 

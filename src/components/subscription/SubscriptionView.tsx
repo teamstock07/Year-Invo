@@ -160,7 +160,7 @@ interface SubDict {
   matrixSubtitle: string;
 }
 
-const subTranslations: Record<Language, SubDict> = {
+const subTranslations: Record<string, SubDict> = {
   en: {
     badge: 'Subscription Plans & Pricing',
     title: 'Choose the Right Plan for Your Store',
@@ -979,9 +979,29 @@ export const SubscriptionView: React.FC = () => {
   const langDict = subTranslations[language] || subTranslations['en'];
 
   // Active Region Providers & Selection Helpers
-  const currentEnabledProviders = getEnabledProviders(activeRegion);
+  const rawEnabledProviders = getEnabledProviders(activeRegion);
+  const bgConfig = settings.paymentSettings?.bangladesh;
+
+  const currentEnabledProviders = rawEnabledProviders.filter((provider) => {
+    if (activeRegion === 'bangladesh' && bgConfig && bgConfig.enabled && bgConfig.methods) {
+      if (provider.id === 'bkash') return bgConfig.methods.bkash?.enabled;
+      if (provider.id === 'nagad') return bgConfig.methods.nagad?.enabled;
+      if (provider.id === 'rocket') return bgConfig.methods.rocket?.enabled;
+    }
+    return true;
+  });
+
   const selectedProvider =
-    getProviderById(selectedProviderId) || currentEnabledProviders[0];
+    currentEnabledProviders.find((p) => p.id === selectedProviderId) || currentEnabledProviders[0];
+
+  const getBangladeshNumberForProvider = (providerId: string) => {
+    if (bgConfig && bgConfig.methods) {
+      if (providerId === 'bkash' && bgConfig.methods.bkash?.number) return bgConfig.methods.bkash.number;
+      if (providerId === 'nagad' && bgConfig.methods.nagad?.number) return bgConfig.methods.nagad.number;
+      if (providerId === 'rocket' && bgConfig.methods.rocket?.number) return bgConfig.methods.rocket.number;
+    }
+    return settings.paymentSettings?.paymentNumber || settings.paymentSettings?.accountNumber || selectedProvider?.instructions?.accountNumber || '01700000000';
+  };
 
   const getPlanAmount = (
     provider: PaymentProviderConfig | undefined,
@@ -1681,37 +1701,55 @@ export const SubscriptionView: React.FC = () => {
             {/* Provider Instructions Card (Only for Bangladesh manual payment methods) */}
             {selectedProvider && selectedProvider.region === 'bangladesh' && (
               <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
-                <div className="flex items-center gap-2 border-b border-slate-800/80 pb-2.5">
-                  <Info className="w-4 h-4 text-[#ff5c01]" />
-                  <span className="text-xs font-bold text-white">
-                    Payment Instructions for {selectedProvider.name}
-                  </span>
+                <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Info className="w-4 h-4 text-[#ff5c01]" />
+                    <span className="text-xs font-bold text-white">
+                      Payment Instructions ({selectedProvider.name})
+                    </span>
+                  </div>
+                  {settings.paymentSettings?.storeName && (
+                    <span className="px-2.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] text-amber-400 font-bold">
+                      {settings.paymentSettings.storeName}
+                    </span>
+                  )}
                 </div>
 
-                {selectedProvider.instructions?.accountNumber && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-900/80 p-3 rounded-xl border border-slate-800">
-                    <div>
-                      <span className="text-slate-500 text-[10px] block">Account Name</span>
-                      <span className="font-bold text-slate-200">{selectedProvider.instructions.accountName}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 text-[10px] block">Account / Phone Number</span>
-                      <span className="font-mono font-extrabold text-amber-400">{selectedProvider.instructions.accountNumber}</span>
-                    </div>
-                    {selectedProvider.instructions.branch && (
-                      <div className="col-span-1 sm:col-span-2">
-                        <span className="text-slate-500 text-[10px] block">Branch & Bank</span>
-                        <span className="font-medium text-slate-300">{selectedProvider.instructions.branch}</span>
-                      </div>
-                    )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                  <div>
+                    <span className="text-slate-500 text-[10px] block">Payment Method</span>
+                    <span className="font-bold text-slate-200">
+                      {selectedProvider.name}
+                    </span>
                   </div>
-                )}
+                  <div>
+                    <span className="text-slate-500 text-[10px] block">Payment Number</span>
+                    <span className="font-mono font-extrabold text-amber-400">
+                      {getBangladeshNumberForProvider(selectedProvider.id)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-[10px] block">Receiver / Merchant Name</span>
+                    <span className="font-bold text-slate-200">
+                      {settings.paymentSettings?.receiverName || settings.paymentSettings?.accountName || selectedProvider.instructions?.accountName || 'YearInvo Store'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-[10px] block">Store Name</span>
+                    <span className="font-bold text-slate-200">
+                      {settings.paymentSettings?.storeName || 'YearInvo Store'}
+                    </span>
+                  </div>
+                </div>
 
-                {selectedProvider.instructions?.note && (
-                  <p className="text-xs text-slate-300 whitespace-pre-line leading-relaxed bg-slate-900/50 p-2.5 rounded-xl border border-slate-800/60">
-                    {selectedProvider.instructions.note}
+                <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-800/60 space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    Transaction ID Instruction
+                  </span>
+                  <p className="text-xs text-slate-300 whitespace-pre-line leading-relaxed">
+                    {settings.paymentSettings?.transactionIdInstruction || 'Copy your transaction ID and enter it below.'}
                   </p>
-                )}
+                </div>
               </div>
             )}
 
