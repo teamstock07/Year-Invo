@@ -16,8 +16,11 @@ export interface UserProfile {
   timeZone: string;
   role: UserRole;
   subscriptionPlan: SubscriptionPlan;
-  subscriptionStatus?: 'active' | 'pending' | 'suspended' | 'blocked' | 'deleted';
+  subscriptionStatus?: 'active' | 'pending' | 'suspended' | 'blocked' | 'deleted' | 'cancelled' | 'expired';
   pendingPlan?: SubscriptionPlan;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  previousPlan?: SubscriptionPlan;
   status?: 'active' | 'suspended' | 'blocked' | 'deleted';
   storeAddress?: string;
   affiliateCode?: string;
@@ -29,6 +32,16 @@ export interface UserProfile {
   createdAt: string;
   lastLogin?: string;
   notes?: string;
+
+  // Paddle Subscription details
+  paddleCustomerId?: string;
+  paddleSubscriptionId?: string;
+  paddlePriceId?: string;
+  billingCycle?: 'monthly' | 'yearly';
+  paymentProvider?: string;
+  paymentRegion?: 'international' | 'bangladesh';
+  currentPeriodStart?: string;
+  currentPeriodEnd?: string;
 }
 
 export interface SubscriptionRequest {
@@ -41,12 +54,27 @@ export interface SubscriptionRequest {
   requestedPlan: SubscriptionPlan;
   billingCycle: 'monthly' | 'yearly';
   paymentMethod: string;
+  paymentRegion?: 'international' | 'bangladesh';
+  paymentProvider?: string;
+  currency?: string;
   transactionId?: string;
   amount: number;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'expired';
   requestDate: string;
   reviewedDate?: string;
+  approvedBy?: string;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  previousPlan?: SubscriptionPlan;
+  previousStatus?: string;
   notes?: string;
+
+  // Paddle Subscription details
+  paddleCustomerId?: string;
+  paddleSubscriptionId?: string;
+  paddlePriceId?: string;
+  currentPeriodStart?: string;
+  currentPeriodEnd?: string;
 }
 
 export interface Product {

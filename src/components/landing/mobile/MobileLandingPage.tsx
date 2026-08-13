@@ -195,10 +195,10 @@ export const MobileLandingPage: React.FC<MobileLandingPageProps> = ({
     {
       id: 'free',
       name: 'Free Starter',
-      badge: isBn ? 'ফ্রি প্ল্যান' : '100% Free Forever',
-      desc: isBn ? 'ছোট ব্যবসার জন্য চিরদিনের জন্য ফ্রি' : 'Perfect for small retail shops starting digital management',
+      badge: isBn ? 'ফ্রি ১ মাস' : '1 Month Free Trial',
+      desc: isBn ? 'ছোট ব্যবসার জন্য ১ মাসের ফ্রি ট্রায়াল' : 'Perfect for small retail shops with 1 month free trial',
       price: getPrice(0),
-      period: isBn ? 'চিরদিনের জন্য ফ্রি' : 'Forever Free',
+      period: isBn ? '১ মাসের জন্য ফ্রি' : 'Free for 1 Month',
       features: [
         isBn ? '১টি শোরুম / দোকান শাখা' : '1 Store Branch',
         isBn ? 'সর্বোচ্চ ১০০টি প্রোডাক্ট' : 'Up to 100 Products',
@@ -206,7 +206,7 @@ export const MobileLandingPage: React.FC<MobileLandingPageProps> = ({
         isBn ? 'কাস্টমার বাকী খাতা' : 'Customer Due Ledger',
         isBn ? 'দৈনিক সেভার ক্লাউড ব্যাকআপ' : 'Daily Cloud Sync',
       ],
-      buttonText: isBn ? 'ফ্রি অ্যাকাউন্ট খুলুন' : 'Start Free Forever',
+      buttonText: isBn ? '১ মাসের ফ্রী অ্যাকাউন্ট খুলুন' : 'Start 1 Month Free Trial',
       popular: false,
     },
     {
@@ -347,7 +347,7 @@ export const MobileLandingPage: React.FC<MobileLandingPageProps> = ({
               <Zap className="w-4 h-4 text-amber-400 fill-amber-400 shrink-0" />
               <div>
                 <p className="font-bold text-white">YearInvo v2.4 Live Cloud System</p>
-                <p className="text-[10px] text-slate-400">100% Free Starter Plan active for retail merchants.</p>
+                <p className="text-[10px] text-slate-400">1 Month Free Starter Plan active for retail merchants.</p>
               </div>
             </div>
             <button

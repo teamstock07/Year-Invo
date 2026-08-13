@@ -90,11 +90,16 @@ interface AppContextType {
     requestedPlan: SubscriptionPlan;
     billingCycle: 'monthly' | 'yearly';
     paymentMethod: string;
+    paymentRegion?: 'international' | 'bangladesh';
+    paymentProvider?: string;
+    currency?: string;
     transactionId?: string;
     amount: number;
   }) => Promise<boolean>;
   approveSubscriptionRequest: (requestId: string) => Promise<void>;
   rejectSubscriptionRequest: (requestId: string, notes?: string) => Promise<void>;
+  cancelSubscriptionRequest: (requestId: string, notes?: string) => Promise<void>;
+  cancelUserSubscription: (userId: string, notes?: string) => Promise<void>;
 
   // Settings & Theme
   settings: BusinessSettings;
@@ -163,6 +168,8 @@ interface AppContextType {
   recordGeneratedCode: (productId: string) => boolean;
   isCodeGenerated: (productId: string) => boolean;
   removeGeneratedCode: (productId: string) => void;
+  getGeneratedQRCount: (productId: string) => number;
+  recordGeneratedQRCodes: (productId: string, requestedCount: number) => { success: boolean; message?: string };
 
   // Stock Actions
   adjustStock: (productId: string, quantityDelta: number, reason: string, type: 'addition' | 'reduction' | 'damage_writeoff' | 'audit_correction') => void;
@@ -543,6 +550,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             status: d.status || 'pending',
             requestDate: dateStr,
             reviewedDate: d.reviewedDate || '',
+            approvedBy: d.approvedBy || d.reviewedBy || '',
+            cancelledAt: d.cancelledAt || '',
+            cancelledBy: d.cancelledBy || '',
+            previousPlan: d.previousPlan || undefined,
+            previousStatus: d.previousStatus || undefined,
             notes: d.notes || '',
           });
         });
@@ -731,26 +743,108 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, [products]);
 
+  // Generated Product Unit QR Code Count Tracking (Store Isolated)
+  const [productQRCounts, setProductQRCounts] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem(`biz_product_qr_counts_${user?.id || 'default'}`);
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
+  // Re-sync productQRCounts when store/user changes
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`biz_product_qr_counts_${user?.id || 'default'}`);
+      setProductQRCounts(saved ? JSON.parse(saved) : {});
+    } catch (e) {
+      setProductQRCounts({});
+    }
+  }, [user?.id]);
+
+  // Persist productQRCounts to LocalStorage per store
+  useEffect(() => {
+    try {
+      localStorage.setItem(`biz_product_qr_counts_${user?.id || 'default'}`, JSON.stringify(productQRCounts));
+    } catch (e) {}
+  }, [productQRCounts, user?.id]);
+
+  // Real-time cleanup for unit QR code counts
+  useEffect(() => {
+    setProductQRCounts((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const id of Object.keys(next)) {
+        if (!products.some((p) => p.id === id)) {
+          delete next[id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [products]);
+
+  const getGeneratedQRCount = (productId: string): number => {
+    if (!productId) return 0;
+    if (typeof productQRCounts[productId] === 'number') {
+      return productQRCounts[productId];
+    }
+    return generatedProductCodes.includes(productId) ? 1 : 0;
+  };
+
+  const recordGeneratedQRCodes = (
+    productId: string,
+    requestedCount: number
+  ): { success: boolean; message?: string } => {
+    if (!productId) return { success: false, message: 'Invalid product selected.' };
+
+    const targetProduct = products.find((p) => p.id === productId);
+    if (!targetProduct) {
+      return { success: false, message: 'Product not found in current store.' };
+    }
+
+    const availableStock = targetProduct.stock || 0;
+    const existingQRCount = getGeneratedQRCount(productId);
+    const availableCapacity = Math.max(0, availableStock - existingQRCount);
+
+    if (existingQRCount + requestedCount > availableStock) {
+      return {
+        success: false,
+        message: `Cannot generate more QR codes than the available stock.\n\nAvailable Stock: ${availableStock}\nAlready Generated: ${existingQRCount}\nCan Generate: ${availableCapacity}`,
+      };
+    }
+
+    const newTotal = existingQRCount + requestedCount;
+    setProductQRCounts((prev) => ({
+      ...prev,
+      [productId]: newTotal,
+    }));
+
+    if (!generatedProductCodes.includes(productId)) {
+      setGeneratedProductCodes((prev) => [...prev, productId]);
+    }
+
+    return { success: true };
+  };
+
   const recordGeneratedCode = (productId: string): boolean => {
     if (!productId) return false;
-    // If code is already generated for this product, allow (reuses existing code slot)
-    if (generatedProductCodes.includes(productId)) {
-      return true;
-    }
-    // Limit Rule: Maximum generated codes cannot exceed total active products in current store
-    if (generatedProductCodes.length >= products.length) {
-      return false; // Limit reached!
-    }
-    setGeneratedProductCodes((prev) => [...prev, productId]);
-    return true;
+    const res = recordGeneratedQRCodes(productId, 1);
+    return res.success;
   };
 
   const isCodeGenerated = (productId: string): boolean => {
-    return generatedProductCodes.includes(productId);
+    return generatedProductCodes.includes(productId) || (productQRCounts[productId] || 0) > 0;
   };
 
   const removeGeneratedCode = (productId: string) => {
     setGeneratedProductCodes((prev) => prev.filter((id) => id !== productId));
+    setProductQRCounts((prev) => {
+      const next = { ...prev };
+      delete next[productId];
+      return next;
+    });
   };
 
   // Language & Theme helpers with persistence
@@ -1312,6 +1406,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     requestedPlan: SubscriptionPlan;
     billingCycle: 'monthly' | 'yearly';
     paymentMethod: string;
+    paymentRegion?: 'international' | 'bangladesh';
+    paymentProvider?: string;
+    currency?: string;
     transactionId?: string;
     amount: number;
   }): Promise<boolean> => {
@@ -1334,7 +1431,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       currentPlan: user.subscriptionPlan || 'Free',
       requestedPlan: data.requestedPlan || 'Pro',
       billingCycle: data.billingCycle || 'monthly',
-      paymentMethod: data.paymentMethod || 'bKash',
+      paymentMethod: data.paymentMethod || 'PayPal / Credit Card',
+      paymentRegion: data.paymentRegion || 'international',
+      paymentProvider: data.paymentProvider || data.paymentMethod || 'PayPal / Credit Card',
+      currency: data.currency || (data.paymentRegion === 'bangladesh' ? 'BDT' : 'USD'),
       transactionId: data.transactionId ? String(data.transactionId).trim() : '',
       amount: typeof data.amount === 'number' ? data.amount : 0,
       status: 'pending',
@@ -1433,22 +1533,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const req = subscriptionRequests.find((r) => r.id === requestId);
     if (!req) return;
 
+    const nowIso = new Date().toISOString();
+    const ownerIdentifier = user?.ownerName || user?.email || 'Owner';
+
     try {
       console.log('[Firestore Write Start] Approving request in "subscriptionRequests":', requestId);
-      // 1. Update request status in Firestore
+
+      // 1. If user has other active/approved requests, update them to superseded/cancelled to avoid duplicate active subscriptions
+      if (req.userId) {
+        const otherApprovedReqs = subscriptionRequests.filter(
+          (r) => r.userId === req.userId && r.id !== requestId && r.status === 'approved'
+        );
+        for (const oldReq of otherApprovedReqs) {
+          const oldReqRef = doc(db, 'subscriptionRequests', oldReq.id);
+          await setDoc(
+            oldReqRef,
+            {
+              status: 'cancelled',
+              cancelledAt: nowIso,
+              cancelledBy: ownerIdentifier,
+              notes: `Superseded by new approved plan (${req.requestedPlan}) on ${new Date().toLocaleDateString()}`,
+            },
+            { merge: true }
+          );
+        }
+      }
+
+      // 2. Update request status in Firestore
       const reqRef = doc(db, 'subscriptionRequests', requestId);
       await setDoc(
         reqRef,
         {
           status: 'approved',
-          reviewedDate: new Date().toISOString(),
+          reviewedDate: nowIso,
+          approvedBy: ownerIdentifier,
           reviewedAt: serverTimestamp(),
         },
         { merge: true }
       );
       console.log('[Firestore Write Success] Approved request in "subscriptionRequests":', requestId);
 
-      // 2. Update merchant user profile in Firestore
+      // 3. Update merchant user profile in Firestore
       if (req.userId) {
         console.log('[Firestore Write Start] Updating merchant profile in "users" collection:', req.userId);
         const userRef = doc(db, 'users', req.userId);
@@ -1465,7 +1590,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.log('[Firestore Write Success] Updated merchant profile in "users" collection:', req.userId);
       }
 
-      // 3. Local states update
+      // 4. Local states update
       setAllUsers((prev) =>
         prev.map((u) => {
           if (u.id === req.userId) {
@@ -1507,6 +1632,194 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (error && typeof error === 'object') {
         console.error('[COMPLETE Firebase Error Details]:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
       }
+    }
+  };
+
+  const cancelSubscriptionRequest = async (requestId: string, notes?: string): Promise<void> => {
+    const req = subscriptionRequests.find((r) => r.id === requestId);
+    if (!req) return;
+
+    const nowIso = new Date().toISOString();
+    const ownerIdentifier = user?.ownerName || user?.email || 'Owner';
+
+    try {
+      console.log('[Firestore Write Start] Cancelling subscription request:', requestId);
+
+      // 1. Mark request as cancelled in Firestore (Preserving history!)
+      const reqRef = doc(db, 'subscriptionRequests', requestId);
+      await setDoc(
+        reqRef,
+        {
+          status: 'cancelled',
+          cancelledAt: nowIso,
+          cancelledBy: ownerIdentifier,
+          previousPlan: req.requestedPlan || req.currentPlan,
+          previousStatus: req.status,
+          notes: notes ? (req.notes ? `${req.notes} | Cancellation Note: ${notes}` : `Cancellation Note: ${notes}`) : req.notes,
+        },
+        { merge: true }
+      );
+
+      // 2. Revert merchant user profile to Free plan in Firestore (preserving account and store data)
+      if (req.userId) {
+        console.log('[Firestore Write Start] Reverting user profile to Free plan:', req.userId);
+        const userRef = doc(db, 'users', req.userId);
+        await setDoc(
+          userRef,
+          {
+            subscriptionPlan: 'Free',
+            subscription: 'free',
+            subscriptionStatus: 'cancelled',
+            pendingPlan: deleteField(),
+            cancelledAt: nowIso,
+            cancelledBy: ownerIdentifier,
+            previousPlan: req.requestedPlan || req.currentPlan,
+          },
+          { merge: true }
+        );
+      }
+
+      // 3. Update local user state
+      setAllUsers((prev) =>
+        prev.map((u) => {
+          if (u.id === req.userId) {
+            return {
+              ...u,
+              subscriptionPlan: 'Free',
+              subscriptionStatus: 'cancelled',
+              pendingPlan: undefined,
+              cancelledAt: nowIso,
+              cancelledBy: ownerIdentifier,
+              previousPlan: req.requestedPlan || req.currentPlan,
+            };
+          }
+          return u;
+        })
+      );
+
+      if (user && user.id === req.userId) {
+        setUser({
+          ...user,
+          subscriptionPlan: 'Free',
+          subscriptionStatus: 'cancelled',
+          pendingPlan: undefined,
+          cancelledAt: nowIso,
+          cancelledBy: ownerIdentifier,
+          previousPlan: req.requestedPlan || req.currentPlan,
+        });
+      }
+
+      // 4. Dispatch notification & activity log
+      const notif: AppNotification = {
+        id: `notif-${Date.now()}`,
+        title: 'Subscription Plan Cancelled',
+        titleBn: 'সাবস্ক্রিপশন বাতিল করা হয়েছে',
+        message: `Your ${req.requestedPlan || req.currentPlan} Plan subscription has been cancelled by the owner and reverted to the Free Plan. All your store products, sales, and data are safely preserved.`,
+        messageBn: `আপনার ${req.requestedPlan || req.currentPlan} প্ল্যানটি বাতিল করে ফ্রি প্ল্যানে ফেরত নেওয়া হয়েছে। আপনার সকল তথ্য অক্ষত রয়েছে।`,
+        type: 'subscription',
+        date: new Date().toISOString().split('T')[0],
+        read: false,
+        linkTab: 'subscription',
+      };
+      setNotifications((prev) => [notif, ...prev]);
+      logActivity('Cancelled User Subscription', 'সাবস্ক্রিপশন বাতিল করা হয়েছে', req.userEmail);
+    } catch (error: any) {
+      console.error('[Firestore Write Failure] Error cancelling subscription request:', error);
+    }
+  };
+
+  const cancelUserSubscription = async (userId: string, notes?: string): Promise<void> => {
+    const targetUser = allUsers.find((u) => u.id === userId);
+    if (!targetUser) return;
+
+    const nowIso = new Date().toISOString();
+    const ownerIdentifier = user?.ownerName || user?.email || 'Owner';
+
+    try {
+      console.log('[Firestore Write Start] Cancelling user subscription for user:', userId);
+
+      // 1. Mark any active/approved or pending requests for this user as cancelled
+      const userReqs = subscriptionRequests.filter(
+        (r) => r.userId === userId && (r.status === 'approved' || r.status === 'pending')
+      );
+
+      for (const req of userReqs) {
+        const reqRef = doc(db, 'subscriptionRequests', req.id);
+        await setDoc(
+          reqRef,
+          {
+            status: 'cancelled',
+            cancelledAt: nowIso,
+            cancelledBy: ownerIdentifier,
+            previousPlan: req.requestedPlan || targetUser.subscriptionPlan,
+            previousStatus: req.status,
+            notes: notes ? `Cancellation Note: ${notes}` : req.notes,
+          },
+          { merge: true }
+        );
+      }
+
+      // 2. Revert user profile in Firestore
+      const userRef = doc(db, 'users', userId);
+      await setDoc(
+        userRef,
+        {
+          subscriptionPlan: 'Free',
+          subscription: 'free',
+          subscriptionStatus: 'cancelled',
+          pendingPlan: deleteField(),
+          cancelledAt: nowIso,
+          cancelledBy: ownerIdentifier,
+          previousPlan: targetUser.subscriptionPlan,
+        },
+        { merge: true }
+      );
+
+      // 3. Local state updates
+      setAllUsers((prev) =>
+        prev.map((u) => {
+          if (u.id === userId) {
+            return {
+              ...u,
+              subscriptionPlan: 'Free',
+              subscriptionStatus: 'cancelled',
+              pendingPlan: undefined,
+              cancelledAt: nowIso,
+              cancelledBy: ownerIdentifier,
+              previousPlan: targetUser.subscriptionPlan,
+            };
+          }
+          return u;
+        })
+      );
+
+      if (user && user.id === userId) {
+        setUser({
+          ...user,
+          subscriptionPlan: 'Free',
+          subscriptionStatus: 'cancelled',
+          pendingPlan: undefined,
+          cancelledAt: nowIso,
+          cancelledBy: ownerIdentifier,
+          previousPlan: targetUser.subscriptionPlan,
+        });
+      }
+
+      const notif: AppNotification = {
+        id: `notif-${Date.now()}`,
+        title: 'Subscription Cancelled',
+        titleBn: 'সাবস্ক্রিপশন বাতিল করা হয়েছে',
+        message: `Your ${targetUser.subscriptionPlan} Plan subscription has been cancelled by the owner. You are now on the Free Plan. All your store products, sales, and business data are safely preserved.`,
+        messageBn: `আপনার সাবস্ক্রিপশন বাতিল করা হয়েছে। সকল তথ্য নিরাপদ রয়েছে।`,
+        type: 'subscription',
+        date: new Date().toISOString().split('T')[0],
+        read: false,
+        linkTab: 'subscription',
+      };
+      setNotifications((prev) => [notif, ...prev]);
+      logActivity('Cancelled User Subscription', 'সাবস্ক্রিপশন বাতিল করা হয়েছে', targetUser.email);
+    } catch (error: any) {
+      console.error('[Firestore Write Failure] Error cancelling user subscription:', error);
     }
   };
 
@@ -2266,6 +2579,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         requestSubscription,
         approveSubscriptionRequest,
         rejectSubscriptionRequest,
+        cancelSubscriptionRequest,
+        cancelUserSubscription,
         settings,
         updateSettings,
         language,
@@ -2311,6 +2626,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         recordGeneratedCode,
         isCodeGenerated,
         removeGeneratedCode,
+        getGeneratedQRCount,
+        recordGeneratedQRCodes,
         adjustStock,
         addCustomer,
         updateCustomer,

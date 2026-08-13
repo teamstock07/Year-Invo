@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Language } from '../../types';
+import { openPaddleCheckout } from '../../utils/paddleCheckout';
 import {
   CheckCircle,
   XCircle,
@@ -10,7 +11,23 @@ import {
   Zap,
   Lock,
   Loader2,
+  Globe,
+  CreditCard,
+  Building,
+  Smartphone,
+  Wallet,
+  Send,
+  Check,
+  Info,
+  DollarSign,
 } from 'lucide-react';
+import {
+  PAYMENT_REGIONS,
+  PaymentRegionId,
+  PaymentProviderConfig,
+  getEnabledProviders,
+  getProviderById,
+} from '../../config/paymentProviders';
 
 // Price & Currency Converter Engine
 const getCurrencyDetails = (currencySymbol: string) => {
@@ -130,8 +147,8 @@ const subTranslations: Record<Language, SubDict> = {
     discountBadge: 'Save 25%',
     freePlanTitle: 'Free Plan',
     freePlanSub: 'Starter Access',
-    freePlanDesc: 'Basic inventory and store tools for getting started.',
-    freeLifetime: 'Lifetime Free',
+    freePlanDesc: 'Basic inventory and store tools for 1 month trial period.',
+    freeLifetime: '1 Month Free (30 Days Trial)',
     proPlanTitle: 'Pro Plan',
     proPlanSub: 'Growing Business',
     proPlanDesc: 'Essential tools including PDF invoices, sell system, and reports.',
@@ -201,8 +218,8 @@ const subTranslations: Record<Language, SubDict> = {
     discountBadge: '২৫% সাশ্রয়',
     freePlanTitle: 'ফ্রি প্ল্যান',
     freePlanSub: 'স্টার্টার প্যাক',
-    freePlanDesc: 'নতুন ছোট ব্যবসার জন্য বেসিক ইনভেন্টরি ও স্টোর টুলস।',
-    freeLifetime: 'আজীবন ফ্রি',
+    freePlanDesc: '১ মাসের ট্রায়ালের জন্য বেসিক ইনভেন্টরি ও স্টোর টুলস।',
+    freeLifetime: '১ মাস ফ্রি ট্রায়াল (৩০ দিন)',
     proPlanTitle: 'প্রো প্ল্যান',
     proPlanSub: 'গ্রোথ প্যাক',
     proPlanDesc: 'পিডিএফ ইনভয়েস, সেলস রিপোর্ট ও ক্যাটালগ সম্বলিত প্রো সার্ভিস।',
@@ -272,8 +289,8 @@ const subTranslations: Record<Language, SubDict> = {
     discountBadge: 'خصم 25%',
     freePlanTitle: 'الخطة المجانية',
     freePlanSub: 'بداية مجانية',
-    freePlanDesc: 'أدوات أساسية لبدء إدارة متجرك.',
-    freeLifetime: 'مجاني مدى الحياة',
+    freePlanDesc: 'أدوات أساسية لمدة شهر واحد مجاناً.',
+    freeLifetime: 'تجربة مجانية لمدة شهر واحد',
     proPlanTitle: 'الخطة الاحترافية',
     proPlanSub: 'الأعمال النامية',
     proPlanDesc: 'فواتير PDF وتقارير المبيعات المتقدمة.',
@@ -343,8 +360,8 @@ const subTranslations: Record<Language, SubDict> = {
     discountBadge: 'خصم 25%',
     freePlanTitle: 'الخطة المجانية',
     freePlanSub: 'بداية مجانية',
-    freePlanDesc: 'أدوات أساسية لبدء إدارة متجرك.',
-    freeLifetime: 'مجاني مدى الحياة',
+    freePlanDesc: 'أدوات أساسية لمدة شهر واحد مجاناً.',
+    freeLifetime: 'تجربة مجانية لمدة شهر واحد',
     proPlanTitle: 'الخطة الاحترافية',
     proPlanSub: 'الأعمال النامية',
     proPlanDesc: 'فواتير PDF وتقارير المبيعات المتقدمة.',
@@ -414,8 +431,8 @@ const subTranslations: Record<Language, SubDict> = {
     discountBadge: '25% छूट',
     freePlanTitle: 'फ्री प्लान',
     freePlanSub: 'स्टार्टर एक्सेस',
-    freePlanDesc: 'छोटे व्यवसायों के लिए बुनियादी इन्वेंट्री टूल।',
-    freeLifetime: 'जीवनभर मुफ्त',
+    freePlanDesc: '1 महीने की मुफ्त अवधि के लिए बुनियादी इन्वेंट्री टूल।',
+    freeLifetime: '1 महीना मुफ्त (30 दिन ट्रायल)',
     proPlanTitle: 'प्रो प्लान',
     proPlanSub: 'ग्रोइंग बिजनेस',
     proPlanDesc: 'PDF इनवॉइस और विस्तृत बिक्री रिपोर्ट की सुविधा।',
@@ -485,8 +502,8 @@ const subTranslations: Record<Language, SubDict> = {
     discountBadge: '25% بچت',
     freePlanTitle: 'فری پلان',
     freePlanSub: 'اسٹارٹر رسائی',
-    freePlanDesc: 'چھوٹے کاروباروں کے لیے بنیادی ٹولز۔',
-    freeLifetime: 'تاحیات مفت',
+    freePlanDesc: '1 ماہ کی مفت آزمائش کے لیے بنیادی ٹولز۔',
+    freeLifetime: '1 ماہ کی مفت آزمائش',
     proPlanTitle: 'پرو پلان',
     proPlanSub: 'ترقی پذیر کاروبار',
     proPlanDesc: 'پی ڈی ایف انوائسز اور سیلز رپورٹس کے ساتھ۔',
@@ -556,8 +573,8 @@ const subTranslations: Record<Language, SubDict> = {
     discountBadge: '25% de réduction',
     freePlanTitle: 'Plan Gratuit',
     freePlanSub: 'Accès Débutant',
-    freePlanDesc: 'Fonctionnalités de base pour démarrer votre magasin.',
-    freeLifetime: 'Gratuit à vie',
+    freePlanDesc: 'Outils de base pour une période d’essai de 1 mois.',
+    freeLifetime: '1 mois gratuit (Essai 30 jours)',
     proPlanTitle: 'Plan Pro',
     proPlanSub: 'Entreprise en Croissance',
     proPlanDesc: 'Factures PDF et rapports détaillés sur les ventes.',
@@ -627,8 +644,8 @@ const subTranslations: Record<Language, SubDict> = {
     discountBadge: '25% Rabatt',
     freePlanTitle: 'Kostenloser Tarif',
     freePlanSub: 'Starter-Zugang',
-    freePlanDesc: 'Grundlegende Funktionen für den Einstieg.',
-    freeLifetime: 'Dauerhaft kostenlos',
+    freePlanDesc: 'Grundlegende Funktionen für 1 Monat Testphase.',
+    freeLifetime: '1 Monat kostenlos (30 Tage Test)',
     proPlanTitle: 'Pro-Tarif',
     proPlanSub: 'Wachsendes Geschäft',
     proPlanDesc: 'Inklusive PDF-Rechnungen und detaillierter Berichte.',
@@ -698,8 +715,8 @@ const subTranslations: Record<Language, SubDict> = {
     discountBadge: 'Ahorre 25%',
     freePlanTitle: 'Plan Gratuito',
     freePlanSub: 'Inicio Gratuito',
-    freePlanDesc: 'Herramientas básicas para comenzar su negocio.',
-    freeLifetime: 'Gratis de por vida',
+    freePlanDesc: 'Herramientas básicas para un periodo de prueba de 1 mes.',
+    freeLifetime: '1 mes gratis (Prueba de 30 días)',
     proPlanTitle: 'Plan Pro',
     proPlanSub: 'Negocio en Crecimiento',
     proPlanDesc: 'Facturas en PDF e informes detallados de ventas.',
@@ -769,8 +786,8 @@ const subTranslations: Record<Language, SubDict> = {
     discountBadge: '立省 25%',
     freePlanTitle: '免费计划',
     freePlanSub: '基础入门',
-    freePlanDesc: '适合起步阶段的基本库存与店铺管理功能。',
-    freeLifetime: '终身免费',
+    freePlanDesc: '适合1个月免费试用期的基本库存与店铺管理功能。',
+    freeLifetime: '1个月免费（30天试用）',
     proPlanTitle: '专业版 (Pro)',
     proPlanSub: '成长型企业',
     proPlanDesc: '包含PDF发票打印、销售系统与详细财务报告。',
@@ -840,8 +857,8 @@ const subTranslations: Record<Language, SubDict> = {
     discountBadge: '25% OFF',
     freePlanTitle: 'フリープラン',
     freePlanSub: 'スターター',
-    freePlanDesc: '店舗運営を始めるための基本ツール。',
-    freeLifetime: '永久無料',
+    freePlanDesc: '1ヶ月お試し期間用の基本ツール。',
+    freeLifetime: '1ヶ月無料（30日間お試し）',
     proPlanTitle: 'プロプラン (Pro)',
     proPlanSub: '成長店舗向け',
     proPlanDesc: 'PDF請求書発行や詳細売上レポートを利用可能。',
@@ -911,15 +928,14 @@ export const SubscriptionView: React.FC = () => {
 
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
 
-  // Request Modal State
+  // Dual Payment System Selection State
   const [requestPlan, setRequestPlan] = useState<'Pro' | 'Business' | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState('bKash / Nagad');
+  const [activeRegion, setActiveRegion] = useState<PaymentRegionId>('international');
+  const [selectedProviderId, setSelectedProviderId] = useState<string>('paypal');
   const [transactionId, setTransactionId] = useState('');
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-
-  const langDict = subTranslations[language] || subTranslations['en'];
 
   // Plan Prices in USD base
   const prices = {
@@ -937,44 +953,103 @@ export const SubscriptionView: React.FC = () => {
     },
   };
 
+  const langDict = subTranslations[language] || subTranslations['en'];
+
+  // Active Region Providers & Selection Helpers
+  const currentEnabledProviders = getEnabledProviders(activeRegion);
+  const selectedProvider =
+    getProviderById(selectedProviderId) || currentEnabledProviders[0];
+
+  const getPlanAmount = (
+    provider: PaymentProviderConfig | undefined,
+    plan: 'Pro' | 'Business' | null,
+    cycle: 'monthly' | 'yearly'
+  ) => {
+    if (!provider || !plan) return 0;
+    const costs = provider.supportedPlans[plan];
+    if (!costs) return 0;
+    return cycle === 'yearly' ? costs.yearly : costs.monthly;
+  };
+
   const handleSelectPlan = (planName: 'Free' | 'Pro' | 'Business' | 'Premium') => {
     if (planName === 'Free') {
       updateUser({ subscriptionPlan: 'Free' });
       return;
     }
-    setRequestPlan(planName === 'Premium' ? 'Business' : planName);
+    const targetPlan = planName === 'Premium' ? 'Business' : planName;
+    setRequestPlan(targetPlan);
+    setActiveRegion('international'); // International is selected by default (Requirement 2)
+    const intlProviders = getEnabledProviders('international');
+    if (intlProviders.length > 0) {
+      setSelectedProviderId(intlProviders[0].id);
+    }
+    setTransactionId('');
+    setSubmitError(null);
   };
 
-  const handleFormSubmitRequest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!requestPlan || isSubmitting) return;
+  const handleRegionChange = (region: PaymentRegionId) => {
+    setActiveRegion(region);
+    const providers = getEnabledProviders(region);
+    if (providers.length > 0) {
+      setSelectedProviderId(providers[0].id);
+    }
+  };
+
+  const handleLaunchPaddleCheckout = async () => {
+    if (!requestPlan || !user || isSubmitting) return;
 
     setIsSubmitting(true);
     setSubmitError(null);
 
     try {
-      const amount = requestPlan === 'Pro' ? 350 : 600;
+      await openPaddleCheckout({
+        plan: requestPlan,
+        billingCycle,
+        userId: user.id,
+        userEmail: user.email,
+        brandName: user.brandName,
+        onClose: () => setIsSubmitting(false),
+        onError: (err: any) => {
+          setIsSubmitting(false);
+          setSubmitError(err?.message || 'Paddle checkout encountered an error.');
+        },
+      });
+      // Paddle overlay is now opened
+      setIsSubmitting(false);
+    } catch (err: any) {
+      console.error('[Paddle Checkout Launch Error]:', err);
+      setSubmitError(err.message || 'Failed to initialize Paddle Checkout. Please verify your internet connection or client configuration.');
+      setIsSubmitting(false);
+    }
+  };
 
-      // Ensure Firestore document is successfully created before showing success (Requirement 6)
+  const handleFormSubmitRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!requestPlan || !selectedProvider || isSubmitting) return;
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const amount = getPlanAmount(selectedProvider, requestPlan, billingCycle);
+
       await requestSubscription({
         requestedPlan: requestPlan,
         billingCycle,
-        paymentMethod,
+        paymentMethod: selectedProvider.name,
+        paymentRegion: activeRegion,
+        paymentProvider: selectedProvider.name,
+        currency: selectedProvider.currency,
         transactionId: transactionId.trim() || undefined,
         amount,
       });
 
       setRequestPlan(null);
       setSubmittedSuccess(true);
-      setTimeout(() => setSubmittedSuccess(false), 6000);
+      setTimeout(() => setSubmittedSuccess(false), 7000);
     } catch (err: any) {
-      console.error('[COMPLETE Firebase Error Details]:', err);
-      if (err && typeof err === 'object') {
-        console.error('[Firebase Error Code]:', err.code);
-        console.error('[Firebase Error Message]:', err.message);
-        console.error('[Firebase Error Full Output]:', JSON.stringify(err, Object.getOwnPropertyNames(err)));
-      }
-      setSubmitError(err.message || 'Failed to submit request to database. Please try again.');
+      console.error('[Payment Request Submission Error]:', err);
+      setSubmitError(err.message || 'Failed to submit payment request to database. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -1002,6 +1077,18 @@ export const SubscriptionView: React.FC = () => {
             <span>
               Your request to upgrade to the <strong>{user.pendingPlan} Plan</strong> is currently pending approval by the Platform Owner.
             </span>
+          </div>
+        )}
+
+        {user?.subscriptionStatus === 'cancelled' && (
+          <div className="mt-4 p-4 bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded-2xl text-xs text-center space-y-1">
+            <p className="font-bold flex items-center justify-center gap-2">
+              <XCircle className="w-4 h-4 text-rose-400" />
+              <span>Your previous subscription plan was revoked / cancelled by the platform owner.</span>
+            </p>
+            <p className="text-[11px] text-slate-400">
+              You are currently on the Free Plan. All your store products, inventory, sales history, and business data remain safely preserved.
+            </p>
           </div>
         )}
 
@@ -1424,89 +1511,331 @@ export const SubscriptionView: React.FC = () => {
         </div>
       </div>
 
-      {/* PLAN UPGRADE PAYMENT REQUEST MODAL */}
+      {/* PLAN UPGRADE DUAL PAYMENT SELECTION MODAL */}
       {requestPlan && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl text-slate-100">
-            <div className="flex items-center justify-between">
-              <h3 className="font-extrabold text-base text-white flex items-center gap-2">
-                <Crown className="w-5 h-5 text-amber-400" />
-                <span>Upgrade to {requestPlan} Plan</span>
-              </h3>
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-7 max-w-2xl w-full space-y-5 shadow-2xl text-slate-100 max-h-[92vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-slate-800 pb-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    Subscription Upgrade
+                  </span>
+                  <span className="text-xs font-bold text-slate-400 capitalize">
+                    {billingCycle} Billing
+                  </span>
+                </div>
+                <h3 className="font-extrabold text-lg sm:text-xl text-white flex items-center gap-2">
+                  <Crown className="w-5 h-5 text-amber-400" />
+                  <span>Upgrade to {requestPlan} Plan</span>
+                </h3>
+              </div>
               <button
                 onClick={() => setRequestPlan(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
+                className="text-slate-400 hover:text-white p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 transition-colors"
+                aria-label="Close modal"
               >
                 ✕
               </button>
             </div>
 
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Submit your request for the <strong>{requestPlan} Plan ({billingCycle})</strong>. The platform owner will review your payment details and approve your upgrade.
-            </p>
+            {/* Region Selector Tabs (Requirement 1, 2, 9) */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
+                1. Select Payment Region
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-1.5 bg-slate-950 border border-slate-800/80 rounded-2xl">
+                {PAYMENT_REGIONS.map((region) => {
+                  const isActive = activeRegion === region.id;
+                  return (
+                    <button
+                      key={region.id}
+                      type="button"
+                      onClick={() => handleRegionChange(region.id)}
+                      className={`p-3.5 rounded-xl text-left transition-all duration-200 flex flex-col justify-between cursor-pointer border ${
+                        isActive
+                          ? 'bg-[#ff5c01] text-white border-[#ff5c01] shadow-lg shadow-[#ff5c01]/20'
+                          : 'bg-slate-900/60 text-slate-300 border-slate-800 hover:bg-slate-800/80 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-extrabold text-xs sm:text-sm flex items-center gap-2">
+                          {region.id === 'international' ? (
+                            <Globe className={`w-4 h-4 ${isActive ? 'text-white' : 'text-blue-400'}`} />
+                          ) : (
+                            <Smartphone className={`w-4 h-4 ${isActive ? 'text-white' : 'text-emerald-400'}`} />
+                          )}
+                          <span>{region.title}</span>
+                        </span>
+                        {isActive && <Check className="w-4 h-4 text-white" />}
+                      </div>
+                      <span className={`text-[11px] ${isActive ? 'text-white/80' : 'text-slate-400'}`}>
+                        {region.subtitle}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-            <form onSubmit={handleFormSubmitRequest} className="space-y-4">
-              {submitError && (
-                <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs font-medium">
-                  {submitError}
+            {/* Provider Selection (Requirement 3, 4, 5, 7, 8) */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
+                2. Select Configured Payment Provider
+              </label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {currentEnabledProviders.map((provider) => {
+                  const isSelected = selectedProviderId === provider.id;
+                  const providerCost = getPlanAmount(provider, requestPlan, billingCycle);
+
+                  return (
+                    <button
+                      key={provider.id}
+                      type="button"
+                      onClick={() => setSelectedProviderId(provider.id)}
+                      className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer space-y-2 relative ${
+                        isSelected
+                          ? 'bg-[#ff5c01]/10 border-[#ff5c01] ring-1 ring-[#ff5c01]'
+                          : 'bg-slate-950/80 border-slate-800 hover:border-slate-700 hover:bg-slate-900/60'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs ${
+                              provider.logoType === 'paypal'
+                                ? 'bg-blue-500/20 text-blue-400'
+                                : provider.logoType === 'bkash'
+                                ? 'bg-pink-500/20 text-pink-400'
+                                : provider.logoType === 'nagad'
+                                ? 'bg-orange-500/20 text-orange-400'
+                                : provider.logoType === 'rocket'
+                                ? 'bg-purple-500/20 text-purple-400'
+                                : 'bg-cyan-500/20 text-cyan-400'
+                            }`}
+                          >
+                            {provider.logoType === 'paypal' ? (
+                              <CreditCard className="w-4 h-4" />
+                            ) : provider.logoType === 'bank' ? (
+                              <Building className="w-4 h-4" />
+                            ) : (
+                              <Wallet className="w-4 h-4" />
+                            )}
+                          </div>
+                          <div>
+                            <span className="font-extrabold text-xs text-white block">
+                              {provider.name}
+                            </span>
+                            {provider.badge && (
+                              <span className="text-[9px] font-black uppercase text-amber-400 tracking-wider">
+                                {provider.badge}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="font-extrabold text-xs text-emerald-400 block">
+                            {provider.currencySymbol}
+                            {providerCost}
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            /{billingCycle === 'yearly' ? 'yr' : 'mo'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-slate-400 line-clamp-2">
+                        {provider.description}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Provider Instructions Card */}
+            {selectedProvider && (
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center gap-2 border-b border-slate-800/80 pb-2.5">
+                  <Info className="w-4 h-4 text-[#ff5c01]" />
+                  <span className="text-xs font-bold text-white">
+                    Payment Instructions for {selectedProvider.name}
+                  </span>
                 </div>
-              )}
 
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">
-                  Payment Method
-                </label>
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-[#ff5c01] cursor-pointer"
-                >
-                  <option value="bKash / Nagad (Mobile Wallet)">bKash / Nagad (Mobile Wallet)</option>
-                  <option value="Bank Wire Transfer">Bank Wire Transfer</option>
-                  <option value="Credit / Debit Card">Credit / Debit Card</option>
-                  <option value="Direct Admin Cash">Direct Admin Payment</option>
-                </select>
-              </div>
+                {selectedProvider.instructions?.accountNumber && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                    <div>
+                      <span className="text-slate-500 text-[10px] block">Account Name</span>
+                      <span className="font-bold text-slate-200">{selectedProvider.instructions.accountName}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 text-[10px] block">Account / Phone Number</span>
+                      <span className="font-mono font-extrabold text-amber-400">{selectedProvider.instructions.accountNumber}</span>
+                    </div>
+                    {selectedProvider.instructions.branch && (
+                      <div className="col-span-1 sm:col-span-2">
+                        <span className="text-slate-500 text-[10px] block">Branch & Bank</span>
+                        <span className="font-medium text-slate-300">{selectedProvider.instructions.branch}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">
-                  Transaction ID / Sender Number (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={transactionId}
-                  onChange={(e) => setTransactionId(e.target.value)}
-                  placeholder="e.g. TRX982347192"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#ff5c01]"
-                />
+                {selectedProvider.instructions?.note && (
+                  <p className="text-xs text-slate-300 whitespace-pre-line leading-relaxed bg-slate-900/50 p-2.5 rounded-xl border border-slate-800/60">
+                    {selectedProvider.instructions.note}
+                  </p>
+                )}
               </div>
+            )}
 
-              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs flex justify-between items-center">
-                <span className="text-slate-400 font-bold">Estimated Cost:</span>
-                <span className="font-black text-emerald-400">
-                  {requestPlan === 'Pro' ? '৳350 / month' : '৳600 / month'}
-                </span>
-              </div>
+            {/* Transaction ID Form Submission or Instant Paddle Checkout */}
+            {selectedProvider?.id === 'paddle' ? (
+              <div className="space-y-4">
+                {submitError && (
+                  <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs font-medium">
+                    {submitError}
+                  </div>
+                )}
 
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  disabled={isSubmitting}
-                  onClick={() => setRequestPlan(null)}
-                  className="px-4 py-2.5 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-700 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-5 py-2.5 bg-[#ff5c01] hover:bg-[#e05100] text-white rounded-xl text-xs font-extrabold cursor-pointer shadow-lg shadow-[#ff5c01]/20 disabled:opacity-50 flex items-center gap-2"
-                >
-                  {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>{isSubmitting ? 'Saving to Database...' : 'Submit for Approval'}</span>
-                </button>
+                {/* Amount Summary */}
+                <div className="p-4 bg-purple-950/20 rounded-2xl border border-purple-500/30 flex justify-between items-center text-xs shadow-inner">
+                  <div>
+                    <span className="text-purple-300 font-extrabold block text-sm">Paddle Sandbox Checkout</span>
+                    <span className="text-[11px] text-slate-400">
+                      {requestPlan} Plan ({billingCycle}) • Instant Activation via Webhook
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-black text-lg text-emerald-400 block">
+                      {selectedProvider?.currencySymbol}
+                      {getPlanAmount(selectedProvider, requestPlan, billingCycle)}{' '}
+                      <span className="text-xs font-bold text-slate-400">{selectedProvider?.currency}</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-300 space-y-1.5">
+                  <p className="font-bold text-white flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    <span>How Paddle Subscription Works:</span>
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 text-slate-400 text-[11px]">
+                    <li>Clicking below launches the official Paddle Checkout window.</li>
+                    <li>Complete sandbox payment with test cards or PayPal.</li>
+                    <li>Paddle server-side webhooks automatically verify and upgrade your store plan instantly.</li>
+                  </ul>
+                </div>
+
+                {/* Paddle Primary Button */}
+                <div className="flex flex-col sm:flex-row justify-end gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => setRequestPlan(null)}
+                    className="px-4 py-2.5 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-700 disabled:opacity-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={handleLaunchPaddleCheckout}
+                    className="px-6 py-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-black cursor-pointer shadow-xl shadow-purple-900/30 disabled:opacity-50 flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02]"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <CreditCard className="w-4 h-4" />
+                    )}
+                    <span>{isSubmitting ? 'Opening Paddle Checkout...' : 'Proceed to Paddle Checkout'}</span>
+                  </button>
+                </div>
               </div>
-            </form>
+            ) : (
+              <form onSubmit={handleFormSubmitRequest} className="space-y-4">
+                {submitError && (
+                  <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs font-medium">
+                    {submitError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
+                    <span>3. Enter Transaction ID / Payment Reference</span>
+                    <span className="text-[10px] text-slate-500 font-normal">
+                      {selectedProvider?.id === 'paypal' ? 'e.g. PayPal Trx ID or Email' : 'Required for manual verification'}
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    value={transactionId}
+                    onChange={(e) => setTransactionId(e.target.value)}
+                    placeholder={
+                      selectedProvider?.id === 'paypal'
+                        ? 'e.g. PAYID-982347102938'
+                        : 'e.g. TrxID TRX982347192'
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-[#ff5c01] focus:ring-1 focus:ring-[#ff5c01]"
+                  />
+                </div>
+
+                {/* Amount Summary */}
+                <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 flex justify-between items-center text-xs">
+                  <div>
+                    <span className="text-slate-400 font-bold block">Total Upgrade Amount:</span>
+                    <span className="text-[10px] text-slate-500">
+                      {requestPlan} Plan ({billingCycle}) • {selectedProvider?.name}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-black text-base text-emerald-400 block">
+                      {selectedProvider?.currencySymbol}
+                      {getPlanAmount(selectedProvider, requestPlan, billingCycle)}{' '}
+                      <span className="text-xs font-bold text-slate-400">{selectedProvider?.currency}</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Security Hint */}
+                <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  <span>
+                    <strong>Secure Verification:</strong> Sensitive payment credentials are never stored. Subscription is verified server-side.
+                  </span>
+                </p>
+
+                {/* Modal Buttons */}
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => setRequestPlan(null)}
+                    className="px-4 py-2.5 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-700 disabled:opacity-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="px-5 py-2.5 bg-[#ff5c01] hover:bg-[#e05100] text-white rounded-xl text-xs font-extrabold cursor-pointer shadow-lg shadow-[#ff5c01]/20 disabled:opacity-50 flex items-center gap-2 transition-colors"
+                  >
+                    {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span>
+                      {isSubmitting
+                        ? 'Submitting Request...'
+                        : selectedProvider?.id === 'paypal'
+                        ? 'Submit PayPal Payment'
+                        : 'Submit Payment for Verification'}
+                    </span>
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

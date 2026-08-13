@@ -45,6 +45,8 @@ export const BarcodeGeneratorView: React.FC = () => {
     generatedProductCodes,
     recordGeneratedCode,
     isCodeGenerated,
+    getGeneratedQRCount,
+    recordGeneratedQRCodes,
   } = useApp();
   const symbol = settings.currency || '৳';
   const plan = user?.subscriptionPlan || 'Free';
@@ -54,7 +56,7 @@ export const BarcodeGeneratorView: React.FC = () => {
   const [selectedProductId, setSelectedProductId] = useState<string>(
     products[0]?.id || ''
   );
-  const [copiesInput, setCopiesInput] = useState<number>(20);
+  const [copiesInput, setCopiesInput] = useState<number>(1);
   const [codeType, setCodeType] = useState<'barcode' | 'qrcode' | 'both'>('both');
   const [showPrice, setShowPrice] = useState<boolean>(true);
   const [showSKU, setShowSKU] = useState<boolean>(true);
@@ -71,6 +73,10 @@ export const BarcodeGeneratorView: React.FC = () => {
   const usedCodesCount = generatedProductCodes.length;
   const isLimitReached = usedCodesCount >= totalProductsCount;
   const isSelectedProductGenerated = selectedProduct ? isCodeGenerated(selectedProduct.id) : false;
+
+  const currentStock = selectedProduct ? (selectedProduct.stock || 0) : 0;
+  const alreadyGenerated = selectedProduct ? getGeneratedQRCount(selectedProduct.id) : 0;
+  const availableCapacity = Math.max(0, currentStock - alreadyGenerated);
 
   const filteredProducts = products.filter(
     (p) =>
@@ -91,14 +97,27 @@ export const BarcodeGeneratorView: React.FC = () => {
       return;
     }
 
-    // Check & record POS/QR code limit
-    const allowed = recordGeneratedCode(selectedProduct.id);
-    if (!allowed) {
-      alert('You have reached the maximum number of product codes. Add another product to generate a new code.');
+    const numCopies = Math.max(1, Number(copiesInput) || 1);
+
+    if (availableCapacity <= 0) {
+      alert('No additional QR codes can be generated because the available stock has been reached.');
       return;
     }
 
-    const numCopies = Math.max(1, Math.min(200, Number(copiesInput) || 1));
+    if (alreadyGenerated + numCopies > currentStock) {
+      alert(
+        `Cannot generate more QR codes than the available stock.\n\nAvailable Stock: ${currentStock}\nAlready Generated: ${alreadyGenerated}\nCan Generate: ${availableCapacity}`
+      );
+      return;
+    }
+
+    // Record POS / QR Code generation against stock limit
+    const res = recordGeneratedQRCodes(selectedProduct.id, numCopies);
+    if (!res.success) {
+      alert(res.message || 'Failed to generate QR codes.');
+      return;
+    }
+
     setIsGenerating(true);
 
     try {
@@ -407,6 +426,39 @@ export const BarcodeGeneratorView: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Stock vs QR Capacity Card (Section 9 Requirement) */}
+                <div className="p-3 bg-purple-50 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-800/50 space-y-2 text-xs">
+                  <div className="font-extrabold text-purple-900 dark:text-purple-200 flex items-center justify-between border-b border-purple-200/80 dark:border-purple-800/80 pb-1.5">
+                    <span>Stock & QR Code Capacity</span>
+                    <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-purple-200/60 dark:bg-purple-900/60 text-purple-800 dark:text-purple-200 font-bold">
+                      Available: {availableCapacity}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="p-2 bg-white dark:bg-slate-900 rounded-lg border border-purple-100 dark:border-purple-900/40">
+                      <span className="text-[10px] text-slate-500 block">Current Stock</span>
+                      <span className="font-extrabold text-slate-800 dark:text-slate-100">{currentStock}</span>
+                    </div>
+                    <div className="p-2 bg-white dark:bg-slate-900 rounded-lg border border-purple-100 dark:border-purple-900/40">
+                      <span className="text-[10px] text-slate-500 block">Generated QR Codes</span>
+                      <span className="font-extrabold text-purple-600 dark:text-purple-400">{alreadyGenerated}</span>
+                    </div>
+                    <div className="p-2 bg-white dark:bg-slate-900 rounded-lg border border-purple-100 dark:border-purple-900/40">
+                      <span className="text-[10px] text-slate-500 block">Available QR Capacity</span>
+                      <span className={`font-extrabold ${availableCapacity > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                        {availableCapacity}
+                      </span>
+                    </div>
+                  </div>
+
+                  {availableCapacity <= 0 && (
+                    <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-[11px] font-bold flex items-center gap-1.5 mt-1">
+                      <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                      <span>No additional QR codes can be generated because the available stock has been reached.</span>
+                    </div>
+                  )}
+                </div>
+
                 {/* Status indicator badge */}
                 {isSelectedProductGenerated ? (
                   <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold border border-emerald-200 dark:border-emerald-800/60">
@@ -546,9 +598,9 @@ export const BarcodeGeneratorView: React.FC = () => {
           <button
             type="button"
             onClick={handleGenerate}
-            disabled={isGenerating || !selectedProduct || (!isSelectedProductGenerated && isLimitReached)}
+            disabled={isGenerating || !selectedProduct || availableCapacity <= 0 || (!isSelectedProductGenerated && isLimitReached)}
             className={`w-full sm:w-auto px-8 py-3 font-black text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              !isSelectedProductGenerated && isLimitReached
+              availableCapacity <= 0 || (!isSelectedProductGenerated && isLimitReached)
                 ? 'bg-slate-200 dark:bg-slate-800 text-slate-500 border border-slate-300 dark:border-slate-700 cursor-not-allowed'
                 : 'bg-[#ff5c01] hover:bg-[#e05100] text-white shadow-lg shadow-[#ff5c01]/20 disabled:opacity-50'
             }`}
@@ -557,6 +609,8 @@ export const BarcodeGeneratorView: React.FC = () => {
             <span>
               {isGenerating
                 ? 'Generating Labels...'
+                : availableCapacity <= 0
+                ? 'Stock Limit Reached (0 Available Capacity)'
                 : !isSelectedProductGenerated && isLimitReached
                 ? `Limit Reached (${usedCodesCount}/${totalProductsCount} Codes Used)`
                 : `Generate ${copiesInput} Printable Labels`}

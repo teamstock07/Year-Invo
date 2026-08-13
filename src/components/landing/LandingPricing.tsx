@@ -32,12 +32,12 @@ export const LandingPricing: React.FC<LandingPricingProps> = ({ onOpenSignup }) 
     {
       id: 'free',
       name: 'Free Starter',
-      badge: isBn ? 'ফ্রি প্ল্যান' : '100% Free Forever',
+      badge: isBn ? 'ফ্রি ১ মাস' : '1 Month Free Trial',
       desc: isBn
-        ? 'নতুন দোকান বা ছোট ব্যবসার জন্য সম্পূর্ণ ফ্রীতে ব্যবহার করুন।'
-        : 'Perfect for small retail shops starting digital store management.',
+        ? 'নতুন দোকান বা ছোট ব্যবসার জন্য ১ মাসের ফ্রি ট্রায়াল ব্যবস্থার সুবিধা।'
+        : 'Perfect for small retail shops with a 1 month free trial access.',
       price: getPrice(0),
-      period: isBn ? 'চিরদিনের জন্য ফ্রি' : 'Forever Free',
+      period: isBn ? '১ মাসের জন্য ফ্রি' : 'Free for 1 Month',
       popular: false,
       features: [
         isBn ? '১টি শোরুম / দোকান শাখা' : '1 Store Branch',
@@ -52,7 +52,7 @@ export const LandingPricing: React.FC<LandingPricingProps> = ({ onOpenSignup }) 
         isBn ? 'মাল্টি-স্টাফ রুলস ও পারমিশন' : 'Multi-Staff Role Management',
         isBn ? 'কাস্টম লোগো ও ব্র্যান্ডিং' : 'Custom Store Logo Printing',
       ],
-      buttonText: isBn ? 'ফ্রি অ্যাকাউন্ট খুলুন' : 'Start Free Forever',
+      buttonText: isBn ? '১ মাসের ফ্রী অ্যাকাউন্ট খুলুন' : 'Start 1 Month Free Trial',
       buttonVariant: 'secondary',
     },
     {

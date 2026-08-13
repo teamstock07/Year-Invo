@@ -149,16 +149,45 @@ export const PosSystem: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [products, addToCart]);
 
-  // Filter Products
-  const filteredProducts = products.filter((p) => {
-    const matchesSearch =
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.barcode.includes(searchQuery);
+  // Filter and sort Products (Valid products first, expired products last)
+  const todayStr = new Date().toISOString().split('T')[0];
+  const filteredProducts = products
+    .filter((p) => {
+      const matchesSearch =
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.barcode.includes(searchQuery);
 
-    const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+      const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    })
+    .sort((a, b) => {
+      // Rank 1: Valid products with expiry date (expiryDate > todayStr)
+      // Rank 2: Products with no expiry date
+      // Rank 3: Expired products (expiryDate <= todayStr) - ALWAYS at bottom
+      const getRank = (p: Product) => {
+        if (!p.expiryDate) return 2;
+        if (p.expiryDate <= todayStr) return 3;
+        return 1;
+      };
+
+      const rankA = getRank(a);
+      const rankB = getRank(b);
+
+      if (rankA !== rankB) {
+        return rankA - rankB;
+      }
+
+      if (rankA === 1 && a.expiryDate && b.expiryDate) {
+        return a.expiryDate.localeCompare(b.expiryDate);
+      }
+
+      if (rankA === 3 && a.expiryDate && b.expiryDate) {
+        return a.expiryDate.localeCompare(b.expiryDate);
+      }
+
+      return 0;
+    });
 
   const toggleSelectProduct = (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -425,18 +454,6 @@ export const PosSystem: React.FC = () => {
           >
             <Monitor className="w-4 h-4" />
             <span className="hidden md:inline">Display</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setDrawerOpenMessage(true);
-              setTimeout(() => setDrawerOpenMessage(false), 3000);
-            }}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 cursor-pointer"
-            title="Open Cash Drawer"
-          >
-            <Landmark className="w-4 h-4 text-[#ff5c01]" />
-            <span className="hidden md:inline">Drawer</span>
           </button>
         </div>
 

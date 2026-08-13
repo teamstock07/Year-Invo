@@ -69,8 +69,8 @@ export const LandingSupport: React.FC = () => {
     {
       q: isBn ? 'YearInvo সফটওয়্যার কি সম্পূর্ণ ফ্রি ব্যবহার করা যায়?' : 'Is YearInvo really free to try?',
       a: isBn
-        ? 'হ্যাঁ! আমাদের Free Starter Plan সবসময় ফ্রি। আপনি ১০০টি প্রোডাক্ট পর্যন্ত কোনো ফি ছাড়াই ব্যবহার করতে পারবেন।'
-        : 'Yes! Our Free Starter Plan is 100% free forever with no credit card required. You can manage up to 100 products.',
+        ? 'হ্যাঁ! আমাদের Free Starter Plan ১ মাসের জন্য সম্পূর্ণ ফ্রি। আপনি ১০০টি প্রোডাক্ট পর্যন্ত কোনো ফি ছাড়াই ট্রায়াল দিতে পারবেন।'
+        : 'Yes! Our Free Starter Plan includes a 1 month free trial with no credit card required. You can manage up to 100 products during trial.',
     },
     {
       q: isBn ? 'বারকোড স্টিকার কি যেকোনো প্রিন্টারে প্রিন্ট করা যাবে?' : 'Can I print barcode stickers on thermal sticker printers?',

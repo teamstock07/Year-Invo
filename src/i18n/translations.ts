@@ -38,10 +38,12 @@ export const translations: Record<Language, Record<string, string>> = {
     navHelp: 'Help & Support',
     navHome: 'Home',
     navQuickSale: 'Quick Sale',
+    navMenu: 'Menu',
     navMore: 'More',
     navAbout: 'About',
     navSettings: 'Settings',
     navOwnerPanel: 'Owner Panel',
+    branding: 'Store Branding',
 
     // Roles & Badges
     roleOwner: 'Owner',
@@ -253,10 +255,12 @@ export const translations: Record<Language, Record<string, string>> = {
     navHelp: 'সাহায্য ও সহায়তা',
     navHome: 'হোম',
     navQuickSale: 'কুইক সেল',
+    navMenu: 'মেনু',
     navMore: 'আরও',
     navAbout: 'সম্পর্কে',
     navSettings: 'সেটিংস',
     navOwnerPanel: 'ওনার প্যানেল',
+    branding: 'স্টোর ব্র্যান্ডিং',
 
     // Roles & Badges
     roleOwner: 'মালিক (Owner)',

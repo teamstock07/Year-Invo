@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Sale } from '../../types';
+import { Sale, Product } from '../../types';
 import { QuickReceiptModal } from './QuickReceiptModal';
 import { CustomerSelector } from '../common/CustomerSelector';
 import { findProductByCode, findProductWithStoreCheck } from '../../utils/scanner';
@@ -52,11 +52,40 @@ export const QuickSaleView: React.FC = () => {
   const [completedSale, setCompletedSale] = useState<Sale | null>(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
 
-  // Filter available products
-  const filteredProducts = products.filter((p) =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.sku.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter and sort available products (Valid products first, expired products last)
+  const todayStr = new Date().toISOString().split('T')[0];
+  const filteredProducts = products
+    .filter((p) =>
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.sku.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      // Rank 1: Valid products with expiry date (expiryDate > todayStr)
+      // Rank 2: Products with no expiry date
+      // Rank 3: Expired products (expiryDate <= todayStr) - ALWAYS at bottom
+      const getRank = (p: Product) => {
+        if (!p.expiryDate) return 2;
+        if (p.expiryDate <= todayStr) return 3;
+        return 1;
+      };
+
+      const rankA = getRank(a);
+      const rankB = getRank(b);
+
+      if (rankA !== rankB) {
+        return rankA - rankB;
+      }
+
+      if (rankA === 1 && a.expiryDate && b.expiryDate) {
+        return a.expiryDate.localeCompare(b.expiryDate);
+      }
+
+      if (rankA === 3 && a.expiryDate && b.expiryDate) {
+        return a.expiryDate.localeCompare(b.expiryDate);
+      }
+
+      return 0;
+    });
 
   const subtotal = cart.reduce((acc, item) => acc + item.product.sellingPrice * item.quantity, 0);
   const calculatedDiscount = discountType === 'percent'

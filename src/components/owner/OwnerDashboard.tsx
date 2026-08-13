@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { SubscriptionPlan, UserProfile, UserRole } from '../../types';
+import { SubscriptionPlan, UserProfile, UserRole, SubscriptionRequest } from '../../types';
 import {
   ShieldCheck,
   Users,
@@ -12,6 +12,7 @@ import {
   Award,
   Clock,
   CheckCircle2,
+  CheckCircle,
   XCircle,
   Building,
   Building2,
@@ -45,6 +46,10 @@ import {
   Sparkles,
   Check,
   UserPlus,
+  RotateCcw,
+  FileText,
+  AlertTriangle,
+  History,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -79,6 +84,8 @@ export const OwnerDashboard: React.FC = () => {
     subscriptionRequests,
     approveSubscriptionRequest,
     rejectSubscriptionRequest,
+    cancelSubscriptionRequest,
+    cancelUserSubscription,
     settings,
     updateSettings,
     sales,
@@ -254,18 +261,91 @@ export const OwnerDashboard: React.FC = () => {
     (u) => u.subscriptionPlan === 'Pro' || u.subscriptionPlan === 'Business' || u.subscriptionPlan === 'Lifetime'
   ).length;
   const freeUsers = allUsers.filter((u) => u.subscriptionPlan === 'Free' || u.subscriptionPlan === 'Starter').length;
-  const [subFilterTab, setSubFilterTab] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  // Subscription Management States & Modals
+  const [subFilterTab, setSubFilterTab] = useState<'all' | 'pending' | 'approved' | 'cancelled' | 'rejected' | 'expired'>('all');
+  const [cancelConfirmModal, setCancelConfirmModal] = useState<{
+    req?: SubscriptionRequest;
+    userProfile?: UserProfile;
+  } | null>(null);
+  const [cancelReasonNote, setCancelReasonNote] = useState('');
+  const [approveConfirmModal, setApproveConfirmModal] = useState<SubscriptionRequest | null>(null);
+  const [selectedDetailRequest, setSelectedDetailRequest] = useState<SubscriptionRequest | null>(null);
 
+  // Subscription Request Categories
   const pendingRequests = useMemo(() => subscriptionRequests.filter((r) => r.status === 'pending'), [subscriptionRequests]);
   const approvedRequests = useMemo(() => subscriptionRequests.filter((r) => r.status === 'approved'), [subscriptionRequests]);
+  const cancelledRequests = useMemo(() => subscriptionRequests.filter((r) => r.status === 'cancelled'), [subscriptionRequests]);
   const rejectedRequests = useMemo(() => subscriptionRequests.filter((r) => r.status === 'rejected'), [subscriptionRequests]);
+  const expiredRequests = useMemo(() => subscriptionRequests.filter((r) => r.status === 'expired'), [subscriptionRequests]);
 
   const filteredSubscriptionRequests = useMemo(() => {
-    if (subFilterTab === 'pending') return pendingRequests;
-    if (subFilterTab === 'approved') return approvedRequests;
-    if (subFilterTab === 'rejected') return rejectedRequests;
-    return subscriptionRequests;
-  }, [subscriptionRequests, subFilterTab, pendingRequests, approvedRequests, rejectedRequests]);
+    let list = subscriptionRequests;
+    if (subFilterTab === 'pending') list = pendingRequests;
+    else if (subFilterTab === 'approved') list = approvedRequests;
+    else if (subFilterTab === 'cancelled') list = cancelledRequests;
+    else if (subFilterTab === 'rejected') list = rejectedRequests;
+    else if (subFilterTab === 'expired') list = expiredRequests;
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(
+        (r) =>
+          (r.brandName && r.brandName.toLowerCase().includes(q)) ||
+          (r.userName && r.userName.toLowerCase().includes(q)) ||
+          (r.userEmail && r.userEmail.toLowerCase().includes(q)) ||
+          (r.requestedPlan && r.requestedPlan.toLowerCase().includes(q)) ||
+          (r.transactionId && r.transactionId.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [
+    subscriptionRequests,
+    subFilterTab,
+    pendingRequests,
+    approvedRequests,
+    cancelledRequests,
+    rejectedRequests,
+    expiredRequests,
+    searchQuery,
+  ]);
+
+  // Handle Approve Request with Duplicate Active Check
+  const handleInitiateApprove = (req: SubscriptionRequest) => {
+    const targetUser = allUsers.find((u) => u.id === req.userId || u.email === req.userEmail);
+    const hasActivePaidPlan =
+      targetUser &&
+      (targetUser.subscriptionPlan === 'Pro' ||
+        targetUser.subscriptionPlan === 'Business' ||
+        targetUser.subscriptionPlan === 'Tier2' ||
+        targetUser.subscriptionPlan === 'Lifetime' ||
+        targetUser.subscriptionPlan === 'Starter') &&
+      targetUser.subscriptionPlan !== req.requestedPlan;
+
+    if (hasActivePaidPlan) {
+      setApproveConfirmModal(req);
+    } else {
+      approveSubscriptionRequest(req.id);
+    }
+  };
+
+  // Handle Execute Subscription Cancellation
+  const handleConfirmCancel = async () => {
+    if (cancelConfirmModal?.req) {
+      await cancelSubscriptionRequest(cancelConfirmModal.req.id, cancelReasonNote);
+    } else if (cancelConfirmModal?.userProfile) {
+      await cancelUserSubscription(cancelConfirmModal.userProfile.id, cancelReasonNote);
+    }
+    setCancelConfirmModal(null);
+    setCancelReasonNote('');
+  };
+
+  // Handle Confirm Duplicate Plan Replacement Approval
+  const handleConfirmDuplicateApprove = async () => {
+    if (approveConfirmModal) {
+      await approveSubscriptionRequest(approveConfirmModal.id);
+      setApproveConfirmModal(null);
+    }
+  };
 
   // Platform Sales & Revenue Estimates
   const totalSalesRevenue = sales.reduce((acc, s) => acc + (s.totalAmount || 0), 0);
@@ -1280,49 +1360,100 @@ export const OwnerDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 3: SUBSCRIPTION APPROVALS */}
+      {/* TAB 3: SUBSCRIPTION APPROVALS & MANAGEMENT */}
       {activeTab === 'subscriptions' && (
         <div className="space-y-6">
+          {/* Summary Stat Metric Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center shrink-0">
+                <Award className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Total Requests</span>
+                <span className="font-extrabold text-lg text-white">{subscriptionRequests.length}</span>
+              </div>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Pending Review</span>
+                <span className="font-extrabold text-lg text-amber-400">{pendingRequests.length}</span>
+              </div>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Active / Approved</span>
+                <span className="font-extrabold text-lg text-emerald-400">{approvedRequests.length}</span>
+              </div>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
+                <XCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Cancelled / Revoked</span>
+                <span className="font-extrabold text-lg text-rose-400">{cancelledRequests.length}</span>
+              </div>
+            </div>
+          </div>
+
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6 shadow-lg">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
               <div>
                 <h3 className="font-extrabold text-base text-white flex items-center gap-2">
                   <Award className="w-5 h-5 text-amber-400" />
-                  <span>Merchant Subscription Requests</span>
+                  <span>Merchant Subscription Management & History</span>
                 </h3>
-                <p className="text-xs text-slate-400">Manage and review subscription plan upgrade requests from merchants</p>
+                <p className="text-xs text-slate-400">Review, approve, cancel, or revoke merchant subscription plans with complete audit history</p>
               </div>
 
               {/* Status Filter Pills */}
               <div className="flex items-center gap-1.5 p-1 bg-slate-950 border border-slate-800 rounded-xl overflow-x-auto text-xs">
                 <button
                   onClick={() => setSubFilterTab('all')}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                    subFilterTab === 'all' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    subFilterTab === 'all' ? 'bg-purple-600 text-white shadow' : 'text-slate-400 hover:text-white'
                   }`}
                 >
                   All ({subscriptionRequests.length})
                 </button>
                 <button
                   onClick={() => setSubFilterTab('pending')}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                    subFilterTab === 'pending' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-amber-400'
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    subFilterTab === 'pending' ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-amber-400'
                   }`}
                 >
                   Pending ({pendingRequests.length})
                 </button>
                 <button
                   onClick={() => setSubFilterTab('approved')}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                    subFilterTab === 'approved' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-emerald-400'
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    subFilterTab === 'approved' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-emerald-400'
                   }`}
                 >
-                  Approved ({approvedRequests.length})
+                  Active ({approvedRequests.length})
+                </button>
+                <button
+                  onClick={() => setSubFilterTab('cancelled')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    subFilterTab === 'cancelled' ? 'bg-rose-600 text-white shadow' : 'text-slate-400 hover:text-rose-400'
+                  }`}
+                >
+                  Cancelled ({cancelledRequests.length})
                 </button>
                 <button
                   onClick={() => setSubFilterTab('rejected')}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                    subFilterTab === 'rejected' ? 'bg-rose-600 text-white' : 'text-slate-400 hover:text-rose-400'
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    subFilterTab === 'rejected' ? 'bg-slate-700 text-slate-200 shadow' : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
                   Rejected ({rejectedRequests.length})
@@ -1333,8 +1464,8 @@ export const OwnerDashboard: React.FC = () => {
             {filteredSubscriptionRequests.length === 0 ? (
               <div className="p-8 text-center bg-slate-950/60 rounded-xl border border-slate-800 text-slate-400 space-y-2">
                 <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
-                <p className="font-bold text-sm text-slate-200">No subscription requests found</p>
-                <p className="text-xs text-slate-500">There are no requests matching the selected filter ({subFilterTab}).</p>
+                <p className="font-bold text-sm text-slate-200">No subscription records found</p>
+                <p className="text-xs text-slate-500">There are no records matching the selected status filter ({subFilterTab}).</p>
               </div>
             ) : (
               <div className="divide-y divide-slate-800 border border-slate-800 rounded-xl overflow-hidden">
@@ -1342,24 +1473,34 @@ export const OwnerDashboard: React.FC = () => {
                   <div key={req.id} className="p-5 bg-slate-950/50 hover:bg-slate-800/40 transition-colors space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <h4 className="font-extrabold text-sm text-white">{req.brandName || 'Store'}</h4>
-                          <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold text-[10px]">
+                          <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold text-[10px] border border-purple-500/30">
                             {req.requestedPlan} Plan
                           </span>
                           {req.status === 'pending' && (
                             <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold text-[10px]">
-                              Pending Review
+                              ● Pending Review
                             </span>
                           )}
                           {req.status === 'approved' && (
                             <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold text-[10px]">
-                              Approved
+                              ● Active / Approved
+                            </span>
+                          )}
+                          {req.status === 'cancelled' && (
+                            <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold text-[10px]">
+                              ✕ Cancelled / Revoked
                             </span>
                           )}
                           {req.status === 'rejected' && (
-                            <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold text-[10px]">
-                              Rejected
+                            <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-bold text-[10px]">
+                              ✕ Rejected
+                            </span>
+                          )}
+                          {req.status === 'expired' && (
+                            <span className="px-2 py-0.5 rounded-full bg-amber-900/40 text-amber-300 border border-amber-700/50 font-bold text-[10px]">
+                              ⏱ Expired
                             </span>
                           )}
                         </div>
@@ -1368,12 +1509,22 @@ export const OwnerDashboard: React.FC = () => {
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-2 text-xs">
-                        {req.status === 'pending' ? (
+                      {/* Action Buttons */}
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <button
+                          onClick={() => setSelectedDetailRequest(req)}
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                          title="View Details and Audit Log"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Details</span>
+                        </button>
+
+                        {req.status === 'pending' && (
                           <>
                             <button
-                              onClick={() => approveSubscriptionRequest(req.id)}
-                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1.5"
+                              onClick={() => handleInitiateApprove(req)}
+                              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1.5"
                             >
                               <Check className="w-4 h-4" />
                               <span>Approve Upgrade</span>
@@ -1381,43 +1532,67 @@ export const OwnerDashboard: React.FC = () => {
 
                             <button
                               onClick={() => setRejectModalReqId(req.id)}
-                              className="px-4 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                              className="px-3.5 py-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
                             >
                               <X className="w-4 h-4" />
-                              <span>Reject Request</span>
+                              <span>Reject</span>
                             </button>
                           </>
-                        ) : req.status === 'approved' ? (
-                          <div className="text-right text-xs">
-                            <span className="text-emerald-400 font-bold block">✓ Request Approved</span>
-                            {req.reviewedDate && <span className="text-slate-500 text-[10px]">{new Date(req.reviewedDate).toLocaleDateString()}</span>}
-                          </div>
-                        ) : (
-                          <div className="text-right text-xs">
-                            <span className="text-rose-400 font-bold block">✕ Request Rejected</span>
-                            {req.notes && <span className="text-slate-400 text-[10px] block">Reason: {req.notes}</span>}
-                          </div>
+                        )}
+
+                        {req.status === 'approved' && (
+                          <button
+                            onClick={() => setCancelConfirmModal({ req })}
+                            className="px-3.5 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                          >
+                            <XCircle className="w-4 h-4" />
+                            <span>Cancel / Revoke Subscription</span>
+                          </button>
+                        )}
+
+                        {(req.status === 'cancelled' || req.status === 'rejected') && (
+                          <button
+                            onClick={() => handleInitiateApprove(req)}
+                            className="px-3.5 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Reactivate Plan</span>
+                          </button>
                         )}
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-xs">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-xs">
                       <div>
-                        <span className="text-slate-500 block text-[10px]">Requested Plan</span>
-                        <span className="font-bold text-amber-400">{req.requestedPlan}</span>
+                        <span className="text-slate-500 block text-[10px]">Plan & Cycle</span>
+                        <span className="font-bold text-amber-400">{req.requestedPlan} ({req.billingCycle})</span>
                       </div>
                       <div>
-                        <span className="text-slate-500 block text-[10px]">Billing Cycle</span>
-                        <span className="font-bold text-slate-200 capitalize">{req.billingCycle}</span>
+                        <span className="text-slate-500 block text-[10px]">Payment Region</span>
+                        <span className="font-bold text-slate-200 capitalize">
+                          {req.paymentRegion === 'international' ? 'International' : 'Bangladesh'}
+                        </span>
                       </div>
                       <div>
-                        <span className="text-slate-500 block text-[10px]">Payment Method</span>
-                        <span className="font-bold text-slate-200">{req.paymentMethod}</span>
+                        <span className="text-slate-500 block text-[10px]">Payment Provider</span>
+                        <span className="font-bold text-slate-200">{req.paymentProvider || req.paymentMethod}</span>
                       </div>
                       <div>
-                        <span className="text-slate-500 block text-[10px]">Trx ID / Amount</span>
+                        <span className="text-slate-500 block text-[10px]">Trx ID & Amount</span>
                         <span className="font-mono text-purple-300 font-bold">
-                          {req.transactionId || 'Manual'} • ৳{req.amount}
+                          {req.transactionId || 'Manual'} • {req.currency === 'USD' || req.currency === '$' ? '$' : '৳'}{req.amount} ({req.currency || (req.paymentRegion === 'bangladesh' ? 'BDT' : 'USD')})
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[10px]">
+                          {req.status === 'approved' ? 'Approved Date' : req.status === 'cancelled' ? 'Cancelled Date' : 'Submitted Date'}
+                        </span>
+                        <span className="font-bold text-slate-300">
+                          {req.status === 'approved' && req.reviewedDate
+                            ? formatDate(req.reviewedDate)
+                            : req.status === 'cancelled' && req.cancelledAt
+                            ? formatDate(req.cancelledAt)
+                            : formatDate(req.requestDate)}
                         </span>
                       </div>
                     </div>
@@ -1920,6 +2095,331 @@ export const OwnerDashboard: React.FC = () => {
                 className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl cursor-pointer"
               >
                 Reject Request
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 6: CANCEL / REVOKE SUBSCRIPTION CONFIRMATION */}
+      {cancelConfirmModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="max-w-lg w-full bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-5">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div className="space-y-1 min-w-0">
+                <h3 className="font-extrabold text-lg text-white">
+                  Confirm Subscription Cancellation
+                </h3>
+                <p className="text-xs text-slate-300">
+                  Are you sure you want to cancel / revoke this active subscription plan?
+                </p>
+              </div>
+            </div>
+
+            {/* Business Data Preservation Guarantee Note */}
+            <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300 space-y-1">
+              <p className="font-bold flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-amber-400" />
+                <span>Safe Revocation Guarantee</span>
+              </p>
+              <p className="text-[11px] text-amber-200/80 leading-relaxed">
+                Cancelling this subscription will revert the merchant's store plan to the <strong>Free Plan</strong>. The merchant's user account, store products, sales history, customer databases, and inventory records will <strong>NOT be deleted or altered</strong>.
+              </p>
+            </div>
+
+            {/* Target Subscription Info Card */}
+            <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-2 text-xs">
+              <div className="flex justify-between items-center border-b border-slate-800/80 pb-2">
+                <span className="text-slate-400">Store / Merchant:</span>
+                <span className="font-extrabold text-white">
+                  {cancelConfirmModal.req?.brandName || cancelConfirmModal.userProfile?.brandName || 'Store'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Owner Email:</span>
+                <span className="font-mono text-purple-300">
+                  {cancelConfirmModal.req?.userEmail || cancelConfirmModal.userProfile?.email}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Current Plan:</span>
+                <span className="font-bold text-amber-400">
+                  {cancelConfirmModal.req?.requestedPlan || cancelConfirmModal.userProfile?.subscriptionPlan}
+                </span>
+              </div>
+            </div>
+
+            {/* Reason Input */}
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1">
+                Reason / Internal Audit Note (Optional)
+              </label>
+              <textarea
+                rows={2}
+                value={cancelReasonNote}
+                onChange={(e) => setCancelReasonNote(e.target.value)}
+                placeholder="e.g. Requested by merchant / Payment refund issued / Policy violation..."
+                className="w-full py-2 px-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-rose-500"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                onClick={() => {
+                  setCancelConfirmModal(null);
+                  setCancelReasonNote('');
+                }}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl cursor-pointer"
+              >
+                Keep Active
+              </button>
+
+              <button
+                onClick={handleConfirmCancel}
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-lg cursor-pointer flex items-center gap-2"
+              >
+                <XCircle className="w-4 h-4" />
+                <span>Confirm Cancellation</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 7: DUPLICATE PLAN REPLACEMENT CONFIRMATION */}
+      {approveConfirmModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                <Crown className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-base text-white">Existing Active Subscription Found</h3>
+                <p className="text-xs text-slate-400">Confirm plan upgrade replacement</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Merchant <strong className="text-white">{approveConfirmModal.brandName}</strong> ({approveConfirmModal.userEmail}) currently has an active subscription.
+            </p>
+
+            <div className="p-3.5 bg-purple-950/40 border border-purple-800/60 rounded-xl text-xs space-y-1">
+              <p className="text-purple-300">
+                Approving this request will replace their current plan with the <strong>{approveConfirmModal.requestedPlan} Plan</strong> ({approveConfirmModal.billingCycle}).
+              </p>
+              <p className="text-slate-400 text-[11px]">
+                The previous request history will be preserved with full audit logs.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setApproveConfirmModal(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDuplicateApprove}
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg cursor-pointer flex items-center gap-1.5"
+              >
+                <Check className="w-4 h-4" />
+                <span>Approve & Supersede</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 8: SUBSCRIPTION REQUEST AUDIT & DETAILS */}
+      {selectedDetailRequest && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="max-w-lg w-full bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-purple-400" />
+                <h3 className="font-extrabold text-base text-white">Subscription Audit Details</h3>
+              </div>
+              <button
+                onClick={() => setSelectedDetailRequest(null)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Merchant Overview */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+                <Building className="w-3.5 h-3.5 text-purple-400" />
+                <span>Merchant Information</span>
+              </h4>
+              <div className="grid grid-cols-2 gap-3 bg-slate-950 p-3.5 rounded-xl border border-slate-800 text-xs">
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Brand Name</span>
+                  <span className="font-extrabold text-white">{selectedDetailRequest.brandName || 'N/A'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Applicant Name</span>
+                  <span className="font-bold text-slate-200">{selectedDetailRequest.userName}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Email Address</span>
+                  <span className="font-mono text-purple-300 text-[11px]">{selectedDetailRequest.userEmail}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">User ID (UID)</span>
+                  <span className="font-mono text-slate-400 text-[10px] truncate block">{selectedDetailRequest.userId || 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Plan & Payment Info */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+                <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Plan & Payment Details</span>
+              </h4>
+              <div className="grid grid-cols-2 gap-3 bg-slate-950 p-3.5 rounded-xl border border-slate-800 text-xs">
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Requested Plan</span>
+                  <span className="font-bold text-amber-400">{selectedDetailRequest.requestedPlan}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Billing Cycle</span>
+                  <span className="font-bold text-slate-200 capitalize">{selectedDetailRequest.billingCycle}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Payment Region</span>
+                  <span className="font-bold text-slate-200">
+                    {selectedDetailRequest.paymentRegion === 'international' ? 'International Payment (USD)' : 'Bangladesh Payment (BDT)'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Payment Provider</span>
+                  <span className="font-bold text-slate-200">
+                    {selectedDetailRequest.paymentProvider || selectedDetailRequest.paymentMethod}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Transaction ID</span>
+                  <span className="font-mono text-purple-300 font-bold">
+                    {selectedDetailRequest.transactionId || 'Manual / None'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Payment Amount</span>
+                  <span className="font-extrabold text-emerald-400">
+                    {selectedDetailRequest.currency === 'USD' || selectedDetailRequest.currency === '$' ? '$' : '৳'}{selectedDetailRequest.amount} ({selectedDetailRequest.currency || (selectedDetailRequest.paymentRegion === 'bangladesh' ? 'BDT' : 'USD')})
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">Subscription Status</span>
+                  <span className="font-bold uppercase text-emerald-400">{selectedDetailRequest.status}</span>
+                </div>
+                {selectedDetailRequest.currentPeriodStart && (
+                  <div>
+                    <span className="text-slate-500 block text-[10px]">Start Date</span>
+                    <span className="font-bold text-slate-300">{formatDate(selectedDetailRequest.currentPeriodStart)}</span>
+                  </div>
+                )}
+                {selectedDetailRequest.currentPeriodEnd && (
+                  <div>
+                    <span className="text-slate-500 block text-[10px]">Next Billing Date</span>
+                    <span className="font-bold text-purple-300">{formatDate(selectedDetailRequest.currentPeriodEnd)}</span>
+                  </div>
+                )}
+                {selectedDetailRequest.paddleSubscriptionId && (
+                  <div>
+                    <span className="text-slate-500 block text-[10px]">Paddle Subscription ID</span>
+                    <span className="font-mono text-indigo-300 font-bold">{selectedDetailRequest.paddleSubscriptionId}</span>
+                  </div>
+                )}
+                {selectedDetailRequest.paddlePriceId && (
+                  <div>
+                    <span className="text-slate-500 block text-[10px]">Paddle Price ID</span>
+                    <span className="font-mono text-indigo-300 font-bold">{selectedDetailRequest.paddlePriceId}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Audit Trail Timeline */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+                <History className="w-3.5 h-3.5 text-amber-400" />
+                <span>Audit Log Timeline</span>
+              </h4>
+              <div className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 text-xs space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Request Submitted:</span>
+                  </span>
+                  <span className="font-bold text-slate-200">{formatDate(selectedDetailRequest.requestDate)}</span>
+                </div>
+
+                {selectedDetailRequest.reviewedDate && (
+                  <div className="flex items-center justify-between border-t border-slate-800/80 pt-2">
+                    <span className="text-slate-400 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Approved On:</span>
+                    </span>
+                    <span className="font-bold text-emerald-400">
+                      {formatDate(selectedDetailRequest.reviewedDate)} {selectedDetailRequest.approvedBy ? `(by ${selectedDetailRequest.approvedBy})` : ''}
+                    </span>
+                  </div>
+                )}
+
+                {selectedDetailRequest.cancelledAt && (
+                  <div className="flex items-center justify-between border-t border-slate-800/80 pt-2">
+                    <span className="text-slate-400 flex items-center gap-1.5">
+                      <XCircle className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Cancelled On:</span>
+                    </span>
+                    <span className="font-bold text-rose-400">
+                      {formatDate(selectedDetailRequest.cancelledAt)} {selectedDetailRequest.cancelledBy ? `(by ${selectedDetailRequest.cancelledBy})` : ''}
+                    </span>
+                  </div>
+                )}
+
+                {selectedDetailRequest.notes && (
+                  <div className="border-t border-slate-800/80 pt-2">
+                    <span className="text-slate-400 block text-[10px]">Notes / Comments:</span>
+                    <p className="text-slate-200 text-xs bg-slate-900 p-2 rounded-lg mt-1 italic border border-slate-800">
+                      "{selectedDetailRequest.notes}"
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+              {selectedDetailRequest.status === 'approved' && (
+                <button
+                  onClick={() => {
+                    const req = selectedDetailRequest;
+                    setSelectedDetailRequest(null);
+                    setCancelConfirmModal({ req });
+                  }}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl cursor-pointer flex items-center gap-1.5"
+                >
+                  <XCircle className="w-4 h-4" />
+                  <span>Cancel Subscription</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => setSelectedDetailRequest(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl cursor-pointer"
+              >
+                Close
               </button>
             </div>
           </div>

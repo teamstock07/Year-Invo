@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import { handlePaddleWebhook } from "./server/paddleWebhook";
 
 dotenv.config();
 
@@ -13,7 +14,15 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 3000;
 
-app.use(express.json({ limit: "10mb" }));
+// Configure Express to capture raw body for HMAC signature verification
+app.use(
+  express.json({
+    limit: "10mb",
+    verify: (req: any, _res, buf) => {
+      req.rawBody = buf.toString("utf8");
+    },
+  })
+);
 
 // Initialize Gemini Client
 const getGeminiClient = () => {
@@ -35,6 +44,9 @@ const getGeminiClient = () => {
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
+
+// Paddle Billing Server-side Webhook Endpoint
+app.post("/api/paddle/webhook", handlePaddleWebhook);
 
 // Gemini AI Insights Endpoint
 app.post("/api/ai/insights", async (req, res) => {
