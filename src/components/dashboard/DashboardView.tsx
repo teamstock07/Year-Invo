@@ -36,7 +36,7 @@ import {
 } from 'recharts';
 
 export const DashboardView: React.FC = () => {
-  const { metrics, settings, user, setActiveTab, t, products, language, formatNumber, formatCurrency } = useApp();
+  const { metrics, settings, user, setActiveTab, t, products, language, formatNumber, formatCurrency, dashboardPreferences } = useApp();
   const symbol = settings.currency || '৳';
   const planName = user?.subscriptionPlan || 'Free';
 
@@ -110,91 +110,93 @@ export const DashboardView: React.FC = () => {
     },
   ];
 
+  const isProductsOn = dashboardPreferences?.products !== false;
+
   // Grouped Feature Sections
-  const featureGroups = [
+  const rawFeatureGroups = [
     {
       title: language === 'bn' ? 'সেলস ও কাউন্টার (Sales & POS)' : 'Sales & POS Modes',
       items: [
-        {
+        ...(dashboardPreferences?.quickSale !== false ? [{
           id: 'quicksale',
           title: language === 'bn' ? '⚡ কুইক সেল' : 'Quick Sale',
           desc: language === 'bn' ? 'ক্ষুদ্র ব্যবসার জন্য দ্রুত চেকআউট' : 'Simple & fast checkout for small businesses',
           icon: PlusCircle,
           color: 'from-amber-500 to-[#ff5c01]',
-        },
-        {
+        }] : []),
+        ...(dashboardPreferences?.pos !== false ? [{
           id: 'pos',
           title: language === 'bn' ? '🛒 POS কাউন্টার' : 'POS Register',
           desc: language === 'bn' ? 'সুপারমার্কেট এর জন্য অ্যাডভান্সড POS' : 'Complete POS with barcode & receipt print',
           icon: ShoppingCart,
           color: 'from-sky-500 to-blue-600',
-        },
-        {
+        }] : []),
+        ...(dashboardPreferences?.salesHistory !== false ? [{
           id: 'saleshistory',
           title: language === 'bn' ? '🧾 সেলস হিস্টোরি' : 'Sales History',
-          desc: language === 'bn' ? 'সকল ইনভয়েস ও রিসিপ্ট রেকর্ড' : 'View past transactions & invoice receipts',
+          desc: language === 'bn' ? 'সকল ইনভয়েস ও রিসিপ্ট record' : 'View past transactions & invoice receipts',
           icon: ShoppingBag,
           color: 'from-emerald-500 to-teal-600',
-        },
-        {
+        }] : []),
+        ...(dashboardPreferences?.dueManagement !== false ? [{
           id: 'due',
           title: language === 'bn' ? '💳 কাস্টমার বাকি (Due)' : 'Customer Dues',
           desc: language === 'bn' ? 'বকেয়া ট্র্যাকিং ও কালেকশন' : 'Track customer balance & due ledger',
           icon: CreditCard,
           color: 'from-amber-500 to-orange-600',
-        },
+        }] : []),
       ],
     },
     {
       title: language === 'bn' ? 'ইনভেন্টরি ও প্রোডাক্ট (Inventory)' : 'Inventory & Catalog',
       items: [
-        {
+        ...(isProductsOn ? [{
           id: 'products',
           title: language === 'bn' ? '📦 প্রোডাক্টস লিস্ট' : 'Product Catalog',
           desc: language === 'bn' ? 'আইটেম যোগ ও দাম ম্যানেজ করুন' : 'Manage items, prices, barcodes & stock',
           icon: Package,
           color: 'from-indigo-500 to-purple-600',
-        },
-        {
+        }] : []),
+        ...(isProductsOn && dashboardPreferences?.categories !== false ? [{
           id: 'categories',
           title: language === 'bn' ? '🏷️ ক্যাটাগরি' : 'Categories',
           desc: language === 'bn' ? 'পণ্যের ক্যাটাগরি সাজান' : 'Organize inventory by product categories',
           icon: Tags,
           color: 'from-teal-500 to-cyan-600',
-        },
-        {
+        }] : []),
+        ...(isProductsOn && dashboardPreferences?.stockManagement !== false ? [{
           id: 'stock',
           title: language === 'bn' ? '🏪 স্টক ম্যানেজমেন্ট' : 'Stock Audit & Alert',
           desc: language === 'bn' ? 'স্টক কাউন্ট ও লো-স্টক এলার্ট' : 'Monitor stock levels & reorder alerts',
           icon: Boxes,
           color: 'from-violet-500 to-pink-600',
-        },
-        {
+        }] : []),
+        ...(dashboardPreferences?.expiryManagement !== false ? [{
           id: 'expired',
           title: language === 'bn' ? '⚠️ মেয়ার্দউত্তীর্ণ প্রোডাক্ট' : 'Expired Items',
           desc: language === 'bn' ? 'এক্সপায়ারি ডেট ট্র্যাকার' : 'Identify & clear expiring inventory',
           icon: AlertTriangle,
           color: 'from-rose-500 to-red-600',
-        },
+        }] : []),
       ],
     },
     {
       title: language === 'bn' ? 'হিসাব ও রিপোর্ট (Analytics)' : 'Reports & Tools',
       items: [
-        {
+        ...(dashboardPreferences?.reports !== false ? [{
           id: 'reports',
           title: language === 'bn' ? '📊 বিজনেস রিপোর্ট' : 'Profit & Loss Reports',
           desc: language === 'bn' ? 'লাভ-ক্ষতি ও স্টেটমেন্ট' : 'Sales analytics & profit breakdown',
           icon: FileSpreadsheet,
           color: 'from-blue-500 to-cyan-600',
-        },
-        {
+        }] : []),
+        ...(dashboardPreferences?.barcode !== false ? [{
           id: 'barcode',
           title: language === 'bn' ? '🏷️ বারকোড ও QR জেনারেটর' : 'Barcode & QR Code',
           desc: language === 'bn' ? 'বারকোড ও কিউআর লেবেল প্রিন্ট' : 'Generate thermal barcode sticker labels',
           icon: QrCode,
           color: 'from-[#ff5c01] to-amber-600',
-        },
+        }] : []),
         {
           id: 'settings',
           title: language === 'bn' ? '⚙️ সিস্টেম সেটিংস' : 'Store Settings',
@@ -204,7 +206,9 @@ export const DashboardView: React.FC = () => {
         },
       ],
     },
-  ];
+  ].filter((group) => group.items.length > 0);
+
+  const featureGroups = rawFeatureGroups;
 
   return (
     <>

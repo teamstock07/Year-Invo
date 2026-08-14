@@ -2,10 +2,10 @@ import React, { useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { getDisplayBrandName } from '../../utils/brand';
 import { MainWebsiteLogo } from '../common/MainWebsiteLogo';
-import { Settings, Save, Shield, Download, Upload, Store, DollarSign, Receipt, Users, Camera, Trash2, Image } from 'lucide-react';
+import { Settings, Save, Shield, Download, Upload, Store, DollarSign, Receipt, Users, Camera, Trash2, Image, User, SlidersHorizontal } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
-  const { settings, updateSettings, resetAllDataToZero, t } = useApp();
+  const { settings, updateSettings, resetAllDataToZero, t, setActiveTab } = useApp();
 
   const [formData, setFormData] = useState(settings);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -82,6 +82,42 @@ export const SettingsView: React.FC = () => {
             ✓ Settings saved successfully!
           </span>
         )}
+      </div>
+
+      {/* Quick Navigation Tabs */}
+      <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/60">
+        <button
+          type="button"
+          onClick={() => setActiveTab('settings')}
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 text-[#ff5c01] font-bold text-xs shadow-xs"
+        >
+          <Settings className="w-3.5 h-3.5" />
+          <span>{t('settings') || 'Store Settings'}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('profile')}
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white font-medium text-xs hover:bg-white/60 dark:hover:bg-slate-900/60 transition-all cursor-pointer"
+        >
+          <User className="w-3.5 h-3.5" />
+          <span>{t('profile') || 'User Profile'}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('branding')}
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white font-medium text-xs hover:bg-white/60 dark:hover:bg-slate-900/60 transition-all cursor-pointer"
+        >
+          <Store className="w-3.5 h-3.5" />
+          <span>{t('storeBranding') || 'Store Branding'}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('customize-dashboard')}
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white font-medium text-xs hover:bg-white/60 dark:hover:bg-slate-900/60 transition-all cursor-pointer"
+        >
+          <SlidersHorizontal className="w-3.5 h-3.5" />
+          <span>{t('customizeDashboard') || 'Customize Dashboard'}</span>
+        </button>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">

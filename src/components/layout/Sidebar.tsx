@@ -33,7 +33,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
-  const { activeTab, setActiveTab, t, user, settings, updateSettings } = useApp();
+  const { activeTab, setActiveTab, t, user, settings, updateSettings, dashboardPreferences } = useApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,37 +52,39 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const plan = user?.subscriptionPlan || 'Free';
   const isPosLocked = plan === 'Free';
 
-  const menuItems = [
+  const rawMenuItems = [
     ...(user?.role === 'Owner'
       ? [{ id: 'owner', label: t('navOwnerPanel') || 'Owner Panel', icon: Crown, highlight: true }]
       : []),
     { id: 'dashboard', label: t('navDashboard') || 'Dashboard', icon: LayoutDashboard },
-    { id: 'quicksale', label: t('navQuickSale') || 'Quick Sale', icon: Zap, highlight: true },
-    { 
+    ...(dashboardPreferences?.quickSale !== false ? [{ id: 'quicksale', label: t('navQuickSale') || 'Quick Sale', icon: Zap, highlight: true }] : []),
+    ...(dashboardPreferences?.pos !== false ? [{ 
       id: 'pos', 
       label: t('navPos') || 'POS System', 
       icon: ShoppingCart, 
       locked: isPosLocked,
       badge: isPosLocked ? 'PRO' : undefined 
-    },
-    { id: 'products', label: t('navProducts') || 'Products', icon: Package },
-    { id: 'categories', label: t('navCategories') || 'Categories', icon: Tags },
-    { id: 'stock', label: t('navStock') || 'Stock Management', icon: Boxes },
-    { id: 'saleshistory', label: t('navSales') || 'Sales History', icon: History },
-    { id: 'purchases', label: t('navPurchases') || 'Purchases', icon: ShoppingBag },
-    { id: 'customers', label: t('navCustomers') || 'Customers', icon: Users },
-    { id: 'suppliers', label: t('navSuppliers') || 'Suppliers', icon: Truck },
-    { id: 'due', label: t('navDue') || 'Due Management', icon: CreditCard },
-    { id: 'expenses', label: t('navExpenses') || 'Expenses', icon: Receipt },
-    { id: 'reports', label: t('navProfit') || 'Profit Analytics', icon: TrendingUp },
-    { id: 'expired', label: t('navExpired') || 'Expired Products', icon: AlertTriangle },
-    { id: 'barcode', label: t('navBarcode') || 'Barcode & QR Code', icon: QrCode },
+    }] : []),
+    ...(dashboardPreferences?.products !== false ? [{ id: 'products', label: t('navProducts') || 'Products', icon: Package }] : []),
+    ...(dashboardPreferences?.products !== false && dashboardPreferences?.categories !== false ? [{ id: 'categories', label: t('navCategories') || 'Categories', icon: Tags }] : []),
+    ...(dashboardPreferences?.products !== false && dashboardPreferences?.stockManagement !== false ? [{ id: 'stock', label: t('navStock') || 'Stock Management', icon: Boxes }] : []),
+    ...(dashboardPreferences?.salesHistory !== false ? [{ id: 'saleshistory', label: t('navSales') || 'Sales History', icon: History }] : []),
+    ...(dashboardPreferences?.purchases !== false ? [{ id: 'purchases', label: t('navPurchases') || 'Purchases', icon: ShoppingBag }] : []),
+    ...(dashboardPreferences?.customers !== false ? [{ id: 'customers', label: t('navCustomers') || 'Customers', icon: Users }] : []),
+    ...(dashboardPreferences?.suppliers !== false ? [{ id: 'suppliers', label: t('navSuppliers') || 'Suppliers', icon: Truck }] : []),
+    ...(dashboardPreferences?.dueManagement !== false ? [{ id: 'due', label: t('navDue') || 'Due Management', icon: CreditCard }] : []),
+    ...(dashboardPreferences?.expenses !== false ? [{ id: 'expenses', label: t('navExpenses') || 'Expenses', icon: Receipt }] : []),
+    ...(dashboardPreferences?.reports !== false ? [{ id: 'reports', label: t('navProfit') || 'Profit Analytics', icon: TrendingUp }] : []),
+    ...(dashboardPreferences?.expiryManagement !== false ? [{ id: 'expired', label: t('navExpired') || 'Expired Products', icon: AlertTriangle }] : []),
+    ...(dashboardPreferences?.barcode !== false ? [{ id: 'barcode', label: t('navBarcode') || 'Barcode & QR Code', icon: QrCode }] : []),
     { id: 'ai', label: t('navAiInsights') || 'AI Business Advisor', icon: Sparkles, badge: 'SOON' },
     { id: 'branding', label: t('branding') || 'Store Branding', icon: Store },
     { id: 'settings', label: t('navSettings') || t('settings') || 'Settings', icon: Settings },
-    { id: 'help', label: t('navHelp') || 'Help & Support', icon: HelpCircle },
+    ...(dashboardPreferences?.support !== false ? [{ id: 'help', label: t('navHelp') || 'Help & Support', icon: HelpCircle }] : []),
     { id: 'about', label: t('navAbout') || 'About', icon: Info },
   ];
+
+  const menuItems = rawMenuItems;
 
   return (
     <>

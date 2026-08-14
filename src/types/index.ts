@@ -4,10 +4,52 @@ export type UserRole = 'Owner' | 'Manager' | 'Staff' | 'Accountant' | 'PlatformO
 export type SubscriptionPlan = 'Starter' | 'Tier2' | 'Lifetime' | 'Free' | 'Pro' | 'Premium' | 'Business';
 export type BillingCycle = 'monthly' | 'yearly' | 'five_year';
 
+export interface DashboardPreferences {
+  quickSale: boolean;
+  pos: boolean;
+  products: boolean;
+  categories: boolean;
+  stockManagement: boolean;
+  salesManagement: boolean;
+  salesHistory: boolean;
+  purchases: boolean;
+  customers: boolean;
+  suppliers: boolean;
+  dueManagement: boolean;
+  expenses: boolean;
+  support: boolean;
+  barcode: boolean;
+  expiryManagement: boolean;
+  reports: boolean;
+  teamManagement: boolean;
+}
+
+export const defaultDashboardPreferences: DashboardPreferences = {
+  quickSale: true,
+  pos: true,
+  products: true,
+  categories: true,
+  stockManagement: true,
+  salesManagement: true,
+  salesHistory: true,
+  purchases: true,
+  customers: true,
+  suppliers: true,
+  dueManagement: true,
+  expenses: true,
+  support: true,
+  barcode: true,
+  expiryManagement: true,
+  reports: true,
+  teamManagement: true,
+};
+
 export interface UserProfile {
   id: string;
   brandName: string;
   ownerName: string;
+  fullName?: string;
+  name?: string;
   mobile: string;
   email: string;
   password?: string;
@@ -34,6 +76,7 @@ export interface UserProfile {
   createdAt: string;
   lastLogin?: string;
   notes?: string;
+  dashboardPreferences?: DashboardPreferences;
 
   // Paddle Subscription details
   paddleCustomerId?: string;
@@ -241,16 +284,46 @@ export interface StockAdjustment {
   adjustedBy: string;
 }
 
+export type NotificationType =
+  | 'low_stock'
+  | 'out_of_stock'
+  | 'expiring_soon'
+  | 'expired'
+  | 'pending_due'
+  | 'overdue_due'
+  | 'due'
+  | 'subscription'
+  | 'report'
+  | 'system';
+
+export type NotificationPriority = 'critical' | 'warning' | 'info';
+
 export interface AppNotification {
   id: string;
   title: string;
-  titleBn: string;
+  titleBn?: string;
   message: string;
-  messageBn: string;
-  type: 'low_stock' | 'expired' | 'due' | 'subscription' | 'report' | 'system';
+  messageBn?: string;
+  type: NotificationType;
+  priority: NotificationPriority;
   date: string;
+  createdAt?: string;
   read: boolean;
+  resolved?: boolean;
+  entityId?: string;
+  entityType?: 'product' | 'customer' | 'sale' | 'subscription' | 'system';
   linkTab?: string;
+  meta?: {
+    productName?: string;
+    stock?: number;
+    threshold?: number;
+    expiryDate?: string;
+    diffDays?: number;
+    customerName?: string;
+    dueAmount?: number;
+    dueDate?: string;
+    [key: string]: any;
+  };
 }
 
 export interface ActivityLog {

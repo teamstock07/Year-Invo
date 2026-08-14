@@ -44,6 +44,8 @@ import {
   UserRole,
   OwnerPaymentSettings,
   BangladeshPaymentConfig,
+  DashboardPreferences,
+  defaultDashboardPreferences,
 } from '../types';
 import {
   initialCategories,
@@ -74,6 +76,7 @@ import {
   FormatMoneyOptions,
 } from '../services/currencyService';
 import { isBangladeshCountry } from '../config/pricing';
+import { generateSystemNotifications } from '../services/notificationService';
 
 interface AppContextType {
   // Auth & Profile
@@ -144,6 +147,10 @@ interface AppContextType {
   exchangeRates: Record<string, number>;
   isExchangeRatesLoading: boolean;
   formatDate: (dateStr: string | Date | undefined | null) => string;
+
+  // Dashboard Customization Preferences
+  dashboardPreferences: DashboardPreferences;
+  updateDashboardPreferences: (newPrefs: Partial<DashboardPreferences>) => Promise<void>;
 
   // Navigation
   activeTab: string;
@@ -380,6 +387,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return (saved as ThemeMode) || 'dark';
   });
 
+  // Dashboard Preferences
+  const [dashboardPreferences, setDashboardPreferences] = useState<DashboardPreferences>(() => {
+    try {
+      const saved = localStorage.getItem('biz_dashboard_preferences');
+      if (saved) {
+        return { ...defaultDashboardPreferences, ...JSON.parse(saved) };
+      }
+    } catch (e) {}
+    return defaultDashboardPreferences;
+  });
+
   // Strictly default user to NULL for unauthenticated landing view
   const [user, setUser] = useState<UserProfile | null>(() => {
     const saved = localStorage.getItem('biz_user');
@@ -470,6 +488,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               id: firebaseUser.uid,
               brandName: effectiveBrandName,
               ownerName: uData.ownerName || uData.fullName || firebaseUser.displayName || 'Store Owner',
+              fullName: uData.fullName || uData.ownerName || firebaseUser.displayName || 'Store Owner',
+              name: uData.name || uData.fullName || uData.ownerName || '',
               mobile: uData.mobile || uData.phone || '',
               email: firebaseUser.email || uData.email || userEmail,
               businessType: uData.businessType || uData.storeType || 'General Retail & Grocery',
@@ -487,9 +507,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               verifiedEmail: true,
               verifiedPhone: true,
               createdAt: uData.createdAt ? (typeof uData.createdAt === 'string' ? uData.createdAt : new Date().toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
+              dashboardPreferences: uData.dashboardPreferences ? { ...defaultDashboardPreferences, ...uData.dashboardPreferences } : defaultDashboardPreferences,
             };
 
             setUser(profile);
+            if (uData.dashboardPreferences && typeof uData.dashboardPreferences === 'object') {
+              const loadedPrefs = { ...defaultDashboardPreferences, ...uData.dashboardPreferences };
+              setDashboardPreferences(loadedPrefs);
+              localStorage.setItem('biz_dashboard_preferences', JSON.stringify(loadedPrefs));
+              localStorage.setItem(`biz_dashboard_preferences_${firebaseUser.uid}`, JSON.stringify(loadedPrefs));
+            }
             if (userPreferredLang && SUPPORTED_LANGUAGES.some((l) => l.code === userPreferredLang)) {
               setLanguageState(userPreferredLang as Language);
               localStorage.setItem('biz_language', userPreferredLang);
@@ -788,7 +815,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [notifications, setNotifications] = useState<AppNotification[]>(initialNotifications);
+  // Notifications state: Manual/system notifications + Read status map
+  const [manualNotifications, setManualNotifications] = useState<AppNotification[]>(() => {
+    const saved = localStorage.getItem('biz_manual_notifications');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [readNotificationIds, setReadNotificationIds] = useState<Record<string, boolean>>(() => {
+    const saved = localStorage.getItem('biz_read_notifs_' + (user?.id || 'default'));
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  // Re-sync read map when user profile ID changes
+  useEffect(() => {
+    const storageKey = 'biz_read_notifs_' + (user?.id || 'default');
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      try {
+        setReadNotificationIds(JSON.parse(saved));
+      } catch (e) {}
+    }
+  }, [user?.id]);
+
+  const addManualNotification = (notif: AppNotification) => {
+    setManualNotifications((prev) => {
+      const updated = [notif, ...prev.filter((m) => m.id !== notif.id)];
+      localStorage.setItem('biz_manual_notifications', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(initialActivityLogs);
   const [adjustments, setAdjustments] = useState<StockAdjustment[]>([]);
   const [dueCollections, setDueCollections] = useState<DueCollection[]>([]);
@@ -1130,6 +1186,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ) => {
     return formatMoneyWithRates(amount, sourceCurrency, displayCurrencyParam, localeParam, options);
   };
+
+  // Pure, deterministic, deduplicated notification calculation engine
+  const notifications = React.useMemo(() => {
+    return generateSystemNotifications({
+      products,
+      customers,
+      sales,
+      manualNotifications,
+      readMap: readNotificationIds,
+      formatCurrency: (amt: number) => formatCurrency(amt),
+      language,
+      storeId: user?.id,
+    });
+  }, [products, customers, sales, manualNotifications, readNotificationIds, formatCurrency, language, user?.id]);
 
   const convertMoney = (
     amount: number,
@@ -1783,11 +1853,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         message: `Your request for the ${data.requestedPlan} Plan is pending approval by the platform owner.`,
         messageBn: `আপনার ${data.requestedPlan} প্ল্যানের আবেদন প্লাটফর্ম এডমিন অনুমোদনের অপেক্ষায় রয়েছে।`,
         type: 'subscription',
+        priority: 'info',
         date: new Date().toISOString().split('T')[0],
         read: false,
         linkTab: 'subscription',
       };
-      setNotifications((prev) => [notif, ...prev]);
+      addManualNotification(notif);
       logActivity('Requested Subscription Upgrade', 'সাবস্ক্রিপশন আপগ্রেড আবেদন করা হয়েছে', data.requestedPlan);
 
       return true;
@@ -1892,11 +1963,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         message: `Your request for the ${req.requestedPlan} Plan has been reviewed and APPROVED by the owner.`,
         messageBn: `আপনার ${req.requestedPlan} প্ল্যানের আবেদন অনুমোদন করা হয়েছে।`,
         type: 'subscription',
+        priority: 'info',
         date: new Date().toISOString().split('T')[0],
         read: false,
         linkTab: 'subscription',
       };
-      setNotifications((prev) => [notif, ...prev]);
+      addManualNotification(notif);
       logActivity('Approved Subscription Request', 'সাবস্ক্রিপশন আবেদন অনুমোদন করা হয়েছে', req.userEmail);
     } catch (error: any) {
       console.error('[Firestore Write Failure] Error approving subscription request:', error);
@@ -1988,11 +2060,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         message: `Your ${req.requestedPlan || req.currentPlan} Plan subscription has been cancelled by the owner and reverted to the Free Plan. All your store products, sales, and data are safely preserved.`,
         messageBn: `আপনার ${req.requestedPlan || req.currentPlan} প্ল্যানটি বাতিল করে ফ্রি প্ল্যানে ফেরত নেওয়া হয়েছে। আপনার সকল তথ্য অক্ষত রয়েছে।`,
         type: 'subscription',
+        priority: 'info',
         date: new Date().toISOString().split('T')[0],
         read: false,
         linkTab: 'subscription',
       };
-      setNotifications((prev) => [notif, ...prev]);
+      addManualNotification(notif);
       logActivity('Cancelled User Subscription', 'সাবস্ক্রিপশন বাতিল করা হয়েছে', req.userEmail);
     } catch (error: any) {
       console.error('[Firestore Write Failure] Error cancelling subscription request:', error);
@@ -2083,11 +2156,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         message: `Your ${targetUser.subscriptionPlan} Plan subscription has been cancelled by the owner. You are now on the Free Plan. All your store products, sales, and business data are safely preserved.`,
         messageBn: `আপনার সাবস্ক্রিপশন বাতিল করা হয়েছে। সকল তথ্য নিরাপদ রয়েছে।`,
         type: 'subscription',
+        priority: 'info',
         date: new Date().toISOString().split('T')[0],
         read: false,
         linkTab: 'subscription',
       };
-      setNotifications((prev) => [notif, ...prev]);
+      addManualNotification(notif);
       logActivity('Cancelled User Subscription', 'সাবস্ক্রিপশন বাতিল করা হয়েছে', targetUser.email);
     } catch (error: any) {
       console.error('[Firestore Write Failure] Error cancelling user subscription:', error);
@@ -2157,11 +2231,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         message: `Your request for the ${req.requestedPlan} Plan was rejected.${notes ? ` Note: ${notes}` : ''}`,
         messageBn: `আপনার ${req.requestedPlan} প্ল্যানের আবেদন বাতিল করা হয়েছে।`,
         type: 'subscription',
+        priority: 'info',
         date: new Date().toISOString().split('T')[0],
         read: false,
         linkTab: 'subscription',
       };
-      setNotifications((prev) => [notif, ...prev]);
+      addManualNotification(notif);
       logActivity('Rejected Subscription Request', 'সাবস্ক্রিপশন আবেদন প্রত্যাখ্যান করা হয়েছে', req.userEmail);
     } catch (error) {
       console.error('Error rejecting subscription request:', error);
@@ -2739,11 +2814,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Notifications
   const markNotificationRead = (id: string) => {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    setReadNotificationIds((prev) => {
+      const next = { ...prev, [id]: true };
+      const storageKey = 'biz_read_notifs_' + (user?.id || 'default');
+      localStorage.setItem(storageKey, JSON.stringify(next));
+      if (user?.id) {
+        try {
+          updateDoc(doc(db, 'users', user.id), {
+            [`readNotificationIds.${id}`]: true,
+          }).catch(() => {});
+        } catch (err) {}
+      }
+      return next;
+    });
   };
 
   const markAllNotificationsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setReadNotificationIds((prev) => {
+      const next = { ...prev };
+      notifications.forEach((n) => {
+        next[n.id] = true;
+      });
+      const storageKey = 'biz_read_notifs_' + (user?.id || 'default');
+      localStorage.setItem(storageKey, JSON.stringify(next));
+      if (user?.id) {
+        try {
+          updateDoc(doc(db, 'users', user.id), {
+            readNotificationIds: next,
+          }).catch(() => {});
+        } catch (err) {}
+      }
+      return next;
+    });
   };
 
   // Backup & Export
@@ -2830,6 +2932,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return new Date(p.expiryDate) < new Date();
   }).length;
 
+  // Update Dashboard Customization Preferences
+  const updateDashboardPreferences = async (newPrefs: Partial<DashboardPreferences>) => {
+    const updated: DashboardPreferences = {
+      ...dashboardPreferences,
+      ...newPrefs,
+    };
+    setDashboardPreferences(updated);
+    localStorage.setItem('biz_dashboard_preferences', JSON.stringify(updated));
+    if (user?.id) {
+      localStorage.setItem(`biz_dashboard_preferences_${user.id}`, JSON.stringify(updated));
+      setUser((prev) => (prev ? { ...prev, dashboardPreferences: updated } : prev));
+      try {
+        const userRef = doc(db, 'users', user.id);
+        await updateDoc(userRef, { dashboardPreferences: updated });
+      } catch (err) {
+        console.warn('Could not save dashboardPreferences to Firestore:', err);
+      }
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -2876,6 +2998,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         exchangeRates,
         isExchangeRatesLoading,
         formatDate,
+        dashboardPreferences,
+        updateDashboardPreferences,
         activeTab,
         setActiveTab,
         globalSearch,

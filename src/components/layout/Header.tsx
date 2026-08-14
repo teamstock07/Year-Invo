@@ -4,6 +4,8 @@ import { useApp } from '../../context/AppContext';
 import { Language } from '../../types';
 import { MainWebsiteLogo } from '../common/MainWebsiteLogo';
 import { LanguageSelector } from '../common/LanguageSelector';
+import { getNotificationContent } from '../../services/notificationService';
+import { getUserDisplayName } from '../../utils/user';
 import {
   Search,
   Bell,
@@ -16,11 +18,20 @@ import {
   ShieldAlert,
   Sparkles,
   Store,
+  Settings,
+  SlidersHorizontal,
   MoreVertical,
   Coins,
   Monitor,
   X,
   ChevronRight,
+  AlertTriangle,
+  AlertOctagon,
+  AlertCircle,
+  Clock,
+  CreditCard,
+  Package,
+  PackageX,
 } from 'lucide-react';
 
 export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSidebar }) => {
@@ -41,6 +52,7 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
     logout,
     activeTab,
     setActiveTab,
+    formatCurrency,
     t,
   } = useApp();
 
@@ -52,6 +64,7 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
 
   const unreadCount = notifications.filter((n) => !n.read).length;
   const storeDisplayName = settings.brandName || user?.brandName || 'My Store';
+  const userDisplayName = getUserDisplayName(user);
 
   const handleLanguageChange = (newLang: Language) => {
     setLanguage(newLang);
@@ -216,66 +229,157 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
               setShowUserMenu(false);
             }}
             className="relative p-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/60 cursor-pointer"
-            title="Notifications"
+            title={t('notifications') || 'Notifications'}
           >
             <Bell className="w-5 h-5" />
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white dark:border-[#09090b]" />
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-black rounded-full border-2 border-white dark:border-[#09090b] flex items-center justify-center animate-in zoom-in-50">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
             )}
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-[#0c0c0e] rounded-2xl shadow-2xl border border-[#E8EEF2] dark:border-slate-800 py-2 z-50">
-              <div className="flex items-center justify-between px-4 py-2 border-b border-[#E8EEF2] dark:border-slate-800">
-                <h3 className="font-semibold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                  <Bell className="w-4 h-4 text-[#ff5c01]" />
-                  {t('notifications')}
-                </h3>
+            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-[#0c0c0e] rounded-2xl shadow-2xl border border-[#E8EEF2] dark:border-slate-800 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#E8EEF2] dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <div className="p-1 bg-[#ff5c01]/10 rounded-lg text-[#ff5c01]">
+                    <Bell className="w-4 h-4" />
+                  </div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100">
+                    {t('notifications')}
+                  </h3>
+                  {unreadCount > 0 && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white">
+                      {unreadCount} {t('unread') || 'unread'}
+                    </span>
+                  )}
+                </div>
                 {unreadCount > 0 && (
                   <button
                     onClick={markAllNotificationsRead}
-                    className="text-xs text-[#ff5c01] font-medium hover:underline cursor-pointer"
+                    className="text-xs text-[#ff5c01] font-bold hover:underline cursor-pointer"
                   >
                     {t('markAllRead')}
                   </button>
                 )}
               </div>
 
-              <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/80">
+              <div className="max-h-[380px] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/80 custom-scrollbar">
                 {notifications.length === 0 ? (
-                  <p className="px-4 py-6 text-center text-xs text-slate-500">
-                    {t('noNotifications')}
-                  </p>
-                ) : (
-                  notifications.map((n) => (
-                    <div
-                      key={n.id}
-                      onClick={() => {
-                        markNotificationRead(n.id);
-                        if (n.linkTab) setActiveTab(n.linkTab);
-                        setShowNotifications(false);
-                      }}
-                      className={`p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition-colors flex gap-3 ${
-                        !n.read ? 'bg-[#ff5c01]/10' : ''
-                      }`}
-                    >
-                      <div className="mt-0.5">
-                        {n.type === 'low_stock' && <ShieldAlert className="w-5 h-5 text-amber-500" />}
-                        {n.type === 'expired' && <ShieldAlert className="w-5 h-5 text-rose-500" />}
-                        {n.type === 'due' && <Sparkles className="w-5 h-5 text-[#ff5c01]" />}
-                        {n.type === 'system' && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                          {language === 'bn' ? n.titleBn : n.title}
-                        </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
-                          {language === 'bn' ? n.messageBn : n.message}
-                        </p>
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">{n.date}</span>
-                      </div>
+                  <div className="px-4 py-10 text-center flex flex-col items-center justify-center">
+                    <div className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-400 mb-2">
+                      <Bell className="w-5 h-5 opacity-40" />
                     </div>
-                  ))
+                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                      {t('noNotifications')}
+                    </p>
+                  </div>
+                ) : (
+                  notifications.map((n) => {
+                    const content = getNotificationContent(n, language, (amt) => formatCurrency(amt));
+                    let iconElement = <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
+                    let iconBg = 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-900/50';
+                    let priorityBadge = null;
+
+                    if (n.type === 'out_of_stock') {
+                      iconElement = <PackageX className="w-4 h-4 text-rose-600 dark:text-rose-400" />;
+                      iconBg = 'bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-900/50';
+                      priorityBadge = (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-rose-500 text-white shrink-0">
+                          {language === 'bn' ? 'জরুরি' : 'Critical'}
+                        </span>
+                      );
+                    } else if (n.type === 'low_stock') {
+                      iconElement = <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />;
+                      iconBg = 'bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-900/50';
+                      priorityBadge = (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-amber-500 text-white shrink-0">
+                          {language === 'bn' ? 'সতর্কতা' : 'Warning'}
+                        </span>
+                      );
+                    } else if (n.type === 'expired') {
+                      iconElement = <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />;
+                      iconBg = 'bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-900/50';
+                      priorityBadge = (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-rose-500 text-white shrink-0">
+                          {language === 'bn' ? 'মেয়াদ শেষ' : 'Expired'}
+                        </span>
+                      );
+                    } else if (n.type === 'expiring_soon') {
+                      iconElement = <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />;
+                      iconBg = 'bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-900/50';
+                      priorityBadge = (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-amber-500 text-white shrink-0">
+                          {language === 'bn' ? 'সতর্কতা' : 'Warning'}
+                        </span>
+                      );
+                    } else if (n.type === 'overdue_due') {
+                      iconElement = <AlertOctagon className="w-4 h-4 text-rose-600 dark:text-rose-400" />;
+                      iconBg = 'bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-900/50';
+                      priorityBadge = (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-rose-500 text-white shrink-0">
+                          {language === 'bn' ? 'জরুরি' : 'Overdue'}
+                        </span>
+                      );
+                    } else if (n.type === 'pending_due' || n.type === 'due') {
+                      iconElement = <CreditCard className="w-4 h-4 text-[#ff5c01]" />;
+                      iconBg = 'bg-orange-50 dark:bg-orange-950/50 border-orange-200 dark:border-orange-900/50';
+                      priorityBadge = (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0">
+                          {language === 'bn' ? 'বকেয়া' : 'Due'}
+                        </span>
+                      );
+                    } else if (n.type === 'subscription') {
+                      iconElement = <Sparkles className="w-4 h-4 text-indigo-500" />;
+                      iconBg = 'bg-indigo-50 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-900/50';
+                    }
+
+                    return (
+                      <div
+                        key={n.id}
+                        onClick={() => {
+                          markNotificationRead(n.id);
+                          if (n.linkTab) setActiveTab(n.linkTab);
+                          setShowNotifications(false);
+                        }}
+                        className={`p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition-all flex items-start gap-3 relative group ${
+                          !n.read ? 'bg-[#ff5c01]/5 dark:bg-[#ff5c01]/10' : 'opacity-85'
+                        }`}
+                      >
+                        <div className={`p-2 rounded-xl shrink-0 mt-0.5 border ${iconBg}`}>
+                          {iconElement}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1.5">
+                            <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                              {content.title}
+                            </p>
+                            <div className="flex items-center gap-1.5">
+                              {priorityBadge}
+                              {!n.read && (
+                                <span className="w-2 h-2 rounded-full bg-[#ff5c01] shrink-0" title="Unread" />
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                            {content.message}
+                          </p>
+                          <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100 dark:border-slate-800/60">
+                            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                              {n.date}
+                            </span>
+                            {n.linkTab && (
+                              <span className="text-[10px] text-[#ff5c01] font-bold group-hover:underline flex items-center gap-0.5">
+                                {language === 'bn' ? 'দেখুন' : 'View'}
+                                <ChevronRight className="w-3 h-3" />
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -289,23 +393,28 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
               setShowNotifications(false);
               setShowUserMenu(!showUserMenu);
             }}
-            className="flex items-center gap-2.5 text-left hover:opacity-90 transition-opacity cursor-pointer p-0.5"
+            className="flex items-center gap-2.5 text-left hover:opacity-90 transition-opacity cursor-pointer p-0.5 group"
             title="Profile & Settings"
           >
             <div className="text-right hidden md:block">
-              <p className="text-xs font-semibold leading-tight text-slate-900 dark:text-white">{user?.ownerName || 'Ariful Islam'}</p>
+              <p className="text-xs font-semibold leading-tight text-slate-900 dark:text-white group-hover:text-[#ff5c01] transition-colors">{userDisplayName}</p>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-widest font-semibold">{user?.role || 'Owner'}</p>
             </div>
             <div className="w-9 h-9 rounded-xl bg-[#ff5c01] text-white border border-white/20 flex items-center justify-center font-bold text-sm shadow-sm shrink-0">
-              {user?.ownerName?.[0] || 'A'}
+              <User className="w-4.5 h-4.5 text-white" />
             </div>
           </button>
 
           {/* Desktop User Menu Dropdown */}
           {showUserMenu && (
-            <div className="absolute right-0 mt-2 w-[260px] bg-white dark:bg-[#0c0c0e] rounded-2xl shadow-2xl border border-[#E8EEF2] dark:border-slate-800 py-2 z-50">
+            <div className="absolute right-0 mt-2 w-[270px] bg-white dark:bg-[#0c0c0e] rounded-2xl shadow-2xl border border-[#E8EEF2] dark:border-slate-800 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
               <div className="px-4 py-3 border-b border-[#E8EEF2] dark:border-slate-800">
-                <p className="text-xs font-bold text-slate-900 dark:text-slate-100">{user?.ownerName}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">{userDisplayName}</p>
+                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold border border-amber-500/20 uppercase shrink-0">
+                    {user?.subscriptionPlan || 'Free'}
+                  </span>
+                </div>
                 <p className="text-xs text-slate-500 truncate">{user?.email}</p>
                 {storeDisplayName && (
                   <p className="text-[10px] font-extrabold text-[#ff5c01] mt-1 truncate uppercase">
@@ -314,32 +423,77 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
                 )}
               </div>
 
+              {/* 1. Profile */}
+              <button
+                onClick={() => {
+                  setActiveTab('profile');
+                  setShowUserMenu(false);
+                }}
+                className="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 group transition-colors cursor-pointer"
+              >
+                <div className="w-7 h-7 rounded-lg bg-[#ff5c01]/10 text-[#ff5c01] flex items-center justify-center shrink-0">
+                  <User className="w-3.5 h-3.5" />
+                </div>
+                <span className="flex-1">{t('profile') || 'Profile'}</span>
+              </button>
+
+              {/* 2. Store Branding */}
+              <button
+                onClick={() => {
+                  setActiveTab('branding');
+                  setShowUserMenu(false);
+                }}
+                className="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 group transition-colors cursor-pointer"
+              >
+                <div className="w-7 h-7 rounded-lg bg-[#ff5c01]/10 text-[#ff5c01] flex items-center justify-center shrink-0">
+                  <Store className="w-3.5 h-3.5" />
+                </div>
+                <span className="flex-1">{t('storeBranding') || 'Store Branding'}</span>
+              </button>
+
+              {/* 3. Settings */}
               <button
                 onClick={() => {
                   setActiveTab('settings');
                   setShowUserMenu(false);
                 }}
-                className="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between group transition-colors cursor-pointer"
+                className="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 group transition-colors cursor-pointer"
               >
-                <div className="flex items-center gap-2">
-                  <User className="w-4 h-4 text-[#ff5c01]" />
-                  <span>Profile & Settings</span>
+                <div className="w-7 h-7 rounded-lg bg-[#ff5c01]/10 text-[#ff5c01] flex items-center justify-center shrink-0">
+                  <Settings className="w-3.5 h-3.5" />
                 </div>
-                <span className="text-[9px] bg-[#ff5c01]/10 text-[#ff5c01] font-extrabold px-1.5 py-0.5 rounded uppercase">
-                  Edit Store
-                </span>
+                <span className="flex-1">{t('settings') || 'Settings'}</span>
               </button>
 
+              {/* 4. Customize Dashboard */}
               <button
                 onClick={() => {
-                  logout();
+                  setActiveTab('customize-dashboard');
                   setShowUserMenu(false);
                 }}
-                className="w-full text-left px-4 py-2 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center gap-2 border-t border-[#E8EEF2] dark:border-slate-800 mt-1 cursor-pointer"
+                className="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 group transition-colors cursor-pointer"
               >
-                <LogOut className="w-4 h-4" />
-                {t('logout')}
+                <div className="w-7 h-7 rounded-lg bg-[#ff5c01]/10 text-[#ff5c01] flex items-center justify-center shrink-0">
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                </div>
+                <span className="flex-1">{t('customizeDashboard') || 'Customize Dashboard'}</span>
               </button>
+
+              {/* 5. Logout */}
+              <div className="border-t border-[#E8EEF2] dark:border-slate-800 mt-1 pt-1">
+                <button
+                  onClick={() => {
+                    logout();
+                    setShowUserMenu(false);
+                  }}
+                  className="w-full text-left px-4 py-2.5 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center gap-2.5 transition-colors cursor-pointer"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
+                    <LogOut className="w-3.5 h-3.5" />
+                  </div>
+                  <span>{t('logout') || 'Logout'}</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -358,12 +512,14 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
             setShowMobileThreeDotModal(false);
           }}
           className="relative p-2 text-slate-700 dark:text-slate-300 hover:text-[#ff5c01] dark:hover:text-[#ff5c01] transition-colors rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/80 active:scale-95 cursor-pointer shrink-0"
-          title="Notifications"
+          title={t('notifications') || 'Notifications'}
           aria-label="Notifications"
         >
           <Bell className="w-5 h-5" />
           {unreadCount > 0 && (
-            <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white dark:border-[#09090b]" />
+            <span className="absolute 0.5 right-0.5 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-black rounded-full border-2 border-white dark:border-[#09090b] flex items-center justify-center animate-in zoom-in-50">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
           )}
         </button>
 
@@ -414,10 +570,19 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
           {/* Notification Overlay Card */}
           <div className="relative z-10 w-full max-w-md mx-auto bg-white dark:bg-[#0c0c0e] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 py-2 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <Bell className="w-4 h-4 text-[#ff5c01]" />
-                <span>{t('notifications')}</span>
-              </h3>
+              <div className="flex items-center gap-2">
+                <div className="p-1 bg-[#ff5c01]/10 rounded-lg text-[#ff5c01]">
+                  <Bell className="w-4 h-4" />
+                </div>
+                <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100">
+                  {t('notifications')}
+                </h3>
+                {unreadCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white">
+                    {unreadCount} {t('unread') || 'unread'}
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 {unreadCount > 0 && (
                   <button
@@ -437,41 +602,121 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
               </div>
             </div>
 
-            <div className="max-h-[65vh] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/80">
+            <div className="max-h-[65vh] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/80 custom-scrollbar">
               {notifications.length === 0 ? (
-                <p className="px-4 py-8 text-center text-xs text-slate-500">
-                  {t('noNotifications')}
-                </p>
-              ) : (
-                notifications.map((n) => (
-                  <div
-                    key={n.id}
-                    onClick={() => {
-                      markNotificationRead(n.id);
-                      if (n.linkTab) setActiveTab(n.linkTab);
-                      setShowNotifications(false);
-                    }}
-                    className={`p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition-colors flex gap-3 ${
-                      !n.read ? 'bg-[#ff5c01]/10' : ''
-                    }`}
-                  >
-                    <div className="mt-0.5">
-                      {n.type === 'low_stock' && <ShieldAlert className="w-5 h-5 text-amber-500" />}
-                      {n.type === 'expired' && <ShieldAlert className="w-5 h-5 text-rose-500" />}
-                      {n.type === 'due' && <Sparkles className="w-5 h-5 text-[#ff5c01]" />}
-                      {n.type === 'system' && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                        {language === 'bn' ? n.titleBn : n.title}
-                      </p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
-                        {language === 'bn' ? n.messageBn : n.message}
-                      </p>
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">{n.date}</span>
-                    </div>
+                <div className="px-4 py-10 text-center flex flex-col items-center justify-center">
+                  <div className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-400 mb-2">
+                    <Bell className="w-5 h-5 opacity-40" />
                   </div>
-                ))
+                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                    {t('noNotifications')}
+                  </p>
+                </div>
+              ) : (
+                notifications.map((n) => {
+                  const content = getNotificationContent(n, language, (amt) => formatCurrency(amt));
+                  let iconElement = <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
+                  let iconBg = 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-900/50';
+                  let priorityBadge = null;
+
+                  if (n.type === 'out_of_stock') {
+                    iconElement = <PackageX className="w-4 h-4 text-rose-600 dark:text-rose-400" />;
+                    iconBg = 'bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-900/50';
+                    priorityBadge = (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-rose-500 text-white shrink-0">
+                        {language === 'bn' ? 'জরুরি' : 'Critical'}
+                      </span>
+                    );
+                  } else if (n.type === 'low_stock') {
+                    iconElement = <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />;
+                    iconBg = 'bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-900/50';
+                    priorityBadge = (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-amber-500 text-white shrink-0">
+                        {language === 'bn' ? 'সতর্কতা' : 'Warning'}
+                      </span>
+                    );
+                  } else if (n.type === 'expired') {
+                    iconElement = <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />;
+                    iconBg = 'bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-900/50';
+                    priorityBadge = (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-rose-500 text-white shrink-0">
+                        {language === 'bn' ? 'মেয়াদ শেষ' : 'Expired'}
+                      </span>
+                    );
+                  } else if (n.type === 'expiring_soon') {
+                    iconElement = <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />;
+                    iconBg = 'bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-900/50';
+                    priorityBadge = (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-amber-500 text-white shrink-0">
+                        {language === 'bn' ? 'সতর্কতা' : 'Warning'}
+                      </span>
+                    );
+                  } else if (n.type === 'overdue_due') {
+                    iconElement = <AlertOctagon className="w-4 h-4 text-rose-600 dark:text-rose-400" />;
+                    iconBg = 'bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-900/50';
+                    priorityBadge = (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-rose-500 text-white shrink-0">
+                        {language === 'bn' ? 'জরুরি' : 'Overdue'}
+                      </span>
+                    );
+                  } else if (n.type === 'pending_due' || n.type === 'due') {
+                    iconElement = <CreditCard className="w-4 h-4 text-[#ff5c01]" />;
+                    iconBg = 'bg-orange-50 dark:bg-orange-950/50 border-orange-200 dark:border-orange-900/50';
+                    priorityBadge = (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0">
+                        {language === 'bn' ? 'বকেয়া' : 'Due'}
+                      </span>
+                    );
+                  } else if (n.type === 'subscription') {
+                    iconElement = <Sparkles className="w-4 h-4 text-indigo-500" />;
+                    iconBg = 'bg-indigo-50 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-900/50';
+                  }
+
+                  return (
+                    <div
+                      key={n.id}
+                      onClick={() => {
+                        markNotificationRead(n.id);
+                        if (n.linkTab) setActiveTab(n.linkTab);
+                        setShowNotifications(false);
+                      }}
+                      className={`p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition-all flex items-start gap-3 relative group ${
+                        !n.read ? 'bg-[#ff5c01]/5 dark:bg-[#ff5c01]/10' : 'opacity-85'
+                      }`}
+                    >
+                      <div className={`p-2 rounded-xl shrink-0 mt-0.5 border ${iconBg}`}>
+                        {iconElement}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                            {content.title}
+                          </p>
+                          <div className="flex items-center gap-1.5">
+                            {priorityBadge}
+                            {!n.read && (
+                              <span className="w-2 h-2 rounded-full bg-[#ff5c01] shrink-0" title="Unread" />
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                          {content.message}
+                        </p>
+                        <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100 dark:border-slate-800/60">
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                            {n.date}
+                          </span>
+                          {n.linkTab && (
+                            <span className="text-[10px] text-[#ff5c01] font-bold group-hover:underline flex items-center gap-0.5">
+                              {language === 'bn' ? 'দেখুন' : 'View'}
+                              <ChevronRight className="w-3 h-3" />
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>
@@ -508,45 +753,113 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
 
             {/* Profile Avatar & Details */}
             <div className="p-3.5 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 text-white border border-slate-800 flex items-center gap-3 shadow-md">
-              <div className="w-11 h-11 rounded-2xl bg-[#ff5c01] text-white flex items-center justify-center font-black text-base shadow-lg shrink-0 border border-white/20">
-                {user?.ownerName?.[0] || 'A'}
+              <div className="w-11 h-11 rounded-2xl bg-[#ff5c01] text-white flex items-center justify-center shadow-lg shrink-0 border border-white/20">
+                <User className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1 min-w-0 space-y-0.5">
                 <div className="flex items-center gap-1.5">
                   <h3 className="font-extrabold text-xs sm:text-sm text-white truncate">
-                    {user?.ownerName || 'Ariful Islam'}
+                    {userDisplayName}
                   </h3>
                   <span className="text-[8px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/30 uppercase shrink-0">
                     {user?.subscriptionPlan || 'Free'}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400 truncate">{user?.email || 'owner@yearinvo.com'}</p>
-                <p className="text-[10px] font-bold text-[#ff5c01] uppercase tracking-wide truncate">
-                  Store: {storeDisplayName}
-                </p>
+                {storeDisplayName && (
+                  <p className="text-[10px] font-bold text-[#ff5c01] uppercase tracking-wide truncate">
+                    Store: {storeDisplayName}
+                  </p>
+                )}
               </div>
             </div>
 
-            {/* Store Branding & Settings Link */}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('settings');
-                setShowMobileAccountModal(false);
-              }}
-              className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 hover:border-[#ff5c01]/50 text-slate-800 dark:text-slate-200 font-bold text-xs transition-all active:scale-[0.99] cursor-pointer"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-xl bg-[#ff5c01]/10 text-[#ff5c01] flex items-center justify-center shrink-0">
-                  <Store className="w-4 h-4" />
+            {/* Menu Links */}
+            <div className="space-y-1.5 flex-1">
+              {/* 1. Profile */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('profile');
+                  setShowMobileAccountModal(false);
+                }}
+                className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 hover:border-[#ff5c01]/50 text-slate-800 dark:text-slate-200 font-bold text-xs transition-all active:scale-[0.99] cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-[#ff5c01]/10 text-[#ff5c01] flex items-center justify-center shrink-0">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <div className="text-left truncate">
+                    <span className="block font-bold text-slate-900 dark:text-white text-xs truncate">{t('profile') || 'Profile'}</span>
+                    <span className="block text-[9px] text-slate-500 dark:text-slate-400 font-normal truncate">View and edit personal info</span>
+                  </div>
                 </div>
-                <div className="text-left truncate">
-                  <span className="block font-bold text-slate-900 dark:text-white text-xs truncate">Store Branding & Settings</span>
-                  <span className="block text-[9px] text-slate-500 dark:text-slate-400 font-normal truncate">Customize logo & store details</span>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+              </button>
+
+              {/* 2. Store Branding */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('branding');
+                  setShowMobileAccountModal(false);
+                }}
+                className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 hover:border-[#ff5c01]/50 text-slate-800 dark:text-slate-200 font-bold text-xs transition-all active:scale-[0.99] cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-[#ff5c01]/10 text-[#ff5c01] flex items-center justify-center shrink-0">
+                    <Store className="w-4 h-4" />
+                  </div>
+                  <div className="text-left truncate">
+                    <span className="block font-bold text-slate-900 dark:text-white text-xs truncate">{t('storeBranding') || 'Store Branding'}</span>
+                    <span className="block text-[9px] text-slate-500 dark:text-slate-400 font-normal truncate">Customize logo & store details</span>
+                  </div>
                 </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-            </button>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+              </button>
+
+              {/* 3. Settings */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('settings');
+                  setShowMobileAccountModal(false);
+                }}
+                className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 hover:border-[#ff5c01]/50 text-slate-800 dark:text-slate-200 font-bold text-xs transition-all active:scale-[0.99] cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-[#ff5c01]/10 text-[#ff5c01] flex items-center justify-center shrink-0">
+                    <Settings className="w-4 h-4" />
+                  </div>
+                  <div className="text-left truncate">
+                    <span className="block font-bold text-slate-900 dark:text-white text-xs truncate">{t('settings') || 'Settings'}</span>
+                    <span className="block text-[9px] text-slate-500 dark:text-slate-400 font-normal truncate">Preferences, invoice & tax rules</span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+              </button>
+
+              {/* 4. Customize Dashboard */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('customize-dashboard');
+                  setShowMobileAccountModal(false);
+                }}
+                className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 hover:border-[#ff5c01]/50 text-slate-800 dark:text-slate-200 font-bold text-xs transition-all active:scale-[0.99] cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-[#ff5c01]/10 text-[#ff5c01] flex items-center justify-center shrink-0">
+                    <SlidersHorizontal className="w-4 h-4" />
+                  </div>
+                  <div className="text-left truncate">
+                    <span className="block font-bold text-slate-900 dark:text-white text-xs truncate">{t('customizeDashboard') || 'Customize Dashboard'}</span>
+                    <span className="block text-[9px] text-slate-500 dark:text-slate-400 font-normal truncate">Toggle dashboard modules</span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+              </button>
+            </div>
 
             {/* Logout Button */}
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800 mt-auto">

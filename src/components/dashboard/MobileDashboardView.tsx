@@ -55,6 +55,7 @@ export const MobileDashboardView: React.FC = () => {
     t,
     formatNumber,
     formatCurrency,
+    dashboardPreferences,
   } = useApp();
 
   const symbol = settings.currency || '৳';
@@ -122,65 +123,67 @@ export const MobileDashboardView: React.FC = () => {
   const chartData = analyticsTimeframe === 'weekly' ? weeklyData : monthlyData;
 
   // 2x4 Quick Action Grid
-  const quickActions = [
-    {
+  const rawQuickActions = [
+    ...(dashboardPreferences?.quickSale !== false ? [{
       id: 'quicksale',
       label: isBn ? 'কুইক সেল' : 'Quick Sale',
       icon: Zap,
       gradient: 'from-[#ff5c01] to-amber-500',
       textColor: 'text-[#ff5c01]',
       badge: isBn ? 'দ্রুত' : 'Fast',
-    },
-    {
+    }] : []),
+    ...(dashboardPreferences?.pos !== false ? [{
       id: 'pos',
       label: isBn ? 'POS কাউন্টার' : 'POS Register',
       icon: ShoppingCart,
       gradient: 'from-sky-500 to-blue-600',
       textColor: 'text-sky-500',
-    },
-    {
+    }] : []),
+    ...(dashboardPreferences?.products !== false ? [{
       id: 'products',
       label: isBn ? 'প্রোডাক্টস' : 'Products',
       icon: Package,
       gradient: 'from-indigo-500 to-purple-600',
       textColor: 'text-indigo-500',
-    },
-    {
+    }] : []),
+    ...(dashboardPreferences?.customers !== false ? [{
       id: 'customers',
       label: isBn ? 'কাস্টমার' : 'Customers',
       icon: Users,
       gradient: 'from-blue-500 to-cyan-600',
       textColor: 'text-blue-500',
-    },
-    {
-      id: 'suppliers',
+    }] : []),
+    ...(dashboardPreferences?.purchases !== false ? [{
+      id: 'purchases',
       label: isBn ? 'পারচেজ/ক্রয়' : 'Purchases',
       icon: Truck,
       gradient: 'from-amber-500 to-orange-600',
       textColor: 'text-amber-500',
-    },
-    {
+    }] : []),
+    ...(dashboardPreferences?.reports !== false ? [{
       id: 'reports',
       label: isBn ? 'রিপোর্ট' : 'Reports',
       icon: FileSpreadsheet,
       gradient: 'from-purple-500 to-pink-600',
       textColor: 'text-purple-500',
-    },
-    {
+    }] : []),
+    ...(dashboardPreferences?.expenses !== false ? [{
       id: 'expenses',
       label: isBn ? 'খরচের হিসাব' : 'Expenses',
       icon: Wallet,
       gradient: 'from-rose-500 to-red-600',
       textColor: 'text-rose-500',
-    },
-    {
+    }] : []),
+    ...(dashboardPreferences?.products !== false && dashboardPreferences?.stockManagement !== false ? [{
       id: 'stock',
       label: isBn ? 'স্টক অডিট' : 'Stock',
       icon: Boxes,
       gradient: 'from-emerald-500 to-teal-600',
       textColor: 'text-emerald-500',
-    },
+    }] : []),
   ];
+
+  const quickActions = rawQuickActions;
 
   const currentDateFormatted = new Date().toLocaleDateString(isBn ? 'bn-BD' : 'en-US', {
     weekday: 'short',

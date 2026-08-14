@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 
 export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSidebar }) => {
-  const { activeTab, setActiveTab, user, t } = useApp();
+  const { activeTab, setActiveTab, user, t, dashboardPreferences } = useApp();
   const [showAllMenuSheet, setShowAllMenuSheet] = useState(false);
 
   const handleSelectTab = (tabId: string) => {
@@ -36,8 +36,10 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
     setShowAllMenuSheet(false);
   };
 
+  const isProductsOn = dashboardPreferences?.products !== false;
+
   // Feature Categories for Mobile Sheet
-  const featureCategories = [
+  const rawFeatureCategories = [
     ...(user?.role === 'Owner'
       ? [
           {
@@ -57,107 +59,163 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
     {
       title: t('salesOperations') || 'Sales Operations',
       items: [
-        {
-          id: 'quicksale',
-          name: t('navQuickSale') || 'Quick Sale',
-          icon: Zap,
-          color: 'bg-[#ff5c01] text-white shadow-md shadow-[#ff5c01]/30',
-          primary: true,
-        },
-        {
-          id: 'pos',
-          name: t('navPos') || 'POS System',
-          icon: ShoppingCart,
-          color: 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400',
-          badge: user?.subscriptionPlan === 'Free' ? 'PRO' : undefined,
-        },
-        {
-          id: 'saleshistory',
-          name: t('navSales') || 'Sales History',
-          icon: History,
-          color: 'bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400',
-        },
-        {
-          id: 'due',
-          name: t('navDue') || 'Customer Dues',
-          icon: CreditCard,
-          color: 'bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400',
-        },
+        ...(dashboardPreferences?.quickSale !== false
+          ? [
+              {
+                id: 'quicksale',
+                name: t('navQuickSale') || 'Quick Sale',
+                icon: Zap,
+                color: 'bg-[#ff5c01] text-white shadow-md shadow-[#ff5c01]/30',
+                primary: true,
+              },
+            ]
+          : []),
+        ...(dashboardPreferences?.pos !== false
+          ? [
+              {
+                id: 'pos',
+                name: t('navPos') || 'POS System',
+                icon: ShoppingCart,
+                color: 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400',
+                badge: user?.subscriptionPlan === 'Free' ? 'PRO' : undefined,
+              },
+            ]
+          : []),
+        ...(dashboardPreferences?.salesHistory !== false
+          ? [
+              {
+                id: 'saleshistory',
+                name: t('navSales') || 'Sales History',
+                icon: History,
+                color: 'bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400',
+              },
+            ]
+          : []),
+        ...(dashboardPreferences?.dueManagement !== false
+          ? [
+              {
+                id: 'due',
+                name: t('navDue') || 'Customer Dues',
+                icon: CreditCard,
+                color: 'bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400',
+              },
+            ]
+          : []),
       ],
     },
     {
       title: t('inventoryManagement') || 'Inventory & Stock',
       items: [
-        {
-          id: 'products',
-          name: t('navProducts') || 'Products Catalog',
-          icon: Package,
-          color: 'bg-sky-500/10 text-sky-600 dark:bg-sky-500/20 dark:text-sky-400',
-        },
-        {
-          id: 'categories',
-          name: t('navCategories') || 'Categories',
-          icon: Tags,
-          color: 'bg-teal-500/10 text-teal-600 dark:bg-teal-500/20 dark:text-teal-400',
-        },
-        {
-          id: 'stock',
-          name: t('navStock') || 'Stock Audit',
-          icon: Boxes,
-          color: 'bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400',
-        },
-        {
-          id: 'purchases',
-          name: t('navPurchases') || 'Purchases',
-          icon: ShoppingBag,
-          color: 'bg-orange-500/10 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400',
-        },
-        {
-          id: 'barcode',
-          name: t('navBarcode') || 'Barcode & QR',
-          icon: QrCode,
-          color: 'bg-[#ff5c01]/10 text-[#ff5c01] dark:bg-[#ff5c01]/20',
-        },
-        {
-          id: 'expired',
-          name: t('navExpired') || 'Expired Products',
-          icon: AlertTriangle,
-          color: 'bg-red-500/10 text-red-600 dark:bg-red-500/20 dark:text-red-400',
-        },
+        ...(isProductsOn
+          ? [
+              {
+                id: 'products',
+                name: t('navProducts') || 'Products Catalog',
+                icon: Package,
+                color: 'bg-sky-500/10 text-sky-600 dark:bg-sky-500/20 dark:text-sky-400',
+              },
+            ]
+          : []),
+        ...(isProductsOn && dashboardPreferences?.categories !== false
+          ? [
+              {
+                id: 'categories',
+                name: t('navCategories') || 'Categories',
+                icon: Tags,
+                color: 'bg-teal-500/10 text-teal-600 dark:bg-teal-500/20 dark:text-teal-400',
+              },
+            ]
+          : []),
+        ...(isProductsOn && dashboardPreferences?.stockManagement !== false
+          ? [
+              {
+                id: 'stock',
+                name: t('navStock') || 'Stock Audit',
+                icon: Boxes,
+                color: 'bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400',
+              },
+            ]
+          : []),
+        ...(dashboardPreferences?.purchases !== false
+          ? [
+              {
+                id: 'purchases',
+                name: t('navPurchases') || 'Purchases',
+                icon: ShoppingBag,
+                color: 'bg-orange-500/10 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400',
+              },
+            ]
+          : []),
+        ...(dashboardPreferences?.barcode !== false
+          ? [
+              {
+                id: 'barcode',
+                name: t('navBarcode') || 'Barcode & QR',
+                icon: QrCode,
+                color: 'bg-[#ff5c01]/10 text-[#ff5c01] dark:bg-[#ff5c01]/20',
+              },
+            ]
+          : []),
+        ...(dashboardPreferences?.expiryManagement !== false
+          ? [
+              {
+                id: 'expired',
+                name: t('navExpired') || 'Expired Products',
+                icon: AlertTriangle,
+                color: 'bg-red-500/10 text-red-600 dark:bg-red-500/20 dark:text-red-400',
+              },
+            ]
+          : []),
       ],
     },
     {
       title: t('partiesContacts') || 'Customers & Suppliers',
       items: [
-        {
-          id: 'customers',
-          name: t('navCustomers') || 'Customers',
-          icon: Users,
-          color: 'bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400',
-        },
-        {
-          id: 'suppliers',
-          name: t('navSuppliers') || 'Suppliers',
-          icon: Truck,
-          color: 'bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400',
-        },
+        ...(dashboardPreferences?.customers !== false
+          ? [
+              {
+                id: 'customers',
+                name: t('navCustomers') || 'Customers',
+                icon: Users,
+                color: 'bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400',
+              },
+            ]
+          : []),
+        ...(dashboardPreferences?.suppliers !== false
+          ? [
+              {
+                id: 'suppliers',
+                name: t('navSuppliers') || 'Suppliers',
+                icon: Truck,
+                color: 'bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400',
+              },
+            ]
+          : []),
       ],
     },
     {
       title: t('financeAnalytics') || 'Finance & Analytics',
       items: [
-        {
-          id: 'expenses',
-          name: t('navExpenses') || 'Expenses',
-          icon: Receipt,
-          color: 'bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400',
-        },
-        {
-          id: 'reports',
-          name: t('navProfit') || 'Reports & Profit',
-          icon: TrendingUp,
-          color: 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400',
-        },
+        ...(dashboardPreferences?.expenses !== false
+          ? [
+              {
+                id: 'expenses',
+                name: t('navExpenses') || 'Expenses',
+                icon: Receipt,
+                color: 'bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400',
+              },
+            ]
+          : []),
+        ...(dashboardPreferences?.reports !== false
+          ? [
+              {
+                id: 'reports',
+                name: t('navProfit') || 'Reports & Profit',
+                icon: TrendingUp,
+                color: 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400',
+              },
+            ]
+          : []),
         {
           id: 'ai',
           name: t('navAiInsights') || 'AI Business Advisor',
@@ -182,12 +240,16 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
           icon: Settings,
           color: 'bg-slate-500/10 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300',
         },
-        {
-          id: 'help',
-          name: t('navHelp') || 'Help & Support',
-          icon: HelpCircle,
-          color: 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400',
-        },
+        ...(dashboardPreferences?.support !== false
+          ? [
+              {
+                id: 'help',
+                name: t('navHelp') || 'Help & Support',
+                icon: HelpCircle,
+                color: 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400',
+              },
+            ]
+          : []),
         {
           id: 'about',
           name: t('navAbout') || 'About YearInvo',
@@ -196,7 +258,9 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
         },
       ],
     },
-  ];
+  ].filter((cat) => cat.items.length > 0);
+
+  const featureCategories = rawFeatureCategories;
 
   return (
     <>

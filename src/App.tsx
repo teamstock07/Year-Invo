@@ -21,6 +21,8 @@ import { BarcodeGeneratorView } from './components/barcode/BarcodeGeneratorView'
 import { AiInsightsView } from './components/ai/AiInsightsView';
 import { SettingsView } from './components/settings/SettingsView';
 import { BrandingView } from './components/settings/BrandingView';
+import { CustomizeDashboardView } from './components/settings/CustomizeDashboardView';
+import { ProfileView } from './components/profile/ProfileView';
 import { SubscriptionView } from './components/subscription/SubscriptionView';
 import { HelpSupportView } from './components/help/HelpSupportView';
 import { AboutView } from './components/about/AboutView';
@@ -104,6 +106,10 @@ const MainLayout: React.FC = () => {
         return <SettingsView />;
       case 'branding':
         return <BrandingView />;
+      case 'profile':
+        return <ProfileView />;
+      case 'customize-dashboard':
+        return <CustomizeDashboardView />;
       case 'subscription':
         return <SubscriptionView />;
       case 'help':
