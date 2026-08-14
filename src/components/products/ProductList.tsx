@@ -296,11 +296,20 @@ export const ProductList: React.FC = () => {
                     </td>
                     <td className="p-4">
                       <div className="flex items-center gap-3">
-                        <img
-                          src={p.imageUrl || 'https://images.unsplash.com/photo-1587049352847-4a222e784d38?auto=format&fit=crop&q=80&w=200'}
-                          alt={p.name}
-                          className="w-10 h-10 rounded-xl object-cover bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
-                        />
+                        {p.imageUrl ? (
+                          <img
+                            src={p.imageUrl}
+                            alt={p.name}
+                            className="w-10 h-10 rounded-xl object-cover bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400">
+                            <Package className="w-5 h-5 opacity-60" />
+                          </div>
+                        )}
                         <div>
                           <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs">{p.name}</h4>
                           <span className="text-[10px] text-slate-400">{p.brand} • {p.unit}</span>

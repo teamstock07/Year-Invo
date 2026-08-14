@@ -90,15 +90,18 @@ export async function handlePaddleWebhook(req: Request & { rawBody?: string }, r
     // Price ID mapping
     const PRICE_PRO_MONTHLY = process.env.VITE_PADDLE_PRO_MONTHLY_PRICE_ID || 'pri_01kzv66qktfknx85x73xer2qgj';
     const PRICE_PRO_YEARLY = process.env.VITE_PADDLE_PRO_YEARLY_PRICE_ID || 'pri_01kzv6jmxvp82kaym27fpt92dn';
+    const PRICE_PRO_FIVE_YEAR = process.env.VITE_PADDLE_PRO_FIVE_YEAR_PRICE_ID || 'pri_01kzv6jmxvp82kaym27fpt95yr';
     const PRICE_PREMIUM_MONTHLY = process.env.VITE_PADDLE_PREMIUM_MONTHLY_PRICE_ID || 'pri_01kzv6fev3d3n02cwx6bzdwsag';
     const PRICE_PREMIUM_YEARLY = process.env.VITE_PADDLE_PREMIUM_YEARLY_PRICE_ID || 'pri_01kzv6m5hxxgsc4x829zy2bnhe';
+    const PRICE_PREMIUM_FIVE_YEAR = process.env.VITE_PADDLE_PREMIUM_FIVE_YEAR_PRICE_ID || 'pri_01kzv6m5hxxgsc4x829zy2b5yr';
 
     let targetPlan: 'Pro' | 'Business' = 'Pro';
-    let billingCycle: 'monthly' | 'yearly' = 'monthly';
+    let billingCycle: 'monthly' | 'yearly' | 'five_year' = 'monthly';
 
     if (
       priceId === PRICE_PREMIUM_MONTHLY ||
       priceId === PRICE_PREMIUM_YEARLY ||
+      priceId === PRICE_PREMIUM_FIVE_YEAR ||
       customData.requestedPlan === 'Business' ||
       customData.requestedPlan === 'Premium'
     ) {
@@ -106,12 +109,19 @@ export async function handlePaddleWebhook(req: Request & { rawBody?: string }, r
     } else if (
       priceId === PRICE_PRO_MONTHLY ||
       priceId === PRICE_PRO_YEARLY ||
+      priceId === PRICE_PRO_FIVE_YEAR ||
       customData.requestedPlan === 'Pro'
     ) {
       targetPlan = 'Pro';
     }
 
     if (
+      priceId === PRICE_PRO_FIVE_YEAR ||
+      priceId === PRICE_PREMIUM_FIVE_YEAR ||
+      customData.billingCycle === 'five_year'
+    ) {
+      billingCycle = 'five_year';
+    } else if (
       priceId === PRICE_PRO_YEARLY ||
       priceId === PRICE_PREMIUM_YEARLY ||
       customData.billingCycle === 'yearly'
@@ -156,8 +166,14 @@ export async function handlePaddleWebhook(req: Request & { rawBody?: string }, r
     ].includes(eventType);
 
     if (isActiveEvent && targetUserDocRef) {
+      const periodDurationMs =
+        billingCycle === 'five_year'
+          ? 5 * 365 * 24 * 60 * 60 * 1000
+          : billingCycle === 'yearly'
+          ? 365 * 24 * 60 * 60 * 1000
+          : 30 * 24 * 60 * 60 * 1000;
       const startsAt = data.current_billing_period?.starts_at || new Date().toISOString();
-      const endsAt = data.current_billing_period?.ends_at || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      const endsAt = data.current_billing_period?.ends_at || new Date(Date.now() + periodDurationMs).toISOString();
 
       const updateData = {
         subscriptionPlan: targetPlan,
@@ -179,6 +195,19 @@ export async function handlePaddleWebhook(req: Request & { rawBody?: string }, r
 
       // Add / Update subscription request record in Firestore
       const reqId = `paddle_${data.id || Date.now()}`;
+      const chargedAmount =
+        targetPlan === 'Business'
+          ? billingCycle === 'five_year'
+            ? 225
+            : billingCycle === 'yearly'
+            ? 51
+            : 5
+          : billingCycle === 'five_year'
+          ? 67.50
+          : billingCycle === 'yearly'
+          ? 9.00
+          : 1.50;
+
       await setDoc(
         doc(serverDb, 'subscriptionRequests', reqId),
         {
@@ -193,7 +222,7 @@ export async function handlePaddleWebhook(req: Request & { rawBody?: string }, r
           paymentRegion: 'international',
           currency: 'USD',
           transactionId: data.id || data.transaction_id || `TRX_${Date.now()}`,
-          amount: targetPlan === 'Business' ? (billingCycle === 'yearly' ? 45 : 5) : (billingCycle === 'yearly' ? 26.91 : 2.99),
+          amount: chargedAmount,
           status: 'approved',
           requestDate: new Date().toISOString(),
           reviewedDate: new Date().toISOString(),

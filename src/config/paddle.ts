@@ -1,6 +1,8 @@
+import { BillingCycle } from '../types';
+
 export interface PaddlePlanMapping {
   plan: 'Pro' | 'Business' | 'Premium';
-  billingCycle: 'monthly' | 'yearly';
+  billingCycle: BillingCycle;
   priceId: string;
 }
 
@@ -72,6 +74,11 @@ export const PADDLE_CONFIG = {
       'VITE_PADDLE_PRO_YEARLY_PRICE_ID',
       'pri_01kzv6jmxvp82kaym27fpt92dn'
     ),
+    proFiveYear: getEnv(
+      metaEnv.VITE_PADDLE_PRO_FIVE_YEAR_PRICE_ID,
+      'VITE_PADDLE_PRO_FIVE_YEAR_PRICE_ID',
+      'pri_01kzv6jmxvp82kaym27fpt95yr'
+    ),
     premiumMonthly: getEnv(
       metaEnv.VITE_PADDLE_PREMIUM_MONTHLY_PRICE_ID,
       'VITE_PADDLE_PREMIUM_MONTHLY_PRICE_ID',
@@ -82,6 +89,11 @@ export const PADDLE_CONFIG = {
       'VITE_PADDLE_PREMIUM_YEARLY_PRICE_ID',
       'pri_01kzv6m5hxxgsc4x829zy2bnhe'
     ),
+    premiumFiveYear: getEnv(
+      metaEnv.VITE_PADDLE_PREMIUM_FIVE_YEAR_PRICE_ID,
+      'VITE_PADDLE_PREMIUM_FIVE_YEAR_PRICE_ID',
+      'pri_01kzv6m5hxxgsc4x829zy2b5yr'
+    ),
   },
 };
 
@@ -90,17 +102,17 @@ export const PADDLE_CONFIG = {
  */
 export const getPaddlePriceId = (
   plan: 'Pro' | 'Business' | 'Premium',
-  billingCycle: 'monthly' | 'yearly'
+  billingCycle: BillingCycle
 ): string => {
   const isPremium = plan === 'Premium' || plan === 'Business';
   if (isPremium) {
-    return billingCycle === 'yearly'
-      ? PADDLE_CONFIG.priceIds.premiumYearly
-      : PADDLE_CONFIG.priceIds.premiumMonthly;
+    if (billingCycle === 'five_year') return PADDLE_CONFIG.priceIds.premiumFiveYear;
+    if (billingCycle === 'yearly') return PADDLE_CONFIG.priceIds.premiumYearly;
+    return PADDLE_CONFIG.priceIds.premiumMonthly;
   }
-  return billingCycle === 'yearly'
-    ? PADDLE_CONFIG.priceIds.proYearly
-    : PADDLE_CONFIG.priceIds.proMonthly;
+  if (billingCycle === 'five_year') return PADDLE_CONFIG.priceIds.proFiveYear;
+  if (billingCycle === 'yearly') return PADDLE_CONFIG.priceIds.proYearly;
+  return PADDLE_CONFIG.priceIds.proMonthly;
 };
 
 /**
@@ -108,13 +120,19 @@ export const getPaddlePriceId = (
  */
 export const getPlanAndCycleFromPriceId = (
   priceId: string
-): { plan: 'Pro' | 'Business'; billingCycle: 'monthly' | 'yearly' } => {
+): { plan: 'Pro' | 'Premium'; billingCycle: BillingCycle } => {
   const { priceIds } = PADDLE_CONFIG;
+  if (priceId === priceIds.premiumFiveYear) {
+    return { plan: 'Premium', billingCycle: 'five_year' };
+  }
   if (priceId === priceIds.premiumYearly) {
-    return { plan: 'Business', billingCycle: 'yearly' };
+    return { plan: 'Premium', billingCycle: 'yearly' };
   }
   if (priceId === priceIds.premiumMonthly) {
-    return { plan: 'Business', billingCycle: 'monthly' };
+    return { plan: 'Premium', billingCycle: 'monthly' };
+  }
+  if (priceId === priceIds.proFiveYear) {
+    return { plan: 'Pro', billingCycle: 'five_year' };
   }
   if (priceId === priceIds.proYearly) {
     return { plan: 'Pro', billingCycle: 'yearly' };

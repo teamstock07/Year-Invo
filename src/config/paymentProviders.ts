@@ -1,4 +1,14 @@
+import { BillingCycle } from '../types';
+import { PRICING_CONFIG, calculatePlanPricing } from './pricing';
+
 export type PaymentRegionId = 'international' | 'bangladesh';
+
+export interface PlanPricingPeriod {
+  monthly: number;
+  yearly: number;
+  fiveYear: number;
+  five_year?: number;
+}
 
 export interface PaymentProviderConfig {
   id: string;
@@ -9,7 +19,7 @@ export interface PaymentProviderConfig {
   currencySymbol: string; // '$' | '৳'
   description: string;
   badge?: string;
-  logoType?: 'paypal' | 'stripe' | 'card' | 'bkash' | 'nagad' | 'rocket' | 'bank';
+  logoType?: 'paddle' | 'paypal' | 'stripe' | 'card' | 'bkash' | 'nagad' | 'rocket' | 'bank';
   instructions?: {
     accountName?: string;
     accountNumber?: string;
@@ -17,8 +27,9 @@ export interface PaymentProviderConfig {
     note?: string;
   };
   supportedPlans: {
-    Pro: { monthly: number; yearly: number };
-    Business: { monthly: number; yearly: number };
+    Pro: PlanPricingPeriod;
+    Premium: PlanPricingPeriod;
+    Business?: PlanPricingPeriod; // Alias for Premium
   };
 }
 
@@ -34,21 +45,62 @@ export const PAYMENT_REGIONS: PaymentRegionConfig[] = [
   {
     id: 'international',
     title: 'International Payment',
-    subtitle: 'PayPal & Global Credit/Debit Cards (USD)',
+    subtitle: 'Paddle Checkout: Global Cards, PayPal, Apple/Google Pay (USD)',
     currency: 'USD',
     currencySymbol: '$',
   },
   {
     id: 'bangladesh',
-    title: 'Bangladesh Payment',
-    subtitle: 'bKash, Nagad, Rocket & Bank Transfer (BDT)',
+    title: 'Bangladesh Local Payment',
+    subtitle: 'bKash, Nagad, Rocket & Bank Wire Transfer (BDT ৳)',
     currency: 'BDT',
     currencySymbol: '৳',
   },
 ];
 
+// Calculated plan pricing for both regions
+const bdProMo = calculatePlanPricing('Pro', 'monthly', true).finalTotal;
+const bdProYr = calculatePlanPricing('Pro', 'yearly', true).finalTotal;
+const bdPro5Yr = calculatePlanPricing('Pro', 'five_year', true).finalTotal;
+
+const bdPremMo = calculatePlanPricing('Premium', 'monthly', true).finalTotal;
+const bdPremYr = calculatePlanPricing('Premium', 'yearly', true).finalTotal;
+const bdPrem5Yr = calculatePlanPricing('Premium', 'five_year', true).finalTotal;
+
+const intlProMo = calculatePlanPricing('Pro', 'monthly', false).finalTotal;
+const intlProYr = calculatePlanPricing('Pro', 'yearly', false).finalTotal;
+const intlPro5Yr = calculatePlanPricing('Pro', 'five_year', false).finalTotal;
+
+const intlPremMo = calculatePlanPricing('Premium', 'monthly', false).finalTotal;
+const intlPremYr = calculatePlanPricing('Premium', 'yearly', false).finalTotal;
+const intlPrem5Yr = calculatePlanPricing('Premium', 'five_year', false).finalTotal;
+
+const bdSupportedPlans = {
+  Pro: { monthly: bdProMo, yearly: bdProYr, fiveYear: bdPro5Yr },
+  Premium: { monthly: bdPremMo, yearly: bdPremYr, fiveYear: bdPrem5Yr },
+  Business: { monthly: bdPremMo, yearly: bdPremYr, fiveYear: bdPrem5Yr },
+};
+
+const intlSupportedPlans = {
+  Pro: { monthly: intlProMo, yearly: intlProYr, fiveYear: intlPro5Yr },
+  Premium: { monthly: intlPremMo, yearly: intlPremYr, fiveYear: intlPrem5Yr },
+  Business: { monthly: intlPremMo, yearly: intlPremYr, fiveYear: intlPrem5Yr },
+};
+
 export const PAYMENT_PROVIDERS: PaymentProviderConfig[] = [
-  // --- International Payment Providers ---
+  // --- International Payment Providers (Processed through official Paddle Checkout) ---
+  {
+    id: 'paddle_checkout',
+    name: 'Paddle Checkout',
+    region: 'international',
+    enabled: true,
+    currency: 'USD',
+    currencySymbol: '$',
+    description: 'Official secure global checkout with Card, PayPal, Google Pay & local methods',
+    badge: 'Official Gateway',
+    logoType: 'card',
+    supportedPlans: intlSupportedPlans,
+  },
   {
     id: 'paypal',
     name: 'PayPal',
@@ -56,12 +108,9 @@ export const PAYMENT_PROVIDERS: PaymentProviderConfig[] = [
     enabled: true,
     currency: 'USD',
     currencySymbol: '$',
-    description: 'Fast & secure checkout using your PayPal account',
+    description: 'Fast & secure checkout with PayPal via Paddle Checkout',
     logoType: 'paypal',
-    supportedPlans: {
-      Pro: { monthly: 2.99, yearly: 26.91 },
-      Business: { monthly: 5.00, yearly: 45.00 },
-    },
+    supportedPlans: intlSupportedPlans,
   },
   {
     id: 'card',
@@ -70,23 +119,20 @@ export const PAYMENT_PROVIDERS: PaymentProviderConfig[] = [
     enabled: true,
     currency: 'USD',
     currencySymbol: '$',
-    description: 'Visa, Mastercard, American Express & major debit/credit cards',
+    description: 'Visa, Mastercard, American Express & major cards via Paddle',
     logoType: 'card',
-    supportedPlans: {
-      Pro: { monthly: 2.99, yearly: 26.91 },
-      Business: { monthly: 5.00, yearly: 45.00 },
-    },
+    supportedPlans: intlSupportedPlans,
   },
 
-  // --- Bangladesh Payment Providers ---
+  // --- Bangladesh Payment Providers (Manual / Direct Local Mobile & Bank Transfer) ---
   {
     id: 'bkash',
     name: 'bKash Mobile Wallet',
     region: 'bangladesh',
-    enabled: true, // Configured & active
+    enabled: true,
     currency: 'BDT',
     currencySymbol: '৳',
-    description: 'Fast & secure bKash Send Money / Merchant payment via bKash App or USSD *247#',
+    description: 'Send Money or Payment via bKash App or USSD *247#',
     badge: 'Most Popular',
     logoType: 'bkash',
     instructions: {
@@ -94,54 +140,45 @@ export const PAYMENT_PROVIDERS: PaymentProviderConfig[] = [
       accountNumber: '01700000000',
       note: '1. Go to bKash App -> Send Money\n2. Enter Number: 01700000000\n3. Enter Amount & Reference (Store Name)\n4. Copy TrxID and enter below.',
     },
-    supportedPlans: {
-      Pro: { monthly: 350, yearly: 3150 },
-      Business: { monthly: 600, yearly: 5400 },
-    },
+    supportedPlans: bdSupportedPlans,
   },
   {
     id: 'nagad',
     name: 'Nagad Mobile Banking',
     region: 'bangladesh',
-    enabled: true, // Configured & active
+    enabled: true,
     currency: 'BDT',
     currencySymbol: '৳',
-    description: 'Send Money or Merchant Payment using Nagad App or USSD *167#',
+    description: 'Send Money or Payment using Nagad App or USSD *167#',
     logoType: 'nagad',
     instructions: {
       accountName: 'YearInvo POS Ltd',
       accountNumber: '01800000000',
       note: '1. Go to Nagad App -> Send Money\n2. Enter Number: 01800000000\n3. Enter Amount & Reference (Store Name)\n4. Copy TrxID and enter below.',
     },
-    supportedPlans: {
-      Pro: { monthly: 350, yearly: 3150 },
-      Business: { monthly: 600, yearly: 5400 },
-    },
+    supportedPlans: bdSupportedPlans,
   },
   {
     id: 'rocket',
     name: 'DBBL Rocket',
     region: 'bangladesh',
-    enabled: true, // Configured & active
+    enabled: true,
     currency: 'BDT',
     currencySymbol: '৳',
-    description: 'Dutch-Bangla Bank Rocket mobile banking transfer',
+    description: 'Dutch-Bangla Bank Rocket mobile banking transfer (*322#)',
     logoType: 'rocket',
     instructions: {
       accountName: 'YearInvo POS Ltd',
       accountNumber: '01900000000-1',
       note: '1. Dial *322# or open Rocket App -> Send Money\n2. Enter Account: 01900000000-1\n3. Enter Amount & Reference\n4. Copy TrxID and enter below.',
     },
-    supportedPlans: {
-      Pro: { monthly: 350, yearly: 3150 },
-      Business: { monthly: 600, yearly: 5400 },
-    },
+    supportedPlans: bdSupportedPlans,
   },
   {
     id: 'bank_transfer',
     name: 'Bank Wire Transfer',
     region: 'bangladesh',
-    enabled: true, // Configured & active
+    enabled: true,
     currency: 'BDT',
     currencySymbol: '৳',
     description: 'Direct EFT / NPSB / BEFTN bank transfer to company account',
@@ -152,10 +189,7 @@ export const PAYMENT_PROVIDERS: PaymentProviderConfig[] = [
       branch: 'Gulshan Branch, BRAC Bank PLC',
       note: 'Please include your Store Name or Email as reference in the bank transfer note/slip.',
     },
-    supportedPlans: {
-      Pro: { monthly: 350, yearly: 3150 },
-      Business: { monthly: 600, yearly: 5400 },
-    },
+    supportedPlans: bdSupportedPlans,
   },
 ];
 

@@ -1,6 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useApp } from '../../context/AppContext';
+import { calculatePlanPricing, BillingCycle } from '../../config/pricing';
+import {
+  getExchangeRate,
+  convertCurrency,
+  formatCurrencyAmount,
+  normalizeCurrencyCode,
+  getCurrencySymbol,
+} from '../../services/currencyService';
 import {
   Check,
   Sparkles,
@@ -8,7 +16,7 @@ import {
   Crown,
   ArrowRight,
   ShieldCheck,
-  HelpCircle,
+  Globe,
 } from 'lucide-react';
 
 interface LandingPricingProps {
@@ -16,88 +24,72 @@ interface LandingPricingProps {
 }
 
 export const LandingPricing: React.FC<LandingPricingProps> = ({ onOpenSignup }) => {
-  const { settings, language } = useApp();
+  const { settings, language, exchangeRates } = useApp();
   const isBn = language === 'bn';
-  const symbol = settings.currency || '৳';
-  const isBDT = symbol === '৳';
+  const displayCurrency = settings.currency || '৳';
+  const isBDT = normalizeCurrencyCode(displayCurrency) === 'BDT';
 
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
 
-  const getPlanPricing = (planId: string) => {
+  const getPlanPricing = (planId: 'free' | 'pro' | 'premium') => {
     if (planId === 'free') {
       return {
-        amount: '0',
+        amount: isBn ? '০' : '0',
+        currencyLabel: isBDT ? '৳' : getCurrencySymbol(displayCurrency),
         note: isBn ? '১ মাসের জন্য ফ্রি' : 'Free for 1 Month',
-        subtext: isBn ? 'ফ্রি ট্রায়াল' : '1 Month Free Trial',
+        subtext: isBn ? 'ফ্রি ট্রায়াল (৩০ দিন)' : '1 Month Free Trial',
+        discountBadge: null,
+        savingsLabel: '0',
       };
     }
 
-    if (planId === 'pro') {
-      if (isBDT) {
-        if (billingCycle === 'yearly') {
-          return {
-            amount: '3,600',
-            note: isBn ? '/বছর' : '/year',
-            subtext: isBn ? '৳৩৬০ × ১০ মাস (২ মাস ফ্রি)' : '৳360 × 10 months (2 months free)',
-          };
-        }
-        return {
-          amount: '150',
-          note: isBn ? ' ১ম মাস (এরপর ৳৩৬০/মাস)' : ' 1st mo (then ৳360/mo)',
-          subtext: isBn ? 'প্রোমোশনাল প্রারম্ভিক অফার (এরপর ৳৩৬০/মাস)' : 'Introductory Offer (Then ৳360/mo)',
-        };
-      } else {
-        if (billingCycle === 'yearly') {
-          return {
-            amount: '25.00',
-            note: '/year',
-            subtext: '$2.50 × 10 months (2 months free)',
-          };
-        }
-        return {
-          amount: '2.50',
-          note: '/month',
-          subtext: '$2.50 1st month, then $2.50/month',
-        };
-      }
+    const plan = planId === 'pro' ? 'Pro' : 'Premium';
+    const calculated = calculatePlanPricing(
+      plan,
+      billingCycle,
+      isBDT,
+      displayCurrency,
+      exchangeRates,
+      language
+    );
+
+    let note = '';
+    let subtext = '';
+
+    if (billingCycle === 'monthly') {
+      note = isBn ? '/মাস' : '/month';
+      subtext = isBDT
+        ? (planId === 'pro' ? (isBn ? 'নিয়মিত মাসিক প্ল্যান' : 'Standard Monthly Plan') : (isBn ? 'চেইন শপ ও আনলিমিটেড ব্রাঞ্চ' : 'Unrestricted Multi-Branch Power'))
+        : (isBn ? 'স্ট্যান্ডার্ড মাসিক বিলিং' : 'Standard monthly billing');
+    } else if (billingCycle === 'yearly') {
+      note = isBn ? '/বছর' : '/year';
+      subtext = isBn
+        ? `${calculated.effectiveMonthlyFormatted}/মাস হিসেবে গণনা`
+        : `Equivalent to ${calculated.effectiveMonthlyFormatted}/mo`;
+    } else if (billingCycle === 'five_year') {
+      note = isBn ? '/৫ বছর' : '/5 years';
+      subtext = isBn
+        ? `${calculated.effectiveMonthlyFormatted}/মাস (৬০ মাসের মোট প্যাকেজ)`
+        : `Equivalent to ${calculated.effectiveMonthlyFormatted}/mo (60-mo bundle)`;
     }
 
-    if (planId === 'premium') {
-      if (isBDT) {
-        if (billingCycle === 'yearly') {
-          return {
-            amount: '6,000',
-            note: isBn ? '/বছর' : '/year',
-            subtext: isBn ? '৳৬০০ × ১০ মাস (২ মাস ফ্রি)' : '৳600 × 10 months (2 months free)',
-          };
-        }
-        return {
-          amount: '600',
-          note: isBn ? '/মাস' : '/month',
-          subtext: isBn ? 'চেইন শপ ও আনলিমিটেড ব্রাঞ্চ' : 'Unrestricted Multi-Branch Power',
-        };
-      } else {
-        if (billingCycle === 'yearly') {
-          return {
-            amount: '50.00',
-            note: '/year',
-            subtext: '$5.00 × 10 months (2 months free)',
-          };
-        }
-        return {
-          amount: '5.00',
-          note: '/month',
-          subtext: 'Unrestricted Multi-Branch Power',
-        };
-      }
-    }
+    const discountBadge = calculated.discountPercent > 0
+      ? (isBn ? `${calculated.discountPercent}% ছাড়` : `${calculated.discountPercent}% OFF`)
+      : null;
 
-    return { amount: '0', note: '', subtext: '' };
+    return {
+      amount: calculated.totalFormatted,
+      currencyLabel: '',
+      note,
+      subtext,
+      discountBadge,
+      savingsLabel: calculated.savingsFormatted,
+    };
   };
 
   const plans = [
     {
-      id: 'free',
+      id: 'free' as const,
       name: 'Free Starter',
       badge: isBn ? 'ফ্রি ১ মাস' : '1 Month Free Trial',
       desc: isBn
@@ -121,7 +113,7 @@ export const LandingPricing: React.FC<LandingPricingProps> = ({ onOpenSignup }) 
       buttonVariant: 'secondary',
     },
     {
-      id: 'pro',
+      id: 'pro' as const,
       name: 'Pro Business',
       badge: isBn ? 'সবচেয়ে জনপ্রিয়' : 'MOST POPULAR',
       desc: isBn
@@ -145,7 +137,7 @@ export const LandingPricing: React.FC<LandingPricingProps> = ({ onOpenSignup }) 
       buttonVariant: 'primary',
     },
     {
-      id: 'premium',
+      id: 'premium' as const,
       name: 'Premium Enterprise',
       badge: isBn ? 'প্রিমিয়াম সুপারস্টার' : 'ENTERPRISE POWER',
       desc: isBn
@@ -192,29 +184,47 @@ export const LandingPricing: React.FC<LandingPricingProps> = ({ onOpenSignup }) 
               : 'No hidden setup fees. Upgrade or adjust your subscription anytime as your business grows.'}
           </p>
 
-          {/* Monthly / Yearly Billing Toggle */}
-          <div className="inline-flex items-center bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+          {/* 3 Billing Cycle Selector (Monthly / Yearly / 5-Year) */}
+          <div className="inline-flex flex-wrap items-center justify-center gap-1.5 bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
             <button
               onClick={() => setBillingCycle('monthly')}
-              className={`px-4 py-2 text-xs font-black rounded-xl transition-all cursor-pointer ${
+              className={`px-3.5 py-2 text-xs font-black rounded-xl transition-all cursor-pointer ${
                 billingCycle === 'monthly'
                   ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
-              {isBn ? 'মাসিক বিলিং' : 'Monthly Billing'}
+              {isBn ? 'মাসিক বিলিং' : 'Monthly'}
             </button>
             <button
               onClick={() => setBillingCycle('yearly')}
-              className={`px-4 py-2 text-xs font-black rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3.5 py-2 text-xs font-black rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
                 billingCycle === 'yearly'
                   ? 'bg-[#7C3AED] text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
-              <span>{isBn ? 'বার্ষিক বিলিং' : 'Annual Billing'}</span>
-              <span className="px-1.5 py-0.5 rounded-md bg-amber-400 text-slate-950 text-[9px] font-black uppercase">
-                {isBn ? '২০% ছাড়' : '20% OFF'}
+              <span>{isBn ? '১ বছর' : '1-Year'}</span>
+              <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase ${
+                billingCycle === 'yearly' ? 'bg-amber-400 text-slate-950' : 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+              }`}>
+                {isBn ? '৫০% পর্যন্ত ছাড়' : 'Up to 50% OFF'}
+              </span>
+            </button>
+            <button
+              onClick={() => setBillingCycle('five_year')}
+              className={`px-3.5 py-2 text-xs font-black rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                billingCycle === 'five_year'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <Crown className="w-3 h-3 text-amber-300 fill-amber-300" />
+              <span>{isBn ? '৫ বছর' : '5-Year'}</span>
+              <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase ${
+                billingCycle === 'five_year' ? 'bg-amber-400 text-slate-950' : 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-400'
+              }`}>
+                {isBn ? '২৫% ছাড়' : '25% OFF'}
               </span>
             </button>
           </div>
@@ -248,140 +258,127 @@ export const LandingPricing: React.FC<LandingPricingProps> = ({ onOpenSignup }) 
 
                 <div className="space-y-5">
                   {!plan.popular && (
-                    <span className="inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-black uppercase tracking-wider">
                       {plan.badge}
                     </span>
                   )}
 
                   <div>
-                    <h3 className="text-xl font-black text-slate-900 dark:text-white">{plan.name}</h3>
-                    <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 min-h-[32px]">
+                    <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                      {plan.name}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                       {plan.desc}
                     </p>
                   </div>
 
-                  {/* Price */}
-                  <div className="border-b border-slate-100 dark:border-slate-800/80 pb-4 space-y-1">
+                  {/* Price Block */}
+                  <div className="pt-2 pb-1 border-y border-slate-100 dark:border-slate-800 space-y-1">
                     <div className="flex items-baseline gap-1">
-                      <span className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white">
-                        {symbol}{pricingInfo.amount}
+                      {pricingInfo.currencyLabel && (
+                        <span className="text-2xl font-black text-slate-900 dark:text-white">
+                          {pricingInfo.currencyLabel}
+                        </span>
+                      )}
+                      <span className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">
+                        {pricingInfo.amount}
                       </span>
                       <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
                         {pricingInfo.note}
                       </span>
                     </div>
-                    {pricingInfo.subtext && (
-                      <p className="text-[11px] text-purple-600 dark:text-purple-400 font-extrabold">
-                        {pricingInfo.subtext}
-                      </p>
-                    )}
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {pricingInfo.subtext && (
+                        <p className="text-[11px] font-extrabold text-[#7C3AED] dark:text-[#a78bfa]">
+                          {pricingInfo.subtext}
+                        </p>
+                      )}
+                      {pricingInfo.discountBadge && (
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-black">
+                          {pricingInfo.discountBadge}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Included Features List */}
-                  <div className="space-y-2.5 pt-1">
+                  {/* Features List */}
+                  <div className="space-y-2.5 pt-2">
                     <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">
-                      {isBn ? 'যা যা সুবিধা পাবেন:' : 'Included Features:'}
+                      {isBn ? 'প্ল্যানের সুবিধাসমূহ:' : 'Included Features:'}
                     </p>
-                    {plan.features.map((feat, i) => (
-                      <div key={i} className="flex items-start gap-2 text-xs font-medium text-slate-700 dark:text-slate-200">
+                    {plan.features.map((feature, fIdx) => (
+                      <div
+                        key={fIdx}
+                        className="flex items-start gap-2.5 text-xs font-medium text-slate-700 dark:text-slate-300"
+                      >
                         <Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-                        <span>{feat}</span>
+                        <span>{feature}</span>
                       </div>
                     ))}
+
+                    {plan.notIncluded.length > 0 && (
+                      <div className="pt-2 space-y-2 opacity-50">
+                        {plan.notIncluded.map((feature, fIdx) => (
+                          <div
+                            key={fIdx}
+                            className="flex items-start gap-2.5 text-xs text-slate-400 line-through"
+                          >
+                            <span className="w-4 h-4 text-center shrink-0">—</span>
+                            <span>{feature}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Card Upgrade Button */}
-                <div className="pt-8 mt-auto">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+                {/* Card CTA Action Button */}
+                <div className="pt-8">
+                  <button
                     onClick={onOpenSignup}
-                    className={`w-full py-3.5 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                      plan.popular
-                        ? 'bg-[#7C3AED] hover:bg-[#6d28d9] text-white shadow-lg shadow-[#7C3AED]/30'
-                        : plan.id === 'premium'
-                        ? 'bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-xs'
-                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
+                    className={`w-full py-3.5 rounded-2xl font-black text-xs transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${
+                      plan.buttonVariant === 'primary'
+                        ? 'bg-[#7C3AED] hover:bg-[#6d28d9] text-white shadow-lg shadow-[#7C3AED]/30 hover:shadow-xl hover:shadow-[#7C3AED]/40 hover:-translate-y-0.5'
+                        : plan.buttonVariant === 'accent'
+                        ? 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-lg shadow-orange-500/25 hover:-translate-y-0.5'
+                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-white'
                     }`}
                   >
                     <span>{plan.buttonText}</span>
                     <ArrowRight className="w-4 h-4" />
-                  </motion.button>
+                  </button>
                 </div>
               </motion.div>
             );
           })}
         </div>
 
-        {/* Detailed Plan Comparison Table */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-40px' }}
-          transition={{ duration: 0.5 }}
-          className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4"
-        >
-          <div className="text-center sm:text-left space-y-1">
-            <h3 className="text-lg font-black text-slate-900 dark:text-white">
-              {isBn ? 'প্ল্যান সমূহের বিস্তারিত তুলনা (Compare Plans)' : 'Compare Plan Features'}
-            </h3>
-            <p className="text-xs text-slate-600 dark:text-slate-400">
-              {isBn ? 'প্রতিটি প্ল্যানের ফিচারের সম্পূর্ণ তালিকা একসাথে দেখুন' : 'Detailed feature matrix across Free, Pro, and Premium tiers.'}
-            </p>
+        {/* Security & Support Guarantee Note */}
+        <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white">
+                {isBn ? '১০০% নিরাপদ ও নিরবচ্ছিন্ন ক্লাউড সার্ভিস' : '100% Secure & Reliable Cloud Guarantee'}
+              </h4>
+              <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">
+                {isBn
+                  ? 'বিকাশ, নগদ, রকেট এবং আন্তর্জাতিক প্যাডেল পেমেন্ট সাপোর্ট। সার্বক্ষণিক কাস্টমার কেয়ার।'
+                  : 'Automated instant checkout via Paddle and Bangladesh local mobile banking.'}
+              </p>
+            </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase">
-                  <th className="py-3 px-3">Feature Name</th>
-                  <th className="py-3 px-3 text-center">Free Starter</th>
-                  <th className="py-3 px-3 text-center text-purple-600 dark:text-purple-400">Pro Business</th>
-                  <th className="py-3 px-3 text-center">Premium Enterprise</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-slate-700 dark:text-slate-300 font-medium">
-                <tr>
-                  <td className="py-2.5 px-3 font-bold">Store Branches</td>
-                  <td className="py-2.5 px-3 text-center">1 Branch</td>
-                  <td className="py-2.5 px-3 text-center font-bold text-purple-600 dark:text-purple-400">1 Branch + Counter</td>
-                  <td className="py-2.5 px-3 text-center font-bold">Unlimited Branches</td>
-                </tr>
-                <tr>
-                  <td className="py-2.5 px-3 font-bold">Active Products Limit</td>
-                  <td className="py-2.5 px-3 text-center">Up to 100</td>
-                  <td className="py-2.5 px-3 text-center text-emerald-600 dark:text-emerald-400 font-bold">Unlimited</td>
-                  <td className="py-2.5 px-3 text-center text-emerald-600 dark:text-emerald-400 font-bold">Unlimited</td>
-                </tr>
-                <tr>
-                  <td className="py-2.5 px-3 font-bold">Barcode Sticker Generation</td>
-                  <td className="py-2.5 px-3 text-center text-slate-400">—</td>
-                  <td className="py-2.5 px-3 text-center font-bold text-emerald-500">✓ Code128 Thermal</td>
-                  <td className="py-2.5 px-3 text-center font-bold text-emerald-500">✓ Code128 Thermal</td>
-                </tr>
-                <tr>
-                  <td className="py-2.5 px-3 font-bold">Customer &amp; Supplier Dues Khata</td>
-                  <td className="py-2.5 px-3 text-center">Basic Ledger</td>
-                  <td className="py-2.5 px-3 text-center font-bold">Advanced + Logs</td>
-                  <td className="py-2.5 px-3 text-center font-bold">Advanced + Logs</td>
-                </tr>
-                <tr>
-                  <td className="py-2.5 px-3 font-bold">Multi-Staff Roles &amp; Security</td>
-                  <td className="py-2.5 px-3 text-center text-slate-400">—</td>
-                  <td className="py-2.5 px-3 text-center font-bold">✓ Manager/Staff</td>
-                  <td className="py-2.5 px-3 text-center font-bold">✓ Unlimited Roles</td>
-                </tr>
-                <tr>
-                  <td className="py-2.5 px-3 font-bold">AI Business Insights</td>
-                  <td className="py-2.5 px-3 text-center text-slate-400">—</td>
-                  <td className="py-2.5 px-3 text-center font-bold">Basic Insights</td>
-                  <td className="py-2.5 px-3 text-center font-bold text-purple-500">✓ AI Profit Predictor</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </motion.div>
+          <button
+            onClick={onOpenSignup}
+            className="px-5 py-2.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-black shrink-0 hover:bg-slate-800 transition-colors cursor-pointer"
+          >
+            {isBn ? 'ফ্রি ট্রায়াল শুরু করুন' : 'Start Free Trial'}
+          </button>
+        </div>
 
       </div>
     </section>

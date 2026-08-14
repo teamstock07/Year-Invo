@@ -1,4 +1,12 @@
 import { Language } from '../types';
+import {
+  formatMoney as formatMoneyService,
+  normalizeCurrencyCode,
+  getCurrencySymbol,
+  FormatMoneyOptions,
+} from '../services/currencyService';
+
+export { formatMoneyService as formatMoney };
 
 export const convertDigitsInString = (str: string, lang: Language): string => {
   if (!str) return str;
@@ -28,7 +36,7 @@ export const formatNumber = (
 
   const localeMap: Record<Language, string> = {
     bn: 'bn-BD',
-    hi: 'hi-IN-u-nu-deva',
+    hi: 'hi-IN',
     ar: 'ar-EG',
     en: 'en-US',
     fr: 'fr-FR',
@@ -49,14 +57,20 @@ export const formatNumber = (
   }
 };
 
+/**
+ * Currency Formatter
+ * Formats an amount with currency symbol/code and proper locale/decimals.
+ * If sourceCurrency and targetCurrency are passed or inferred, converts value using live rate.
+ */
 export const formatCurrency = (
   amount: number | string | undefined | null,
-  currencySymbol: string = '৳',
+  currencyOrSymbol: string = '৳',
   lang: Language = 'en',
-  options?: { decimals?: number }
+  options?: FormatMoneyOptions & { sourceCurrency?: string }
 ): string => {
-  const formattedNum = formatNumber(amount, lang, options);
-  return `${currencySymbol}${formattedNum}`;
+  const targetCode = normalizeCurrencyCode(currencyOrSymbol);
+  const sourceCode = options?.sourceCurrency ? normalizeCurrencyCode(options.sourceCurrency) : targetCode;
+  return formatMoneyService(amount, sourceCode, targetCode, lang, options);
 };
 
 export const formatDate = (

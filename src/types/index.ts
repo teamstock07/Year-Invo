@@ -1,7 +1,8 @@
 export type Language = 'en' | 'bn' | 'hi' | 'ar' | 'es' | 'fr';
 export type ThemeMode = 'light' | 'dark';
 export type UserRole = 'Owner' | 'Manager' | 'Staff' | 'Accountant' | 'PlatformOwner';
-export type SubscriptionPlan = 'Starter' | 'Tier2' | 'Lifetime' | 'Free' | 'Pro' | 'Business';
+export type SubscriptionPlan = 'Starter' | 'Tier2' | 'Lifetime' | 'Free' | 'Pro' | 'Premium' | 'Business';
+export type BillingCycle = 'monthly' | 'yearly' | 'five_year';
 
 export interface UserProfile {
   id: string;
@@ -38,7 +39,7 @@ export interface UserProfile {
   paddleCustomerId?: string;
   paddleSubscriptionId?: string;
   paddlePriceId?: string;
-  billingCycle?: 'monthly' | 'yearly';
+  billingCycle?: BillingCycle;
   paymentProvider?: string;
   paymentRegion?: 'international' | 'bangladesh';
   currentPeriodStart?: string;
@@ -53,7 +54,7 @@ export interface SubscriptionRequest {
   brandName: string;
   currentPlan: SubscriptionPlan;
   requestedPlan: SubscriptionPlan;
-  billingCycle: 'monthly' | 'yearly';
+  billingCycle: BillingCycle;
   paymentMethod: string;
   paymentRegion?: 'international' | 'bangladesh';
   paymentProvider?: string;
@@ -315,7 +316,8 @@ export interface BusinessSettings {
   siteLogoUrl?: string;
   siteBrandName?: string;
   siteSubBrandName?: string;
-  currency: string; // e.g., "৳" or "$"
+  baseCurrency?: string; // Stored store base currency e.g. "BDT" or "USD"
+  currency: string; // Active display currency e.g. "৳", "$", "BDT", "USD", "INR", "EUR", "PKR"
   currencyPosition: 'prefix' | 'suffix';
   timeZone: string;
   taxRatePercent: number;

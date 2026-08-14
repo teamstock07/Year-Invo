@@ -1,4 +1,5 @@
 import { PADDLE_CONFIG, getPaddlePriceId } from '../config/paddle';
+import { BillingCycle } from '../types';
 
 declare global {
   interface window {
@@ -120,7 +121,7 @@ export const initializePaddle = (): Promise<any> => {
 
 export interface OpenCheckoutOptions {
   plan: 'Pro' | 'Business' | 'Premium';
-  billingCycle: 'monthly' | 'yearly';
+  billingCycle: BillingCycle;
   userId: string;
   userEmail: string;
   brandName?: string;

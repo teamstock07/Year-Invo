@@ -40,6 +40,7 @@ import {
   CartItem,
   SubscriptionRequest,
   SubscriptionPlan,
+  BillingCycle,
   UserRole,
   OwnerPaymentSettings,
   BangladeshPaymentConfig,
@@ -62,7 +63,17 @@ import {
   formatNumber as formatNumberHelper,
   formatCurrency as formatCurrencyHelper,
   formatDate as formatDateHelper,
+  formatMoney as formatMoneyHelper,
 } from '../utils/format';
+import {
+  useExchangeRates,
+  convertCurrency as convertCurrencyHelper,
+  getExchangeRate as getExchangeRateHelper,
+  normalizeCurrencyCode,
+  getCurrencySymbol,
+  FormatMoneyOptions,
+} from '../services/currencyService';
+import { isBangladeshCountry } from '../config/pricing';
 
 interface AppContextType {
   // Auth & Profile
@@ -91,7 +102,7 @@ interface AppContextType {
   subscriptionRequests: SubscriptionRequest[];
   requestSubscription: (data: {
     requestedPlan: SubscriptionPlan;
-    billingCycle: 'monthly' | 'yearly';
+    billingCycle: BillingCycle;
     paymentMethod: string;
     paymentRegion?: 'international' | 'bangladesh';
     paymentProvider?: string;
@@ -114,7 +125,24 @@ interface AppContextType {
   toggleTheme: () => void;
   t: (key: string) => string;
   formatNumber: (val: number | string | undefined | null, options?: { decimals?: number; useGrouping?: boolean }) => string;
-  formatCurrency: (amount: number | string | undefined | null, options?: { decimals?: number }) => string;
+  formatCurrency: (
+    amount: number | string | undefined | null,
+    options?: FormatMoneyOptions & { sourceCurrency?: string; displayCurrency?: string }
+  ) => string;
+  formatMoney: (
+    amount: number | string | undefined | null,
+    sourceCurrency?: string,
+    displayCurrency?: string,
+    locale?: Language | string,
+    options?: FormatMoneyOptions
+  ) => string;
+  convertMoney: (amount: number, fromCurrency?: string, toCurrency?: string) => number;
+  getExchangeRate: (fromCurrency: string, toCurrency?: string) => Promise<number>;
+  storeBaseCurrency: string;
+  displayCurrency: string;
+  displayCurrencySymbol: string;
+  exchangeRates: Record<string, number>;
+  isExchangeRatesLoading: boolean;
   formatDate: (dateStr: string | Date | undefined | null) => string;
 
   // Navigation
@@ -333,6 +361,14 @@ const initialRegisteredUsers: UserProfile[] = [
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Use centralized exchange rates hook
+  const {
+    rates: exchangeRates,
+    isLoading: isExchangeRatesLoading,
+    convert: convertCurrencyWithRates,
+    format: formatMoneyWithRates,
+  } = useExchangeRates();
+
   // Saved language & theme
   const [language, setLanguageState] = useState<Language>(() => {
     const saved = localStorage.getItem('biz_language');
@@ -1067,8 +1103,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return formatNumberHelper(val, language, options);
   };
 
-  const formatCurrency = (amount: number | string | undefined | null, options?: { decimals?: number }) => {
-    return formatCurrencyHelper(amount, settings.currency || '৳', language, options);
+  const storeBaseCurrency =
+    settings.baseCurrency ||
+    (user?.country && isBangladeshCountry(user.country) ? 'BDT' : undefined) ||
+    normalizeCurrencyCode(user?.currency) ||
+    'BDT';
+
+  const displayCurrency = normalizeCurrencyCode(settings.currency || 'BDT');
+  const displayCurrencySymbol = getCurrencySymbol(displayCurrency);
+
+  const formatCurrency = (
+    amount: number | string | undefined | null,
+    options?: FormatMoneyOptions & { sourceCurrency?: string; displayCurrency?: string }
+  ) => {
+    const source = options?.sourceCurrency || storeBaseCurrency;
+    const target = options?.displayCurrency || displayCurrency;
+    return formatMoneyWithRates(amount, source, target, language, options);
+  };
+
+  const formatMoney = (
+    amount: number | string | undefined | null,
+    sourceCurrency: string = storeBaseCurrency,
+    displayCurrencyParam: string = displayCurrency,
+    localeParam: Language | string = language,
+    options?: FormatMoneyOptions
+  ) => {
+    return formatMoneyWithRates(amount, sourceCurrency, displayCurrencyParam, localeParam, options);
+  };
+
+  const convertMoney = (
+    amount: number,
+    fromCurrency: string = storeBaseCurrency,
+    toCurrency: string = displayCurrency
+  ) => {
+    return convertCurrencyWithRates(amount, fromCurrency, toCurrency);
+  };
+
+  const getExchangeRate = async (fromCurrency: string, toCurrency?: string) => {
+    return getExchangeRateHelper(fromCurrency, toCurrency);
   };
 
   const formatDate = (dateStr: string | Date | undefined | null) => {
@@ -1603,7 +1675,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Subscription Approval System Handlers
   const requestSubscription = async (data: {
     requestedPlan: SubscriptionPlan;
-    billingCycle: 'monthly' | 'yearly';
+    billingCycle: BillingCycle;
     paymentMethod: string;
     paymentRegion?: 'international' | 'bangladesh';
     paymentProvider?: string;
@@ -2795,6 +2867,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         t,
         formatNumber,
         formatCurrency,
+        formatMoney,
+        convertMoney,
+        getExchangeRate,
+        storeBaseCurrency,
+        displayCurrency,
+        displayCurrencySymbol,
+        exchangeRates,
+        isExchangeRatesLoading,
         formatDate,
         activeTab,
         setActiveTab,

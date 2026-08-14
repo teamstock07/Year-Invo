@@ -4,6 +4,8 @@ import { useApp } from '../../../context/AppContext';
 import { MainWebsiteLogo } from '../../common/MainWebsiteLogo';
 import { getDisplayBrandName } from '../../../utils/brand';
 import { Language } from '../../../types';
+import { calculatePlanPricing, BillingCycle } from '../../../config/pricing';
+import { getCurrencySymbol, normalizeCurrencyCode } from '../../../services/currencyService';
 import {
   Bell,
   User,
@@ -57,9 +59,11 @@ export const MobileLandingPage: React.FC<MobileLandingPageProps> = ({
   onOpenLogin,
   onOpenSignup,
 }) => {
-  const { settings, updateSettings, language, setLanguage, theme, toggleTheme } = useApp();
+  const { settings, updateSettings, language, setLanguage, theme, toggleTheme, exchangeRates } = useApp();
   const isBn = language === 'bn';
-  const symbol = settings.currency || '৳';
+  const displayCurrency = settings.currency || '৳';
+  const isBDT = normalizeCurrencyCode(displayCurrency) === 'BDT';
+  const symbol = getCurrencySymbol(displayCurrency);
 
   // Mobile Drawer State
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -67,7 +71,7 @@ export const MobileLandingPage: React.FC<MobileLandingPageProps> = ({
 
   // Pricing State
   const [selectedPlanTab, setSelectedPlanTab] = useState<'free' | 'pro' | 'premium'>('pro');
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
 
   // FAQ State
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
@@ -190,78 +194,50 @@ export const MobileLandingPage: React.FC<MobileLandingPageProps> = ({
     },
   ];
 
-  const isBDT = symbol === '৳';
-
   const getPlanPricing = (planId: string) => {
     if (planId === 'free') {
       return {
-        amount: '0',
+        amount: isBDT ? '৳০' : `${symbol}0`,
         note: isBn ? '১ মাসের জন্য ফ্রি' : 'Free for 1 Month',
         subtext: isBn ? 'ফ্রি ট্রায়াল' : '1 Month Free Trial',
       };
     }
 
-    if (planId === 'pro') {
-      if (isBDT) {
-        if (billingCycle === 'yearly') {
-          return {
-            amount: '3,600',
-            note: isBn ? '/বছর' : '/year',
-            subtext: isBn ? '৳৩৬০ × ১০ মাস (২ মাস ফ্রি)' : '৳360 × 10 months (2 months free)',
-          };
-        }
-        return {
-          amount: '150',
-          note: isBn ? ' ১ম মাস (এরপর ৳৩৬০/মাস)' : ' 1st mo (then ৳360/mo)',
-          subtext: isBn ? 'প্রোমোশনাল অফার (এরপর ৳৩৬০/মাস)' : 'Introductory Offer (Then ৳360/mo)',
-        };
-      } else {
-        if (billingCycle === 'yearly') {
-          return {
-            amount: '25.00',
-            note: '/year',
-            subtext: '$2.50 × 10 months (2 months free)',
-          };
-        }
-        return {
-          amount: '2.50',
-          note: '/month',
-          subtext: '$2.50 1st month, then $2.50/month',
-        };
-      }
+    const plan = planId === 'pro' ? 'Pro' : 'Premium';
+    const calculated = calculatePlanPricing(
+      plan,
+      billingCycle,
+      isBDT,
+      displayCurrency,
+      exchangeRates,
+      language
+    );
+
+    let note = '';
+    let subtext = '';
+
+    if (billingCycle === 'monthly') {
+      note = isBn ? '/মাস' : '/month';
+      subtext = isBDT
+        ? (planId === 'pro' ? (isBn ? 'নিয়মিত মাসিক প্ল্যান' : 'Standard Monthly Plan') : (isBn ? 'চেইন শপ ও আনলিমিটেড ব্রাঞ্চ' : 'Unrestricted Multi-Branch Power'))
+        : (isBn ? 'স্ট্যান্ডার্ড মাসিক বিলিং' : 'Standard monthly billing');
+    } else if (billingCycle === 'yearly') {
+      note = isBn ? '/বছর' : '/year';
+      subtext = isBn
+        ? `${calculated.effectiveMonthlyFormatted}/মাস হিসেবে গণনা`
+        : `Equivalent to ${calculated.effectiveMonthlyFormatted}/mo`;
+    } else if (billingCycle === 'five_year') {
+      note = isBn ? '/৫ বছর' : '/5 years';
+      subtext = isBn
+        ? `${calculated.effectiveMonthlyFormatted}/মাস (৬০ মাসের মোট প্যাকেজ)`
+        : `Equivalent to ${calculated.effectiveMonthlyFormatted}/mo (60-mo bundle)`;
     }
 
-    if (planId === 'premium') {
-      if (isBDT) {
-        if (billingCycle === 'yearly') {
-          return {
-            amount: '6,000',
-            note: isBn ? '/বছর' : '/year',
-            subtext: isBn ? '৳৬০০ × ১০ মাস (২ মাস ফ্রি)' : '৳600 × 10 months (2 months free)',
-          };
-        }
-        return {
-          amount: '600',
-          note: isBn ? '/মাস' : '/month',
-          subtext: isBn ? 'চেইন শপ ও আনলিমিটেড ব্রাঞ্চ' : 'Unrestricted Multi-Branch Power',
-        };
-      } else {
-        if (billingCycle === 'yearly') {
-          return {
-            amount: '50.00',
-            note: '/year',
-            subtext: '$5.00 × 10 months (2 months free)',
-          };
-        }
-        return {
-          amount: '5.00',
-          note: '/month',
-          subtext: 'Unrestricted Multi-Branch Power',
-        };
-      }
-    }
-
-    return { amount: '0', note: '', subtext: '' };
+    return {
+      amount: calculated.totalFormatted,
+      note,
+      subtext,
+    };
   };
 
   // Mobile Pricing Tiers
@@ -787,10 +763,10 @@ export const MobileLandingPage: React.FC<MobileLandingPageProps> = ({
           </h2>
 
           {/* Billing Cycle Toggle */}
-          <div className="inline-flex items-center bg-slate-200 dark:bg-slate-900 p-1 rounded-xl border border-slate-300 dark:border-slate-800 text-[10px]">
+          <div className="inline-flex items-center bg-slate-200 dark:bg-slate-900 p-1 rounded-xl border border-slate-300 dark:border-slate-800 text-[10px] gap-0.5">
             <button
               onClick={() => setBillingCycle('monthly')}
-              className={`px-3 py-1 font-black rounded-lg cursor-pointer ${
+              className={`px-2.5 py-1 font-black rounded-lg cursor-pointer ${
                 billingCycle === 'monthly'
                   ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400'
@@ -800,14 +776,29 @@ export const MobileLandingPage: React.FC<MobileLandingPageProps> = ({
             </button>
             <button
               onClick={() => setBillingCycle('yearly')}
-              className={`px-3 py-1 font-black rounded-lg cursor-pointer flex items-center gap-1 ${
+              className={`px-2.5 py-1 font-black rounded-lg cursor-pointer flex items-center gap-1 ${
                 billingCycle === 'yearly'
                   ? 'bg-[#7C3AED] text-white'
                   : 'text-slate-600 dark:text-slate-400'
               }`}
             >
-              <span>{isBn ? 'বার্ষিক' : 'Yearly'}</span>
-              <span className="px-1 py-0.2 rounded bg-amber-400 text-slate-950 text-[8px] font-black">20% OFF</span>
+              <span>{isBn ? '১ বছর' : '1-Yr'}</span>
+              <span className="px-1 py-0.2 rounded bg-amber-400 text-slate-950 text-[8px] font-black">
+                {isBn ? '৫০% ছাড়' : '50%'}
+              </span>
+            </button>
+            <button
+              onClick={() => setBillingCycle('five_year')}
+              className={`px-2.5 py-1 font-black rounded-lg cursor-pointer flex items-center gap-1 ${
+                billingCycle === 'five_year'
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-slate-600 dark:text-slate-400'
+              }`}
+            >
+              <span>{isBn ? '৫ বছর' : '5-Yr'}</span>
+              <span className="px-1 py-0.2 rounded bg-amber-400 text-slate-950 text-[8px] font-black">
+                {isBn ? '২৫% ছাড়' : '25%'}
+              </span>
             </button>
           </div>
         </div>
@@ -871,7 +862,7 @@ export const MobileLandingPage: React.FC<MobileLandingPageProps> = ({
 
                   <div className="text-right">
                     <span className="text-2xl font-black text-slate-900 dark:text-white">
-                      {symbol}{pricingInfo.amount}
+                      {pricingInfo.amount}
                     </span>
                     <span className="text-[10px] font-bold text-slate-400 block">{pricingInfo.note}</span>
                     {pricingInfo.subtext && (

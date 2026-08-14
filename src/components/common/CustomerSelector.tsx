@@ -18,7 +18,7 @@ export const CustomerSelector: React.FC<CustomerSelectorProps> = ({
   className = '',
   placeholder = 'Select Customer',
 }) => {
-  const { customers, settings } = useApp();
+  const { customers, settings, t } = useApp();
   const symbol = settings.currency || '৳';
 
   const [isOpen, setIsOpen] = useState(false);
@@ -109,10 +109,10 @@ export const CustomerSelector: React.FC<CustomerSelectorProps> = ({
             ) : (
               <div className="flex flex-col text-left">
                 <span className="font-bold text-slate-800 dark:text-slate-100 text-xs">
-                  Walk-in Customer
+                  {t('walkInCustomer') || 'Walk-in Customer'}
                 </span>
                 <span className="text-[10px] text-slate-400 dark:text-slate-500">
-                  Default Counter Sale
+                  {t('defaultCounterSale') || 'Default Counter Sale'}
                 </span>
               </div>
             )}
