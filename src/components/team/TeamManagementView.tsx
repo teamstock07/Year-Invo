@@ -173,34 +173,25 @@ const PERMISSION_GROUPS: {
 ];
 
 export const TeamManagementView: React.FC = () => {
-  const { user, t, language, theme } = useApp();
+  const {
+    user,
+    t,
+    language,
+    theme,
+    teamMembers: contextTeamMembers,
+    saveTeamMembers: contextSaveTeamMembers,
+  } = useApp();
 
-  // Local state for team members
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => {
-    const saved = localStorage.getItem(`biz_team_members_${user?.id || 'default'}`);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    // Default Owner entry
-    return [
-      {
-        id: 'team-owner-1',
-        name: user?.ownerName || user?.fullName || 'Store Owner',
-        email: user?.email || 'owner@yearinvo.com',
-        phone: user?.mobile || '',
-        role: 'Owner',
-        status: 'Active',
-        joinedDate: user?.createdAt || new Date().toISOString().split('T')[0],
-        lastActive: 'Just now',
-      },
-    ];
-  });
+  // Connected to real-time cloud Firestore synchronized state
+  const teamMembers = contextTeamMembers || [];
 
   const saveTeamMembers = (updated: TeamMember[]) => {
-    setTeamMembers(updated);
-    localStorage.setItem(`biz_team_members_${user?.id || 'default'}`, JSON.stringify(updated));
+    if (contextSaveTeamMembers) {
+      contextSaveTeamMembers(updated);
+    }
+    try {
+      localStorage.setItem(`biz_team_members_${user?.id || 'default'}`, JSON.stringify(updated));
+    } catch (e) {}
   };
 
   const [searchQuery, setSearchQuery] = useState('');

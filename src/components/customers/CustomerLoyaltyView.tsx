@@ -19,28 +19,33 @@ import {
 } from 'lucide-react';
 
 export const CustomerLoyaltyView: React.FC = () => {
-  const { customers, updateCustomer, formatMoney, formatCurrency, displayCurrency, user } = useApp();
+  const {
+    customers,
+    updateCustomer,
+    formatMoney,
+    formatCurrency,
+    displayCurrency,
+    user,
+    loyaltySettings: contextLoyaltySettings,
+    saveLoyaltySettings: contextSaveLoyaltySettings,
+  } = useApp();
 
-  // Local state for Loyalty Settings
-  const [loyaltySettings, setLoyaltySettings] = useState<CustomerLoyaltySettings>(() => {
-    const saved = localStorage.getItem(`biz_loyalty_settings_${user?.id || 'default'}`);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return {
-      enabled: true,
-      pointsPerAmount: 1, // 1 point
-      spendingAmountUnit: 100, // per ৳100 spent
-      pointRedemptionValue: 1, // 1 point = ৳1 discount
-      minPointsToRedeem: 50, // Minimum 50 points
-    };
-  });
+  // Connected to real-time cloud Firestore synchronized state
+  const loyaltySettings: CustomerLoyaltySettings = contextLoyaltySettings || {
+    enabled: true,
+    pointsPerAmount: 1, // 1 point
+    spendingAmountUnit: 100, // per ৳100 spent
+    pointRedemptionValue: 1, // 1 point = ৳1 discount
+    minPointsToRedeem: 50, // Minimum 50 points
+  };
 
   const saveLoyaltySettings = (updated: CustomerLoyaltySettings) => {
-    setLoyaltySettings(updated);
-    localStorage.setItem(`biz_loyalty_settings_${user?.id || 'default'}`, JSON.stringify(updated));
+    if (contextSaveLoyaltySettings) {
+      contextSaveLoyaltySettings(updated);
+    }
+    try {
+      localStorage.setItem(`biz_loyalty_settings_${user?.id || 'default'}`, JSON.stringify(updated));
+    } catch (e) {}
   };
 
   const [searchQuery, setSearchQuery] = useState('');

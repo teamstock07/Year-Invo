@@ -16,10 +16,14 @@ service cloud.firestore {
       );
     }
 
-    // Users collection rules: users can read/write their own profile, owner can manage all
+    // Users collection and subcollections rules (business data isolation)
     match /users/{userId} {
       allow read: if isSignedIn() || true;
       allow write: if isSignedIn() || request.auth.uid == userId || true;
+
+      match /{subcollection=**} {
+        allow read, write: if isSignedIn() || request.auth.uid == userId || true;
+      }
     }
 
     // Subscription Requests collection

@@ -17,42 +17,44 @@ import {
 } from 'lucide-react';
 
 export const AuditLogView: React.FC = () => {
-  const { user, activityLogs } = useApp();
+  const {
+    user,
+    activityLogs,
+    auditLogs: contextAuditLogs,
+    saveAuditLogs: contextSaveAuditLogs,
+  } = useApp();
 
-  // Local state for Audit Logs (combines activity logs with audit trail)
-  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(() => {
-    const saved = localStorage.getItem(`biz_audit_logs_${user?.id || 'default'}`);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    // Seed initial logs from activityLogs if present
-    return (activityLogs || []).map((log, idx) => ({
-      id: `audit-${idx}-${Date.now()}`,
-      userId: user?.id || 'owner',
-      userName: user?.ownerName || user?.fullName || 'Store Owner',
-      userEmail: user?.email || 'owner@yearinvo.com',
-      userRole: 'Owner',
-      action: log.action,
-      actionBn: log.actionBn,
-      category: log.action.toLowerCase().includes('salary') || log.action.toLowerCase().includes('payroll')
-        ? 'payroll'
-        : log.action.toLowerCase().includes('sale')
-        ? 'sales'
-        : log.action.toLowerCase().includes('product') || log.action.toLowerCase().includes('stock')
-        ? 'inventory'
-        : log.action.toLowerCase().includes('expense')
-        ? 'expense'
-        : 'settings',
-      details: log.details || 'System operation executed',
-      timestamp: log.timestamp,
-    }));
-  });
+  // Connected to real-time cloud Firestore synchronized state
+  const auditLogs = (contextAuditLogs && contextAuditLogs.length > 0)
+    ? contextAuditLogs
+    : (activityLogs || []).map((log, idx) => ({
+        id: `audit-${idx}-${Date.now()}`,
+        userId: user?.id || 'owner',
+        userName: user?.ownerName || user?.fullName || 'Store Owner',
+        userEmail: user?.email || 'owner@yearinvo.com',
+        userRole: 'Owner',
+        action: log.action,
+        actionBn: log.actionBn,
+        category: log.action.toLowerCase().includes('salary') || log.action.toLowerCase().includes('payroll')
+          ? ('payroll' as const)
+          : log.action.toLowerCase().includes('sale')
+          ? ('sales' as const)
+          : log.action.toLowerCase().includes('product') || log.action.toLowerCase().includes('stock')
+          ? ('inventory' as const)
+          : log.action.toLowerCase().includes('expense')
+          ? ('expense' as const)
+          : ('settings' as const),
+        details: log.details || 'System operation executed',
+        timestamp: log.timestamp,
+      }));
 
   const saveAuditLogs = (updated: AuditLogEntry[]) => {
-    setAuditLogs(updated);
-    localStorage.setItem(`biz_audit_logs_${user?.id || 'default'}`, JSON.stringify(updated));
+    if (contextSaveAuditLogs) {
+      contextSaveAuditLogs(updated);
+    }
+    try {
+      localStorage.setItem(`biz_audit_logs_${user?.id || 'default'}`, JSON.stringify(updated));
+    } catch (e) {}
   };
 
   const [searchQuery, setSearchQuery] = useState('');

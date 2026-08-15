@@ -37,85 +37,52 @@ import {
 } from 'lucide-react';
 
 export const PayrollView: React.FC = () => {
-  const { user, expenses, addExpense, formatMoney, formatCurrency, displayCurrency, language, t } = useApp();
+  const {
+    user,
+    expenses,
+    addExpense,
+    formatMoney,
+    formatCurrency,
+    displayCurrency,
+    language,
+    t,
+    employees: contextEmployees,
+    saveEmployees: contextSaveEmployees,
+    payrollPayments: contextPayrollPayments,
+    savePayrollPayments: contextSavePayrollPayments,
+    salaryAdjustments: contextSalaryAdjustments,
+    saveSalaryAdjustments: contextSaveSalaryAdjustments,
+  } = useApp();
 
-  // Local state for Employees
-  const [employees, setEmployees] = useState<Employee[]>(() => {
-    const saved = localStorage.getItem(`biz_employees_${user?.id || 'default'}`);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return [
-      {
-        id: 'emp-1',
-        employeeId: 'EMP-001',
-        fullName: 'Tanvir Ahmed',
-        phone: '+880 1711 001122',
-        email: 'tanvir@store.com',
-        jobTitle: 'Store Manager',
-        department: 'Operations',
-        role: 'Manager',
-        joiningDate: '2025-02-01',
-        salaryType: 'Monthly',
-        baseSalary: 25000,
-        status: 'Active',
-        createdAt: '2025-02-01',
-      },
-      {
-        id: 'emp-2',
-        employeeId: 'EMP-002',
-        fullName: 'Rahim Uddin',
-        phone: '+880 1812 334455',
-        email: 'rahim@store.com',
-        jobTitle: 'Head Cashier',
-        department: 'Sales & POS',
-        role: 'Cashier',
-        joiningDate: '2025-06-15',
-        salaryType: 'Monthly',
-        baseSalary: 16000,
-        status: 'Active',
-        createdAt: '2025-06-15',
-      },
-    ];
-  });
-
+  // Connected to real-time cloud Firestore synchronized state
+  const employees = contextEmployees || [];
   const saveEmployees = (updated: Employee[]) => {
-    setEmployees(updated);
-    localStorage.setItem(`biz_employees_${user?.id || 'default'}`, JSON.stringify(updated));
+    if (contextSaveEmployees) {
+      contextSaveEmployees(updated);
+    }
+    try {
+      localStorage.setItem(`biz_employees_${user?.id || 'default'}`, JSON.stringify(updated));
+    } catch (e) {}
   };
 
-  // Local state for Payroll Payments
-  const [payrollPayments, setPayrollPayments] = useState<PayrollPayment[]>(() => {
-    const saved = localStorage.getItem(`biz_payroll_payments_${user?.id || 'default'}`);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return [];
-  });
-
+  const payrollPayments = contextPayrollPayments || [];
   const savePayrollPayments = (updated: PayrollPayment[]) => {
-    setPayrollPayments(updated);
-    localStorage.setItem(`biz_payroll_payments_${user?.id || 'default'}`, JSON.stringify(updated));
+    if (contextSavePayrollPayments) {
+      contextSavePayrollPayments(updated);
+    }
+    try {
+      localStorage.setItem(`biz_payroll_payments_${user?.id || 'default'}`, JSON.stringify(updated));
+    } catch (e) {}
   };
 
-  // Local state for Salary Adjustments & Advances
-  const [salaryAdjustments, setSalaryAdjustments] = useState<SalaryAdjustment[]>(() => {
-    const saved = localStorage.getItem(`biz_salary_adjustments_${user?.id || 'default'}`);
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return [];
-  });
-
+  const salaryAdjustments = contextSalaryAdjustments || [];
   const saveSalaryAdjustments = (updated: SalaryAdjustment[]) => {
-    setSalaryAdjustments(updated);
-    localStorage.setItem(`biz_salary_adjustments_${user?.id || 'default'}`, JSON.stringify(updated));
+    if (contextSaveSalaryAdjustments) {
+      contextSaveSalaryAdjustments(updated);
+    }
+    try {
+      localStorage.setItem(`biz_salary_adjustments_${user?.id || 'default'}`, JSON.stringify(updated));
+    } catch (e) {}
   };
 
   // Navigation Tabs inside Payroll

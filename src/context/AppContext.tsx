@@ -46,7 +46,17 @@ import {
   BangladeshPaymentConfig,
   DashboardPreferences,
   defaultDashboardPreferences,
+  TeamMember,
+  Employee,
+  PayrollPayment,
+  SalaryAdjustment,
+  AuditLogEntry,
+  CustomerLoyaltySettings,
 } from '../types';
+import {
+  saveUserCloudCollection,
+  subscribeToUserBusinessData,
+} from '../services/cloudSyncService';
 import {
   initialCategories,
   initialBrands,
@@ -235,6 +245,21 @@ interface AppContextType {
   // Backup
   exportDataJSON: () => string;
   importDataJSON: (jsonStr: string) => boolean;
+
+  // Team, Payroll, Audit & Loyalty
+  teamMembers: TeamMember[];
+  saveTeamMembers: (updated: TeamMember[]) => void;
+  employees: Employee[];
+  saveEmployees: (updated: Employee[]) => void;
+  payrollPayments: PayrollPayment[];
+  savePayrollPayments: (updated: PayrollPayment[]) => void;
+  salaryAdjustments: SalaryAdjustment[];
+  saveSalaryAdjustments: (updated: SalaryAdjustment[]) => void;
+  auditLogs: AuditLogEntry[];
+  saveAuditLogs: (updated: AuditLogEntry[]) => void;
+  loyaltySettings: CustomerLoyaltySettings;
+  saveLoyaltySettings: (updated: CustomerLoyaltySettings) => void;
+  isCloudSynced: boolean;
 
   // Calculated Business Metrics
   metrics: {
@@ -849,6 +874,345 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [adjustments, setAdjustments] = useState<StockAdjustment[]>([]);
   const [dueCollections, setDueCollections] = useState<DueCollection[]>([]);
 
+  // Cloud Synchronized State Repositories
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => {
+    try {
+      const saved = localStorage.getItem(`biz_team_members_${user?.id || 'default'}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [employees, setEmployees] = useState<Employee[]>(() => {
+    try {
+      const saved = localStorage.getItem(`biz_employees_${user?.id || 'default'}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [payrollPayments, setPayrollPayments] = useState<PayrollPayment[]>(() => {
+    try {
+      const saved = localStorage.getItem(`biz_payroll_payments_${user?.id || 'default'}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [salaryAdjustments, setSalaryAdjustments] = useState<SalaryAdjustment[]>(() => {
+    try {
+      const saved = localStorage.getItem(`biz_salary_adjustments_${user?.id || 'default'}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(() => {
+    try {
+      const saved = localStorage.getItem(`biz_audit_logs_${user?.id || 'default'}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [loyaltySettings, setLoyaltySettings] = useState<CustomerLoyaltySettings>(() => {
+    try {
+      const saved = localStorage.getItem(`biz_loyalty_settings_${user?.id || 'default'}`);
+      return saved
+        ? JSON.parse(saved)
+        : {
+            enabled: true,
+            pointsPerAmount: 1,
+            spendingAmountUnit: 100,
+            pointRedemptionValue: 1,
+            minPointsToRedeem: 50,
+          };
+    } catch (e) {
+      return {
+        enabled: true,
+        pointsPerAmount: 1,
+        spendingAmountUnit: 100,
+        pointRedemptionValue: 1,
+        minPointsToRedeem: 50,
+      };
+    }
+  });
+
+  const [isCloudSynced, setIsCloudSynced] = useState<boolean>(false);
+
+  // Real-time Cloud Synchronization (Single Account = Single Cloud Data across all PC & Mobile devices)
+  useEffect(() => {
+    const currentUserId = user?.id || auth.currentUser?.uid;
+    if (!currentUserId) {
+      setIsCloudSynced(false);
+      return;
+    }
+
+    const unsubscribe = subscribeToUserBusinessData(currentUserId, {
+      onProductsLoaded: (cloudProducts, fromCloud) => {
+        if (fromCloud) {
+          setProducts(cloudProducts);
+          try {
+            localStorage.setItem('biz_products', JSON.stringify(cloudProducts));
+            localStorage.setItem(`biz_products_${currentUserId}`, JSON.stringify(cloudProducts));
+          } catch (e) {}
+        } else {
+          // Cloud empty for this user: migrate local items if they exist on this device
+          try {
+            const localSaved = localStorage.getItem(`biz_products_${currentUserId}`) || localStorage.getItem('biz_products');
+            const localItems: Product[] = localSaved ? JSON.parse(localSaved) : [];
+            if (localItems.length > 0) {
+              saveUserCloudCollection(currentUserId, 'products', { items: localItems });
+            }
+          } catch (e) {}
+        }
+      },
+
+      onCategoriesLoaded: (cloudCategories, fromCloud) => {
+        if (fromCloud) {
+          setCategories(cloudCategories);
+          try {
+            localStorage.setItem('biz_categories', JSON.stringify(cloudCategories));
+            localStorage.setItem(`biz_categories_${currentUserId}`, JSON.stringify(cloudCategories));
+          } catch (e) {}
+        } else {
+          try {
+            const localSaved = localStorage.getItem(`biz_categories_${currentUserId}`) || localStorage.getItem('biz_categories');
+            const localItems: Category[] = localSaved ? JSON.parse(localSaved) : initialCategories;
+            if (localItems.length > 0) {
+              saveUserCloudCollection(currentUserId, 'categories', { items: localItems });
+            }
+          } catch (e) {}
+        }
+      },
+
+      onBrandsLoaded: (cloudBrands, fromCloud) => {
+        if (fromCloud) {
+          setBrands(cloudBrands);
+          try {
+            localStorage.setItem('biz_brands', JSON.stringify(cloudBrands));
+            localStorage.setItem(`biz_brands_${currentUserId}`, JSON.stringify(cloudBrands));
+          } catch (e) {}
+        } else {
+          try {
+            const localSaved = localStorage.getItem(`biz_brands_${currentUserId}`) || localStorage.getItem('biz_brands');
+            const localItems: Brand[] = localSaved ? JSON.parse(localSaved) : initialBrands;
+            if (localItems.length > 0) {
+              saveUserCloudCollection(currentUserId, 'brands', { items: localItems });
+            }
+          } catch (e) {}
+        }
+      },
+
+      onCustomersLoaded: (cloudCustomers, fromCloud) => {
+        if (fromCloud) {
+          setCustomers(cloudCustomers);
+          try {
+            localStorage.setItem('biz_customers', JSON.stringify(cloudCustomers));
+            localStorage.setItem(`biz_customers_${currentUserId}`, JSON.stringify(cloudCustomers));
+          } catch (e) {}
+        } else {
+          try {
+            const localSaved = localStorage.getItem(`biz_customers_${currentUserId}`) || localStorage.getItem('biz_customers');
+            const localItems: Customer[] = localSaved ? JSON.parse(localSaved) : [];
+            if (localItems.length > 0) {
+              saveUserCloudCollection(currentUserId, 'customers', { items: localItems });
+            }
+          } catch (e) {}
+        }
+      },
+
+      onSuppliersLoaded: (cloudSuppliers, fromCloud) => {
+        if (fromCloud) {
+          setSuppliers(cloudSuppliers);
+          try {
+            localStorage.setItem('biz_suppliers', JSON.stringify(cloudSuppliers));
+            localStorage.setItem(`biz_suppliers_${currentUserId}`, JSON.stringify(cloudSuppliers));
+          } catch (e) {}
+        } else {
+          try {
+            const localSaved = localStorage.getItem(`biz_suppliers_${currentUserId}`) || localStorage.getItem('biz_suppliers');
+            const localItems: Supplier[] = localSaved ? JSON.parse(localSaved) : [];
+            if (localItems.length > 0) {
+              saveUserCloudCollection(currentUserId, 'suppliers', { items: localItems });
+            }
+          } catch (e) {}
+        }
+      },
+
+      onExpensesLoaded: (cloudExpenses, fromCloud) => {
+        if (fromCloud) {
+          setExpenses(cloudExpenses);
+          try {
+            localStorage.setItem('biz_expenses', JSON.stringify(cloudExpenses));
+            localStorage.setItem(`biz_expenses_${currentUserId}`, JSON.stringify(cloudExpenses));
+          } catch (e) {}
+        } else {
+          try {
+            const localSaved = localStorage.getItem(`biz_expenses_${currentUserId}`) || localStorage.getItem('biz_expenses');
+            const localItems: Expense[] = localSaved ? JSON.parse(localSaved) : [];
+            if (localItems.length > 0) {
+              saveUserCloudCollection(currentUserId, 'expenses', { items: localItems });
+            }
+          } catch (e) {}
+        }
+      },
+
+      onSalesLoaded: (cloudSales, fromCloud) => {
+        if (fromCloud) {
+          setSales(cloudSales);
+          try {
+            localStorage.setItem('biz_sales', JSON.stringify(cloudSales));
+            localStorage.setItem(`biz_sales_${currentUserId}`, JSON.stringify(cloudSales));
+          } catch (e) {}
+        } else {
+          try {
+            const localSaved = localStorage.getItem(`biz_sales_${currentUserId}`) || localStorage.getItem('biz_sales');
+            const localItems: Sale[] = localSaved ? JSON.parse(localSaved) : [];
+            if (localItems.length > 0) {
+              saveUserCloudCollection(currentUserId, 'sales', { items: localItems });
+            }
+          } catch (e) {}
+        }
+      },
+
+      onPurchasesLoaded: (cloudPurchases, fromCloud) => {
+        if (fromCloud) {
+          setPurchases(cloudPurchases);
+          try {
+            localStorage.setItem('biz_purchases', JSON.stringify(cloudPurchases));
+            localStorage.setItem(`biz_purchases_${currentUserId}`, JSON.stringify(cloudPurchases));
+          } catch (e) {}
+        } else {
+          try {
+            const localSaved = localStorage.getItem(`biz_purchases_${currentUserId}`) || localStorage.getItem('biz_purchases');
+            const localItems: Purchase[] = localSaved ? JSON.parse(localSaved) : [];
+            if (localItems.length > 0) {
+              saveUserCloudCollection(currentUserId, 'purchases', { items: localItems });
+            }
+          } catch (e) {}
+        }
+      },
+
+      onAdjustmentsLoaded: (cloudAdjustments, fromCloud) => {
+        if (fromCloud) {
+          setAdjustments(cloudAdjustments);
+        }
+      },
+
+      onDueCollectionsLoaded: (cloudDue, fromCloud) => {
+        if (fromCloud) {
+          setDueCollections(cloudDue);
+        }
+      },
+
+      onTeamLoaded: (cloudTeam, fromCloud) => {
+        if (fromCloud) {
+          setTeamMembers(cloudTeam);
+          try {
+            localStorage.setItem(`biz_team_members_${currentUserId}`, JSON.stringify(cloudTeam));
+          } catch (e) {}
+        } else {
+          try {
+            const localSaved = localStorage.getItem(`biz_team_members_${currentUserId}`);
+            if (localSaved) {
+              const localItems = JSON.parse(localSaved);
+              if (Array.isArray(localItems) && localItems.length > 0) {
+                saveUserCloudCollection(currentUserId, 'team', { items: localItems });
+              }
+            }
+          } catch (e) {}
+        }
+      },
+
+      onPayrollLoaded: (cloudPayroll, fromCloud) => {
+        if (fromCloud) {
+          setEmployees(cloudPayroll.employees);
+          setPayrollPayments(cloudPayroll.payments);
+          setSalaryAdjustments(cloudPayroll.adjustments);
+          try {
+            localStorage.setItem(`biz_employees_${currentUserId}`, JSON.stringify(cloudPayroll.employees));
+            localStorage.setItem(`biz_payroll_payments_${currentUserId}`, JSON.stringify(cloudPayroll.payments));
+            localStorage.setItem(`biz_salary_adjustments_${currentUserId}`, JSON.stringify(cloudPayroll.adjustments));
+          } catch (e) {}
+        } else {
+          try {
+            const localEmp = localStorage.getItem(`biz_employees_${currentUserId}`);
+            const localPay = localStorage.getItem(`biz_payroll_payments_${currentUserId}`);
+            const localAdj = localStorage.getItem(`biz_salary_adjustments_${currentUserId}`);
+            if (localEmp || localPay || localAdj) {
+              saveUserCloudCollection(currentUserId, 'payroll', {
+                employees: localEmp ? JSON.parse(localEmp) : [],
+                payments: localPay ? JSON.parse(localPay) : [],
+                adjustments: localAdj ? JSON.parse(localAdj) : [],
+              });
+            }
+          } catch (e) {}
+        }
+      },
+
+      onAuditLogsLoaded: (cloudLogs, fromCloud) => {
+        if (fromCloud) {
+          setAuditLogs(cloudLogs);
+          try {
+            localStorage.setItem(`biz_audit_logs_${currentUserId}`, JSON.stringify(cloudLogs));
+          } catch (e) {}
+        }
+      },
+
+      onLoyaltyLoaded: (cloudLoyalty, fromCloud) => {
+        if (fromCloud) {
+          setLoyaltySettings(cloudLoyalty);
+          try {
+            localStorage.setItem(`biz_loyalty_settings_${currentUserId}`, JSON.stringify(cloudLoyalty));
+          } catch (e) {}
+        }
+      },
+
+      onQrTrackingLoaded: (cloudQr, fromCloud) => {
+        if (fromCloud) {
+          setGeneratedProductCodes(cloudQr.generatedCodes);
+          setProductQRCounts(cloudQr.productQRCounts);
+          try {
+            localStorage.setItem(`biz_generated_codes_${currentUserId}`, JSON.stringify(cloudQr.generatedCodes));
+            localStorage.setItem(`biz_product_qr_counts_${currentUserId}`, JSON.stringify(cloudQr.productQRCounts));
+          } catch (e) {}
+        }
+      },
+
+      onSettingsLoaded: (cloudSettings, fromCloud) => {
+        if (fromCloud && cloudSettings) {
+          setSettings((prev) => ({ ...prev, ...cloudSettings }));
+          try {
+            localStorage.setItem('biz_settings', JSON.stringify({ ...settings, ...cloudSettings }));
+          } catch (e) {}
+        }
+      },
+
+      onNotificationsLoaded: (cloudNotifs, fromCloud) => {
+        if (fromCloud) {
+          setManualNotifications(cloudNotifs.manual);
+          setReadNotificationIds(cloudNotifs.readMap);
+        }
+      },
+
+      onSyncStatusChanged: (status) => {
+        setIsCloudSynced(status === 'synced');
+      },
+    });
+
+    setIsCloudSynced(true);
+
+    return () => {
+      unsubscribe();
+    };
+  }, [user?.id]);
+
   // POS Cart
   const [cart, setCart] = useState<CartItem[]>([]);
 
@@ -989,13 +1353,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const existingQRCount = getGeneratedQRCount(productId);
     const countToAdd = Math.max(1, Number(requestedCount) || 1);
     const newTotal = existingQRCount + countToAdd;
-    setProductQRCounts((prev) => ({
-      ...prev,
+    const nextCounts = {
+      ...productQRCounts,
       [productId]: newTotal,
-    }));
+    };
+    setProductQRCounts(nextCounts);
 
+    let nextCodes = generatedProductCodes;
     if (!generatedProductCodes.includes(productId)) {
-      setGeneratedProductCodes((prev) => [...prev, productId]);
+      nextCodes = [...generatedProductCodes, productId];
+      setGeneratedProductCodes(nextCodes);
+    }
+
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      saveUserCloudCollection(uid, 'qrTracking', {
+        generatedCodes: nextCodes,
+        productQRCounts: nextCounts,
+      });
     }
 
     return { success: true };
@@ -1012,12 +1387,99 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const removeGeneratedCode = (productId: string) => {
-    setGeneratedProductCodes((prev) => prev.filter((id) => id !== productId));
-    setProductQRCounts((prev) => {
-      const next = { ...prev };
-      delete next[productId];
-      return next;
-    });
+    const nextCodes = generatedProductCodes.filter((id) => id !== productId);
+    const nextCounts = { ...productQRCounts };
+    delete nextCounts[productId];
+
+    setGeneratedProductCodes(nextCodes);
+    setProductQRCounts(nextCounts);
+
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      saveUserCloudCollection(uid, 'qrTracking', {
+        generatedCodes: nextCodes,
+        productQRCounts: nextCounts,
+      });
+    }
+  };
+
+  // Team, Payroll, Audit & Loyalty Cloud Handlers
+  const saveTeamMembers = (updated: TeamMember[]) => {
+    setTeamMembers(updated);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      saveUserCloudCollection(uid, 'team', { items: updated });
+      try {
+        localStorage.setItem(`biz_team_members_${uid}`, JSON.stringify(updated));
+      } catch (e) {}
+    }
+  };
+
+  const saveEmployees = (updated: Employee[]) => {
+    setEmployees(updated);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      saveUserCloudCollection(uid, 'payroll', {
+        employees: updated,
+        payments: payrollPayments,
+        adjustments: salaryAdjustments,
+      });
+      try {
+        localStorage.setItem(`biz_employees_${uid}`, JSON.stringify(updated));
+      } catch (e) {}
+    }
+  };
+
+  const savePayrollPayments = (updated: PayrollPayment[]) => {
+    setPayrollPayments(updated);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      saveUserCloudCollection(uid, 'payroll', {
+        employees,
+        payments: updated,
+        adjustments: salaryAdjustments,
+      });
+      try {
+        localStorage.setItem(`biz_payroll_payments_${uid}`, JSON.stringify(updated));
+      } catch (e) {}
+    }
+  };
+
+  const saveSalaryAdjustments = (updated: SalaryAdjustment[]) => {
+    setSalaryAdjustments(updated);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      saveUserCloudCollection(uid, 'payroll', {
+        employees,
+        payments: payrollPayments,
+        adjustments: updated,
+      });
+      try {
+        localStorage.setItem(`biz_salary_adjustments_${uid}`, JSON.stringify(updated));
+      } catch (e) {}
+    }
+  };
+
+  const saveAuditLogs = (updated: AuditLogEntry[]) => {
+    setAuditLogs(updated);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      saveUserCloudCollection(uid, 'auditLogs', { items: updated });
+      try {
+        localStorage.setItem(`biz_audit_logs_${uid}`, JSON.stringify(updated));
+      } catch (e) {}
+    }
+  };
+
+  const saveLoyaltySettings = (updated: CustomerLoyaltySettings) => {
+    setLoyaltySettings(updated);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      saveUserCloudCollection(uid, 'loyalty', { settings: updated });
+      try {
+        localStorage.setItem(`biz_loyalty_settings_${uid}`, JSON.stringify(updated));
+      } catch (e) {}
+    }
   };
 
   // Language & Theme helpers with persistence and document direction (RTL)
@@ -2476,7 +2938,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
     }
 
-    setSales((prev) => [newSale, ...prev]);
+    setSales((prev) => {
+      const nextSales = [newSale, ...prev];
+      const uid = user?.id || auth.currentUser?.uid;
+      if (uid) {
+        saveUserCloudCollection(uid, 'sales', { items: nextSales });
+      }
+      return nextSales;
+    });
     clearCart();
     logActivity('Completed POS Sale', 'নতুন বিক্রয় ইনভয়েস সম্পন্ন', `${invoiceNo} - Total: ৳${grandTotal}`);
 
@@ -2504,11 +2973,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       description: description || '',
       productCount: 0,
     };
-    setCategories((prev) => [...prev, newCat]);
+    setCategories((prev) => {
+      const next = [...prev, newCat];
+      const uid = user?.id || auth.currentUser?.uid;
+      if (uid) saveUserCloudCollection(uid, 'categories', { items: next });
+      return next;
+    });
   };
 
   const deleteCategory = (id: string) => {
-    setCategories((prev) => prev.filter((c) => c.id !== id));
+    setCategories((prev) => {
+      const next = prev.filter((c) => c.id !== id);
+      const uid = user?.id || auth.currentUser?.uid;
+      if (uid) saveUserCloudCollection(uid, 'categories', { items: next });
+      return next;
+    });
   };
 
   const addBrand = (name: string, description?: string) => {
@@ -2521,11 +3000,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       name: trimmed,
       description: description || '',
     };
-    setBrands((prev) => [...prev, newBrand]);
+    setBrands((prev) => {
+      const next = [...prev, newBrand];
+      const uid = user?.id || auth.currentUser?.uid;
+      if (uid) saveUserCloudCollection(uid, 'brands', { items: next });
+      return next;
+    });
   };
 
   const deleteBrand = (id: string) => {
-    setBrands((prev) => prev.filter((b) => b.id !== id));
+    setBrands((prev) => {
+      const next = prev.filter((b) => b.id !== id);
+      const uid = user?.id || auth.currentUser?.uid;
+      if (uid) saveUserCloudCollection(uid, 'brands', { items: next });
+      return next;
+    });
   };
 
   // Product CRUD
@@ -2557,13 +3046,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status,
       createdAt: new Date().toISOString().split('T')[0],
     };
-    setProducts((prev) => [newProd, ...prev]);
+    setProducts((prev) => {
+      const next = [newProd, ...prev];
+      const uid = user?.id || auth.currentUser?.uid;
+      if (uid) saveUserCloudCollection(uid, 'products', { items: next });
+      return next;
+    });
     logActivity('Added New Product', 'নতুন পণ্য যোগ করা হয়েছে', data.name);
   };
 
   const updateProduct = (id: string, updatedFields: Partial<Product>) => {
-    setProducts((prev) =>
-      prev.map((p) => {
+    setProducts((prev) => {
+      const next = prev.map((p) => {
         if (p.id === id) {
           const sku = (updatedFields.sku || p.sku || '').trim() || generateUniqueSku(prev);
           const barcode = (updatedFields.barcode || p.barcode || '').trim() || sku;
@@ -2577,13 +3071,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return { ...merged, status };
         }
         return p;
-      })
-    );
+      });
+      const uid = user?.id || auth.currentUser?.uid;
+      if (uid) saveUserCloudCollection(uid, 'products', { items: next });
+      return next;
+    });
     logActivity('Updated Product', 'পণ্য এডিট করা হয়েছে', `ID: ${id}`);
   };
 
   const deleteProduct = (id: string) => {
-    setProducts((prev) => prev.filter((p) => p.id !== id));
+    setProducts((prev) => {
+      const next = prev.filter((p) => p.id !== id);
+      const uid = user?.id || auth.currentUser?.uid;
+      if (uid) saveUserCloudCollection(uid, 'products', { items: next });
+      return next;
+    });
     logActivity('Deleted Product', 'পণ্য মুছে ফেলা হয়েছে', `ID: ${id}`);
   };
 
@@ -2591,6 +3093,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProducts([]);
     setCart([]);
     localStorage.setItem('biz_products', JSON.stringify([]));
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) saveUserCloudCollection(uid, 'products', { items: [] });
     logActivity('Cleared All Products', 'সকল টেস্ট প্রোডাক্ট মুছে ফেলা হয়েছে');
   };
 
@@ -2617,7 +3121,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       date: new Date().toISOString().split('T')[0],
       adjustedBy: user ? user.ownerName : 'Admin',
     };
-    setAdjustments((prev) => [newAdj, ...prev]);
+    setAdjustments((prev) => {
+      const next = [newAdj, ...prev];
+      const uid = user?.id || auth.currentUser?.uid;
+      if (uid) saveUserCloudCollection(uid, 'adjustments', { items: next });
+      return next;
+    });
     logActivity('Stock Adjusted', 'স্টক পরিবর্তন করা হয়েছে', `${prod.name} (${quantityDelta > 0 ? '+' : ''}${quantityDelta})`);
   };
 
@@ -2631,19 +3140,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       lifetimePurchasesCount: 0,
       createdAt: new Date().toISOString().split('T')[0],
     };
-    setCustomers((prev) => [newCust, ...prev]);
+    setCustomers((prev) => {
+      const next = [newCust, ...prev];
+      const uid = user?.id || auth.currentUser?.uid;
+      if (uid) saveUserCloudCollection(uid, 'customers', { items: next });
+      return next;
+    });
     logActivity('Added Customer', 'নতুন গ্রাহক যোগ করা হয়েছে', custData.name);
   };
 
   const updateCustomer = (id: string, custData: Partial<Customer>) => {
-    setCustomers((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, ...custData } : c))
-    );
+    setCustomers((prev) => {
+      const next = prev.map((c) => (c.id === id ? { ...c, ...custData } : c));
+      const uid = user?.id || auth.currentUser?.uid;
+      if (uid) saveUserCloudCollection(uid, 'customers', { items: next });
+      return next;
+    });
     logActivity('Updated Customer', 'গ্রাহকের তথ্য আপডেট করা হয়েছে', `ID: ${id}`);
   };
 
   const deleteCustomer = (id: string) => {
-    setCustomers((prev) => prev.filter((c) => c.id !== id));
+    setCustomers((prev) => {
+      const next = prev.filter((c) => c.id !== id);
+      const uid = user?.id || auth.currentUser?.uid;
+      if (uid) saveUserCloudCollection(uid, 'customers', { items: next });
+      return next;
+    });
     logActivity('Deleted Customer', 'গ্রাহক মুছে ফেলা হয়েছে', `ID: ${id}`);
   };
 
@@ -2655,12 +3177,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       totalPurchasesCount: 0,
       createdAt: new Date().toISOString().split('T')[0],
     };
-    setSuppliers((prev) => [newSupp, ...prev]);
+    setSuppliers((prev) => {
+      const next = [newSupp, ...prev];
+      const uid = user?.id || auth.currentUser?.uid;
+      if (uid) saveUserCloudCollection(uid, 'suppliers', { items: next });
+      return next;
+    });
     logActivity('Added Supplier', 'নতুন সরবরাহকারী যোগ করা হয়েছে', suppData.name);
   };
 
   const deleteSupplier = (id: string) => {
-    setSuppliers((prev) => prev.filter((s) => s.id !== id));
+    setSuppliers((prev) => {
+      const next = prev.filter((s) => s.id !== id);
+      const uid = user?.id || auth.currentUser?.uid;
+      if (uid) saveUserCloudCollection(uid, 'suppliers', { items: next });
+      return next;
+    });
     logActivity('Deleted Supplier', 'সরবরাহকারী মুছে ফেলা হয়েছে', `ID: ${id}`);
   };
 
@@ -2674,12 +3206,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCart([]);
     setDueCollections([]);
     setAdjustments([]);
+    setTeamMembers([]);
+    setEmployees([]);
+    setPayrollPayments([]);
+    setSalaryAdjustments([]);
+    setGeneratedProductCodes([]);
+    setProductQRCounts({});
     localStorage.setItem('biz_products', JSON.stringify([]));
     localStorage.setItem('biz_customers', JSON.stringify([]));
     localStorage.setItem('biz_suppliers', JSON.stringify([]));
     localStorage.setItem('biz_sales', JSON.stringify([]));
     localStorage.setItem('biz_expenses', JSON.stringify([]));
     localStorage.setItem('biz_purchases', JSON.stringify([]));
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      saveUserCloudCollection(uid, 'products', { items: [] });
+      saveUserCloudCollection(uid, 'sales', { items: [] });
+      saveUserCloudCollection(uid, 'customers', { items: [] });
+      saveUserCloudCollection(uid, 'suppliers', { items: [] });
+      saveUserCloudCollection(uid, 'expenses', { items: [] });
+      saveUserCloudCollection(uid, 'purchases', { items: [] });
+      saveUserCloudCollection(uid, 'adjustments', { items: [] });
+      saveUserCloudCollection(uid, 'dueCollections', { items: [] });
+      saveUserCloudCollection(uid, 'team', { items: [] });
+      saveUserCloudCollection(uid, 'payroll', { employees: [], payments: [], adjustments: [] });
+      saveUserCloudCollection(uid, 'qrTracking', { generatedCodes: [], productQRCounts: {} });
+    }
     logActivity('Reset All Data', 'সকল ডাটা ০ তে রিসেট করা হয়েছে');
   };
 
@@ -2690,6 +3242,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSales(initialSales);
     setExpenses(initialExpenses);
     setPurchases(initialPurchases);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      saveUserCloudCollection(uid, 'products', { items: initialProducts });
+      saveUserCloudCollection(uid, 'sales', { items: initialSales });
+      saveUserCloudCollection(uid, 'customers', { items: initialCustomers });
+      saveUserCloudCollection(uid, 'suppliers', { items: initialSuppliers });
+      saveUserCloudCollection(uid, 'expenses', { items: initialExpenses });
+      saveUserCloudCollection(uid, 'purchases', { items: initialPurchases });
+    }
     logActivity('Loaded Demo Data', 'স্যাম্পল ডেমো ডাটা লোড করা হয়েছে');
   };
 
@@ -2699,7 +3260,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...expData,
       id: `exp-${Date.now()}`,
     };
-    setExpenses((prev) => [newExp, ...prev]);
+    setExpenses((prev) => {
+      const next = [newExp, ...prev];
+      const uid = user?.id || auth.currentUser?.uid;
+      if (uid) saveUserCloudCollection(uid, 'expenses', { items: next });
+      return next;
+    });
     logActivity('Added Expense', 'নতুন খরচ এন্ট্রি করা হয়েছে', `${expData.title} (৳${expData.amount})`);
   };
 
@@ -2724,8 +3290,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Update supplier due
     if (pData.supplierId) {
-      setSuppliers((prev) =>
-        prev.map((s) => {
+      setSuppliers((prev) => {
+        const next = prev.map((s) => {
           if (s.id === pData.supplierId) {
             return {
               ...s,
@@ -2734,11 +3300,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             };
           }
           return s;
-        })
-      );
+        });
+        const uid = user?.id || auth.currentUser?.uid;
+        if (uid) saveUserCloudCollection(uid, 'suppliers', { items: next });
+        return next;
+      });
     }
 
-    setPurchases((prev) => [newPurchase, ...prev]);
+    setPurchases((prev) => {
+      const next = [newPurchase, ...prev];
+      const uid = user?.id || auth.currentUser?.uid;
+      if (uid) saveUserCloudCollection(uid, 'purchases', { items: next });
+      return next;
+    });
     logActivity('Recorded Purchase', 'নতুন পারচেজ এন্ট্রি করা হয়েছে', `${purchaseNo} - Supplier: ${pData.supplierName}`);
   };
 
@@ -2757,9 +3331,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const previousDue = target.dueAmount;
       const remainingDue = Math.max(0, previousDue - data.amountPaid);
 
-      setCustomers((prev) =>
-        prev.map((c) => (c.id === data.entityId ? { ...c, dueAmount: remainingDue } : c))
-      );
+      setCustomers((prev) => {
+        const next = prev.map((c) => (c.id === data.entityId ? { ...c, dueAmount: remainingDue } : c));
+        const uid = user?.id || auth.currentUser?.uid;
+        if (uid) saveUserCloudCollection(uid, 'customers', { items: next });
+        return next;
+      });
 
       const record: DueCollection = {
         id: `due-rec-${Date.now()}`,
@@ -2773,7 +3350,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         paymentMethod: data.paymentMethod,
         note: data.note,
       };
-      setDueCollections((prev) => [record, ...prev]);
+      setDueCollections((prev) => {
+        const next = [record, ...prev];
+        const uid = user?.id || auth.currentUser?.uid;
+        if (uid) saveUserCloudCollection(uid, 'dueCollections', { items: next });
+        return next;
+      });
       logActivity('Collected Customer Due', 'গ্রাহকের বকেয়া আদায় করা হয়েছে', `${target.name}: ৳${data.amountPaid}`);
     } else {
       const target = suppliers.find((s) => s.id === data.entityId);
@@ -2782,9 +3364,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const previousDue = target.dueAmount;
       const remainingDue = Math.max(0, previousDue - data.amountPaid);
 
-      setSuppliers((prev) =>
-        prev.map((s) => (s.id === data.entityId ? { ...s, dueAmount: remainingDue } : s))
-      );
+      setSuppliers((prev) => {
+        const next = prev.map((s) => (s.id === data.entityId ? { ...s, dueAmount: remainingDue } : s));
+        const uid = user?.id || auth.currentUser?.uid;
+        if (uid) saveUserCloudCollection(uid, 'suppliers', { items: next });
+        return next;
+      });
 
       const record: DueCollection = {
         id: `due-rec-${Date.now()}`,
@@ -2798,7 +3383,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         paymentMethod: data.paymentMethod,
         note: data.note,
       };
-      setDueCollections((prev) => [record, ...prev]);
+      setDueCollections((prev) => {
+        const next = [record, ...prev];
+        const uid = user?.id || auth.currentUser?.uid;
+        if (uid) saveUserCloudCollection(uid, 'dueCollections', { items: next });
+        return next;
+      });
       logActivity('Paid Supplier Due', 'সরবরাহকারীকে বকেয়া পরিশোধ', `${target.name}: ৳${data.amountPaid}`);
     }
   };
@@ -3042,6 +3632,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         markAllNotificationsRead,
         exportDataJSON,
         importDataJSON,
+        teamMembers,
+        saveTeamMembers,
+        employees,
+        saveEmployees,
+        payrollPayments,
+        savePayrollPayments,
+        salaryAdjustments,
+        saveSalaryAdjustments,
+        auditLogs,
+        saveAuditLogs,
+        loyaltySettings,
+        saveLoyaltySettings,
+        isCloudSynced,
         metrics: {
           todaySales,
           todayExpense,
