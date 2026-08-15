@@ -986,18 +986,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Product not found in current store.' };
     }
 
-    const availableStock = targetProduct.stock || 0;
     const existingQRCount = getGeneratedQRCount(productId);
-    const availableCapacity = Math.max(0, availableStock - existingQRCount);
-
-    if (existingQRCount + requestedCount > availableStock) {
-      return {
-        success: false,
-        message: `Cannot generate more QR codes than the available stock.\n\nAvailable Stock: ${availableStock}\nAlready Generated: ${existingQRCount}\nCan Generate: ${availableCapacity}`,
-      };
-    }
-
-    const newTotal = existingQRCount + requestedCount;
+    const countToAdd = Math.max(1, Number(requestedCount) || 1);
+    const newTotal = existingQRCount + countToAdd;
     setProductQRCounts((prev) => ({
       ...prev,
       [productId]: newTotal,

@@ -1,8 +1,20 @@
 export type Language = 'en' | 'bn' | 'hi' | 'ar' | 'es' | 'fr';
 export type ThemeMode = 'light' | 'dark';
-export type UserRole = 'Owner' | 'Manager' | 'Staff' | 'Accountant' | 'PlatformOwner';
+export type UserRole = 'Owner' | 'Manager' | 'Staff' | 'Accountant' | 'PlatformOwner' | 'Cashier' | 'Inventory Manager' | 'Custom Role';
 export type SubscriptionPlan = 'Starter' | 'Tier2' | 'Lifetime' | 'Free' | 'Pro' | 'Premium' | 'Business';
 export type BillingCycle = 'monthly' | 'yearly' | 'five_year';
+
+export type BusinessType =
+  | 'Retail Shop'
+  | 'Grocery'
+  | 'Clothing'
+  | 'Electronics'
+  | 'Pharmacy'
+  | 'Restaurant / Food'
+  | 'Service Business'
+  | 'Beauty / Salon'
+  | 'Hardware'
+  | 'Other';
 
 export interface DashboardPreferences {
   quickSale: boolean;
@@ -12,16 +24,23 @@ export interface DashboardPreferences {
   stockManagement: boolean;
   salesManagement: boolean;
   salesHistory: boolean;
+  salesCalendar?: boolean;
   purchases: boolean;
   customers: boolean;
   suppliers: boolean;
   dueManagement: boolean;
   expenses: boolean;
-  support: boolean;
-  barcode: boolean;
   expiryManagement: boolean;
-  reports: boolean;
+  barcode: boolean;
+  notifications: boolean;
+  smartReorder: boolean;
+  customerLoyalty: boolean;
+  aiAssistant: boolean;
   teamManagement: boolean;
+  payroll: boolean;
+  auditLog: boolean;
+  reports: boolean;
+  support: boolean;
 }
 
 export const defaultDashboardPreferences: DashboardPreferences = {
@@ -32,17 +51,505 @@ export const defaultDashboardPreferences: DashboardPreferences = {
   stockManagement: true,
   salesManagement: true,
   salesHistory: true,
+  salesCalendar: true,
   purchases: true,
   customers: true,
   suppliers: true,
   dueManagement: true,
   expenses: true,
-  support: true,
-  barcode: true,
   expiryManagement: true,
-  reports: true,
+  barcode: true,
+  notifications: true,
+  smartReorder: true,
+  customerLoyalty: true,
+  aiAssistant: true,
   teamManagement: true,
+  payroll: true,
+  auditLog: true,
+  reports: true,
+  support: true,
 };
+
+// Recommended Module Profiles based on Business Type
+export const businessTypeRecommendedModules: Record<BusinessType, Partial<DashboardPreferences>> = {
+  'Retail Shop': {
+    quickSale: true,
+    pos: true,
+    products: true,
+    categories: true,
+    stockManagement: true,
+    salesHistory: true,
+    purchases: true,
+    customers: true,
+    suppliers: true,
+    dueManagement: true,
+    expenses: true,
+    barcode: true,
+    smartReorder: true,
+    customerLoyalty: true,
+    aiAssistant: true,
+    teamManagement: true,
+    payroll: true,
+  },
+  'Grocery': {
+    quickSale: true,
+    pos: true,
+    products: true,
+    categories: true,
+    stockManagement: true,
+    salesHistory: true,
+    purchases: true,
+    suppliers: true,
+    dueManagement: true,
+    expenses: true,
+    expiryManagement: true,
+    barcode: true,
+    smartReorder: true,
+    teamManagement: true,
+    payroll: true,
+  },
+  'Clothing': {
+    quickSale: true,
+    pos: true,
+    products: true,
+    categories: true,
+    stockManagement: true,
+    salesHistory: true,
+    purchases: true,
+    customers: true,
+    suppliers: true,
+    barcode: true,
+    customerLoyalty: true,
+    expenses: true,
+    smartReorder: true,
+    payroll: true,
+  },
+  'Electronics': {
+    quickSale: true,
+    pos: true,
+    products: true,
+    categories: true,
+    stockManagement: true,
+    salesHistory: true,
+    purchases: true,
+    customers: true,
+    suppliers: true,
+    dueManagement: true,
+    barcode: true,
+    expenses: true,
+    smartReorder: true,
+    teamManagement: true,
+    payroll: true,
+  },
+  'Pharmacy': {
+    quickSale: true,
+    pos: true,
+    products: true,
+    categories: true,
+    stockManagement: true,
+    salesHistory: true,
+    purchases: true,
+    suppliers: true,
+    dueManagement: true,
+    expiryManagement: true,
+    barcode: true,
+    smartReorder: true,
+    expenses: true,
+    payroll: true,
+  },
+  'Restaurant / Food': {
+    quickSale: true,
+    pos: true,
+    products: true,
+    categories: true,
+    stockManagement: true,
+    salesHistory: true,
+    purchases: true,
+    suppliers: true,
+    expenses: true,
+    customerLoyalty: true,
+    teamManagement: true,
+    payroll: true,
+  },
+  'Service Business': {
+    quickSale: true,
+    salesHistory: true,
+    customers: true,
+    dueManagement: true,
+    expenses: true,
+    reports: true,
+    customerLoyalty: true,
+    teamManagement: true,
+    payroll: true,
+  },
+  'Beauty / Salon': {
+    quickSale: true,
+    pos: true,
+    customers: true,
+    dueManagement: true,
+    expenses: true,
+    customerLoyalty: true,
+    teamManagement: true,
+    payroll: true,
+  },
+  'Hardware': {
+    quickSale: true,
+    pos: true,
+    products: true,
+    categories: true,
+    stockManagement: true,
+    purchases: true,
+    suppliers: true,
+    dueManagement: true,
+    barcode: true,
+    smartReorder: true,
+    expenses: true,
+    payroll: true,
+  },
+  'Other': {
+    ...defaultDashboardPreferences,
+  },
+};
+
+// Team Roles & Granular Permissions
+export type TeamRole = 'Owner' | 'Manager' | 'Cashier' | 'Inventory Manager' | 'Accountant' | 'Custom Role';
+
+export interface TeamPermissions {
+  dashboard: boolean;
+  quickSale: boolean;
+  pos: boolean;
+  products: boolean;
+  createProduct: boolean;
+  editProduct: boolean;
+  deleteProduct: boolean;
+  categories: boolean;
+  inventory: boolean;
+  stockAdjustment: boolean;
+  purchases: boolean;
+  suppliers: boolean;
+  sales: boolean;
+  refund: boolean;
+  salesHistory: boolean;
+  customers: boolean;
+  customerDue: boolean;
+  expenses: boolean;
+  profitLoss: boolean;
+  reports: boolean;
+  notifications: boolean;
+  teamManagement: boolean;
+  payroll: boolean;
+  storeBranding: boolean;
+  settings: boolean;
+  subscription: boolean;
+  paymentSettings: boolean;
+  auditLog: boolean;
+}
+
+export const roleDefaultPermissions: Record<TeamRole, TeamPermissions> = {
+  Owner: {
+    dashboard: true,
+    quickSale: true,
+    pos: true,
+    products: true,
+    createProduct: true,
+    editProduct: true,
+    deleteProduct: true,
+    categories: true,
+    inventory: true,
+    stockAdjustment: true,
+    purchases: true,
+    suppliers: true,
+    sales: true,
+    refund: true,
+    salesHistory: true,
+    customers: true,
+    customerDue: true,
+    expenses: true,
+    profitLoss: true,
+    reports: true,
+    notifications: true,
+    teamManagement: true,
+    payroll: true,
+    storeBranding: true,
+    settings: true,
+    subscription: true,
+    paymentSettings: true,
+    auditLog: true,
+  },
+  Manager: {
+    dashboard: true,
+    quickSale: true,
+    pos: true,
+    products: true,
+    createProduct: true,
+    editProduct: true,
+    deleteProduct: false,
+    categories: true,
+    inventory: true,
+    stockAdjustment: true,
+    purchases: true,
+    suppliers: true,
+    sales: true,
+    refund: true,
+    salesHistory: true,
+    customers: true,
+    customerDue: true,
+    expenses: true,
+    profitLoss: true,
+    reports: true,
+    notifications: true,
+    teamManagement: false,
+    payroll: false,
+    storeBranding: false,
+    settings: false,
+    subscription: false,
+    paymentSettings: false,
+    auditLog: true,
+  },
+  Cashier: {
+    dashboard: true,
+    quickSale: true,
+    pos: true,
+    products: true,
+    createProduct: false,
+    editProduct: false,
+    deleteProduct: false,
+    categories: true,
+    inventory: false,
+    stockAdjustment: false,
+    purchases: false,
+    suppliers: false,
+    sales: true,
+    refund: false,
+    salesHistory: true,
+    customers: true,
+    customerDue: true,
+    expenses: false,
+    profitLoss: false,
+    reports: false,
+    notifications: true,
+    teamManagement: false,
+    payroll: false,
+    storeBranding: false,
+    settings: false,
+    subscription: false,
+    paymentSettings: false,
+    auditLog: false,
+  },
+  'Inventory Manager': {
+    dashboard: true,
+    quickSale: false,
+    pos: false,
+    products: true,
+    createProduct: true,
+    editProduct: true,
+    deleteProduct: false,
+    categories: true,
+    inventory: true,
+    stockAdjustment: true,
+    purchases: true,
+    suppliers: true,
+    sales: false,
+    refund: false,
+    salesHistory: false,
+    customers: false,
+    customerDue: false,
+    expenses: false,
+    profitLoss: false,
+    reports: false,
+    notifications: true,
+    teamManagement: false,
+    payroll: false,
+    storeBranding: false,
+    settings: false,
+    subscription: false,
+    paymentSettings: false,
+    auditLog: false,
+  },
+  Accountant: {
+    dashboard: true,
+    quickSale: false,
+    pos: false,
+    products: false,
+    createProduct: false,
+    editProduct: false,
+    deleteProduct: false,
+    categories: false,
+    inventory: false,
+    stockAdjustment: false,
+    purchases: true,
+    suppliers: true,
+    sales: false,
+    refund: false,
+    salesHistory: true,
+    customers: true,
+    customerDue: true,
+    expenses: true,
+    profitLoss: true,
+    reports: true,
+    notifications: true,
+    teamManagement: false,
+    payroll: true,
+    storeBranding: false,
+    settings: false,
+    subscription: false,
+    paymentSettings: false,
+    auditLog: true,
+  },
+  'Custom Role': {
+    dashboard: true,
+    quickSale: true,
+    pos: true,
+    products: true,
+    createProduct: false,
+    editProduct: false,
+    deleteProduct: false,
+    categories: false,
+    inventory: false,
+    stockAdjustment: false,
+    purchases: false,
+    suppliers: false,
+    sales: true,
+    refund: false,
+    salesHistory: true,
+    customers: true,
+    customerDue: false,
+    expenses: false,
+    profitLoss: false,
+    reports: false,
+    notifications: true,
+    teamManagement: false,
+    payroll: false,
+    storeBranding: false,
+    settings: false,
+    subscription: false,
+    paymentSettings: false,
+    auditLog: false,
+  },
+};
+
+export interface TeamMember {
+  id: string;
+  storeId?: string;
+  name: string;
+  email: string;
+  phone?: string;
+  role: TeamRole;
+  status: 'Active' | 'Invited' | 'Disabled';
+  joinedDate: string;
+  lastActive?: string;
+  invitedBy?: string;
+  customPermissions?: Partial<TeamPermissions>;
+}
+
+// Employee Salary & Payroll Models (SEPARATE from Team Management)
+export type SalaryType = 'Monthly' | 'Weekly' | 'Daily' | 'Hourly' | 'Custom';
+export type EmployeeStatus = 'Active' | 'On Leave' | 'Terminated' | 'Disabled';
+
+export interface Employee {
+  id: string;
+  employeeId: string; // e.g. "EMP-001"
+  fullName: string;
+  phone: string;
+  email?: string;
+  jobTitle: string;
+  department: string;
+  role: string;
+  joiningDate: string; // e.g. "2026-01-10"
+  salaryType: SalaryType;
+  baseSalary: number;
+  currency?: string;
+  status: EmployeeStatus;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface SalaryAdjustment {
+  id: string;
+  employeeId: string;
+  type: 'bonus' | 'commission' | 'overtime' | 'deduction' | 'advance';
+  amount: number;
+  currency?: string;
+  reason: string;
+  date: string;
+  overtimeHours?: number;
+  overtimeRate?: number;
+  period?: string; // e.g. "2026-03"
+}
+
+export interface SalaryPaymentHistoryEntry {
+  id: string;
+  amount: number;
+  date: string;
+  method: string;
+  note?: string;
+  paidBy?: string;
+}
+
+export interface PayrollPayment {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  period: string; // e.g. "March 2026" or "2026-03"
+  baseSalary: number;
+  bonus: number;
+  overtime: number;
+  deduction: number;
+  advance: number;
+  netSalary: number;
+  paidAmount: number;
+  remainingAmount: number;
+  status: 'Pending' | 'Paid' | 'Partially Paid';
+  paymentDate?: string;
+  paymentMethod: string;
+  notes?: string;
+  currency: string;
+  expenseReferenceId?: string; // unique ID linking to business expense so it's not double counted
+  paymentHistory?: SalaryPaymentHistoryEntry[];
+  createdAt: string;
+}
+
+export interface CustomerLoyaltySettings {
+  enabled: boolean;
+  pointsPerAmount?: number; // e.g. 1 point per 100 currency
+  spendingAmountUnit?: number;
+  pointRedemptionValue?: number;
+  minPointsToRedeem?: number;
+  rewardThreshold?: number; // e.g. 100 points
+  rewardDiscountValue?: number; // e.g. 50 currency discount
+  pointsExpiryDays?: number;
+}
+
+export interface SmartReorderItem {
+  product?: Product;
+  productId?: string;
+  productName?: string;
+  category?: string;
+  supplierName?: string;
+  currentStock: number;
+  lowStockThreshold?: number;
+  minStockAlert?: number;
+  monthlySales?: number;
+  monthlySalesVelocity?: number;
+  salesVelocity?: number; // items sold per day
+  recommendedReorder?: number;
+  recommendedReorderQty?: number;
+  estimatedCost: number;
+  buyingPrice?: number;
+  urgency?: 'critical' | 'high' | 'medium' | 'low' | 'normal';
+  supplierId?: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  action: string;
+  category: 'payroll' | 'team' | 'sales' | 'inventory' | 'customer' | 'settings' | 'expense';
+  performedBy: string;
+  performedByEmail?: string;
+  details: string;
+  timestamp: string;
+  meta?: any;
+}
 
 export interface UserProfile {
   id: string;
@@ -225,6 +732,12 @@ export interface Customer {
   dueAmount: number;
   totalSpent: number;
   lifetimePurchasesCount: number;
+  loyaltyPoints?: number;
+  totalPointsEarned?: number;
+  totalPointsRedeemed?: number;
+  favoriteProducts?: string[];
+  lastPurchaseDate?: string;
+  orderCount?: number;
   createdAt: string;
 }
 
@@ -240,15 +753,32 @@ export interface Supplier {
   createdAt: string;
 }
 
+export type ExpenseCategory =
+  | 'Rent'
+  | 'Electricity'
+  | 'Salary'
+  | 'Transport'
+  | 'Marketing'
+  | 'Utilities'
+  | 'Supplier Payment'
+  | 'Packaging'
+  | 'Office Expense'
+  | 'Internet'
+  | 'Other'
+  | 'Miscellaneous';
+
 export interface Expense {
   id: string;
   title: string;
-  category: 'Rent' | 'Electricity' | 'Salary' | 'Internet' | 'Transport' | 'Marketing' | 'Packaging' | 'Office Expense' | 'Miscellaneous';
+  category: ExpenseCategory;
   amount: number;
+  currency?: string;
   date: string;
   note?: string;
+  description?: string;
   attachmentName?: string;
-  paymentMethod: 'Cash' | 'Bank' | 'Mobile';
+  paymentMethod: 'Cash' | 'Bank' | 'Mobile' | string;
+  expenseReferenceId?: string; // Links to payroll payment ID or supplier invoice to avoid double-counting
 }
 
 export interface Income {
@@ -265,12 +795,15 @@ export interface DueCollection {
   type: 'customer' | 'supplier';
   entityId: string;
   entityName: string;
+  originalAmount?: number;
   amountPaid: number;
   previousDue: number;
   remainingDue: number;
   date: string;
+  dueDate?: string;
   paymentMethod: string;
   note?: string;
+  status?: 'PAID' | 'PARTIAL' | 'PENDING' | 'OVERDUE';
 }
 
 export interface StockAdjustment {
@@ -292,6 +825,10 @@ export type NotificationType =
   | 'pending_due'
   | 'overdue_due'
   | 'due'
+  | 'important_sale'
+  | 'salary_due'
+  | 'salary_pending'
+  | 'salary_paid'
   | 'subscription'
   | 'report'
   | 'system';

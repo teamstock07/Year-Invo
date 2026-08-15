@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { DashboardPreferences } from '../../types';
+import { BusinessTypeSetupModal } from '../common/BusinessTypeSetupModal';
 import {
   SlidersHorizontal,
   Zap,
@@ -30,6 +31,7 @@ import {
   ArrowRight,
   Eye,
   EyeOff,
+  Store,
 } from 'lucide-react';
 
 interface ModuleItem {
@@ -44,11 +46,12 @@ interface ModuleItem {
 }
 
 export const CustomizeDashboardView: React.FC = () => {
-  const { dashboardPreferences, updateDashboardPreferences, t, language, setActiveTab } = useApp();
+  const { dashboardPreferences, updateDashboardPreferences, user, t, language, setActiveTab } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'enabled' | 'disabled'>('all');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [isBusinessTypeModalOpen, setIsBusinessTypeModalOpen] = useState(false);
 
   const modulesList: ModuleItem[] = [
     {
@@ -165,7 +168,7 @@ export const CustomizeDashboardView: React.FC = () => {
       key: 'reports',
       nameKey: 'modReports',
       descKey: 'modReportsDesc',
-      defaultName: 'Reports & Analytics',
+      defaultName: 'Profit & Loss',
       defaultDesc: 'Profit analytics, sales insights & report exports',
       icon: BarChart3,
       category: 'finance',
@@ -195,6 +198,62 @@ export const CustomizeDashboardView: React.FC = () => {
       defaultName: 'Team Management',
       defaultDesc: 'Staff members, cashier accounts and role permissions',
       icon: UserCheck,
+      category: 'operations',
+    },
+    {
+      key: 'payroll',
+      nameKey: 'modPayroll',
+      descKey: 'modPayrollDesc',
+      defaultName: 'Employee Payroll',
+      defaultDesc: 'Staff salary structures, disbursements, overtime & advances',
+      icon: CreditCard,
+      category: 'finance',
+    },
+    {
+      key: 'smartReorder',
+      nameKey: 'modSmartReorder',
+      descKey: 'modSmartReorderDesc',
+      defaultName: 'Smart Reorder',
+      defaultDesc: 'Automated inventory replenishment advisor based on sales velocity',
+      icon: Sparkles,
+      category: 'inventory',
+      dependsOn: 'products',
+    },
+    {
+      key: 'customerLoyalty',
+      nameKey: 'modCustomerLoyalty',
+      descKey: 'modCustomerLoyaltyDesc',
+      defaultName: 'Customer Loyalty',
+      defaultDesc: 'Reward repeat shoppers with points and checkout discounts',
+      icon: Sparkles,
+      category: 'sales',
+      dependsOn: 'customers',
+    },
+    {
+      key: 'salesCalendar',
+      nameKey: 'modSalesCalendar',
+      descKey: 'modSalesCalendarDesc',
+      defaultName: 'Sales Calendar',
+      defaultDesc: 'Visual daily transaction timeline, order spikes & receipts',
+      icon: CalendarX,
+      category: 'sales',
+    },
+    {
+      key: 'aiAssistant',
+      nameKey: 'modAiAssistant',
+      descKey: 'modAiAssistantDesc',
+      defaultName: 'AI Business Assistant',
+      defaultDesc: 'Smart business advice, peak hour analytics & restocking tips',
+      icon: Sparkles,
+      category: 'support',
+    },
+    {
+      key: 'auditLog',
+      nameKey: 'modAuditLog',
+      descKey: 'modAuditLogDesc',
+      defaultName: 'Audit Log',
+      defaultDesc: 'Security audit trail of payroll, team & stock operations',
+      icon: History,
       category: 'operations',
     },
     {
@@ -285,6 +344,14 @@ export const CustomizeDashboardView: React.FC = () => {
 
           {/* Quick Stats & Live Indicator */}
           <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setIsBusinessTypeModalOpen(true)}
+              className="px-3.5 py-2 rounded-2xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/20 flex items-center gap-2 text-xs font-bold transition-colors cursor-pointer"
+            >
+              <Store className="w-4 h-4" />
+              <span>{language === 'bn' ? 'ব্যবসার ধরন অনুযায়ী সেটআপ' : 'Setup by Business Type'}</span>
+            </button>
+
             <div className="px-3.5 py-2 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/60 flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
               <Layers className="w-4 h-4 text-[#ff5c01]" />
               <span>
@@ -508,6 +575,13 @@ export const CustomizeDashboardView: React.FC = () => {
           </p>
         </div>
       </div>
+      {/* Business Type Setup Modal */}
+      {isBusinessTypeModalOpen && (
+        <BusinessTypeSetupModal
+          isOpen={isBusinessTypeModalOpen}
+          onClose={() => setIsBusinessTypeModalOpen(false)}
+        />
+      )}
     </div>
   );
 };

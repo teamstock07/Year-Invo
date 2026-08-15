@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { MainWebsiteLogo } from '../common/MainWebsiteLogo';
 import {
@@ -25,6 +25,13 @@ import {
   Info,
   X,
   Store,
+  Calendar,
+  Award,
+  ShieldCheck,
+  Banknote,
+  Activity,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -51,40 +58,105 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   const plan = user?.subscriptionPlan || 'Free';
   const isPosLocked = plan === 'Free';
+  const role = user?.role || 'Owner';
 
-  const rawMenuItems = [
-    ...(user?.role === 'Owner'
+  // Role based visibility checks
+  const canAccessSales = role === 'Owner' || role === 'Manager' || role === 'Cashier' || role === 'Accountant' || role === 'PlatformOwner';
+  const canAccessInventory = role === 'Owner' || role === 'Manager' || role === 'Inventory Manager' || role === 'PlatformOwner';
+  const canAccessFinance = role === 'Owner' || role === 'Manager' || role === 'Accountant' || role === 'PlatformOwner';
+  const canAccessTeam = role === 'Owner' || role === 'PlatformOwner';
+  const canAccessPayroll = role === 'Owner' || role === 'Accountant' || role === 'PlatformOwner';
+  const canAccessSettings = role === 'Owner' || role === 'Manager' || role === 'PlatformOwner';
+
+  // Team Management & Payroll Grouped Children
+  const teamChildren = [
+    ...(dashboardPreferences?.teamManagement !== false && canAccessTeam
+      ? [
+          {
+            id: 'team',
+            label: t('modTeamManagement') || 'Team Management',
+            icon: ShieldCheck,
+          },
+        ]
+      : []),
+    ...(dashboardPreferences?.payroll !== false && canAccessPayroll
+      ? [
+          {
+            id: 'payroll',
+            label: t('modPayroll') || 'Employee Payroll',
+            icon: Banknote,
+          },
+        ]
+      : []),
+    ...(dashboardPreferences?.auditLog !== false && canAccessTeam
+      ? [
+          {
+            id: 'audit-log',
+            label: t('modAuditLog') || 'Audit Log',
+            icon: Activity,
+          },
+        ]
+      : []),
+  ];
+
+  const hasTeamGroup = teamChildren.length > 0;
+  const isTeamActive =
+    activeTab === 'team' ||
+    activeTab === 'teamManagement' ||
+    activeTab === 'payroll' ||
+    activeTab === 'salary' ||
+    activeTab === 'audit' ||
+    activeTab === 'audit-log' ||
+    activeTab === 'auditLog';
+
+  const [isTeamExpanded, setIsTeamExpanded] = useState<boolean>(true);
+
+  // Automatically keep expanded when an active tab in the group is selected
+  useEffect(() => {
+    if (isTeamActive) {
+      setIsTeamExpanded(true);
+    }
+  }, [isTeamActive]);
+
+  // Primary menu items before the Team & Payroll group
+  const primaryMenuItems = [
+    ...(user?.role === 'Owner' || user?.role === 'PlatformOwner'
       ? [{ id: 'owner', label: t('navOwnerPanel') || 'Owner Panel', icon: Crown, highlight: true }]
       : []),
     { id: 'dashboard', label: t('navDashboard') || 'Dashboard', icon: LayoutDashboard },
-    ...(dashboardPreferences?.quickSale !== false ? [{ id: 'quicksale', label: t('navQuickSale') || 'Quick Sale', icon: Zap, highlight: true }] : []),
-    ...(dashboardPreferences?.pos !== false ? [{ 
+    ...(dashboardPreferences?.quickSale !== false && canAccessSales ? [{ id: 'quicksale', label: t('navQuickSale') || 'Quick Sale', icon: Zap, highlight: true }] : []),
+    ...(dashboardPreferences?.pos !== false && canAccessSales ? [{ 
       id: 'pos', 
       label: t('navPos') || 'POS System', 
       icon: ShoppingCart, 
       locked: isPosLocked,
       badge: isPosLocked ? 'PRO' : undefined 
     }] : []),
-    ...(dashboardPreferences?.products !== false ? [{ id: 'products', label: t('navProducts') || 'Products', icon: Package }] : []),
-    ...(dashboardPreferences?.products !== false && dashboardPreferences?.categories !== false ? [{ id: 'categories', label: t('navCategories') || 'Categories', icon: Tags }] : []),
-    ...(dashboardPreferences?.products !== false && dashboardPreferences?.stockManagement !== false ? [{ id: 'stock', label: t('navStock') || 'Stock Management', icon: Boxes }] : []),
-    ...(dashboardPreferences?.salesHistory !== false ? [{ id: 'saleshistory', label: t('navSales') || 'Sales History', icon: History }] : []),
-    ...(dashboardPreferences?.purchases !== false ? [{ id: 'purchases', label: t('navPurchases') || 'Purchases', icon: ShoppingBag }] : []),
-    ...(dashboardPreferences?.customers !== false ? [{ id: 'customers', label: t('navCustomers') || 'Customers', icon: Users }] : []),
-    ...(dashboardPreferences?.suppliers !== false ? [{ id: 'suppliers', label: t('navSuppliers') || 'Suppliers', icon: Truck }] : []),
-    ...(dashboardPreferences?.dueManagement !== false ? [{ id: 'due', label: t('navDue') || 'Due Management', icon: CreditCard }] : []),
-    ...(dashboardPreferences?.expenses !== false ? [{ id: 'expenses', label: t('navExpenses') || 'Expenses', icon: Receipt }] : []),
-    ...(dashboardPreferences?.reports !== false ? [{ id: 'reports', label: t('navProfit') || 'Profit Analytics', icon: TrendingUp }] : []),
-    ...(dashboardPreferences?.expiryManagement !== false ? [{ id: 'expired', label: t('navExpired') || 'Expired Products', icon: AlertTriangle }] : []),
-    ...(dashboardPreferences?.barcode !== false ? [{ id: 'barcode', label: t('navBarcode') || 'Barcode & QR Code', icon: QrCode }] : []),
-    { id: 'ai', label: t('navAiInsights') || 'AI Business Advisor', icon: Sparkles, badge: 'SOON' },
-    { id: 'branding', label: t('branding') || 'Store Branding', icon: Store },
-    { id: 'settings', label: t('navSettings') || t('settings') || 'Settings', icon: Settings },
+    ...(dashboardPreferences?.products !== false && canAccessInventory ? [{ id: 'products', label: t('navProducts') || 'Products', icon: Package }] : []),
+    ...(dashboardPreferences?.products !== false && dashboardPreferences?.categories !== false && canAccessInventory ? [{ id: 'categories', label: t('navCategories') || 'Categories', icon: Tags }] : []),
+    ...(dashboardPreferences?.products !== false && dashboardPreferences?.stockManagement !== false && canAccessInventory ? [{ id: 'stock', label: t('navStock') || 'Stock Management', icon: Boxes }] : []),
+    ...(dashboardPreferences?.smartReorder !== false && canAccessInventory ? [{ id: 'smart-reorder', label: t('modSmartReorder') || 'Smart Reorder', icon: Sparkles }] : []),
+    ...(dashboardPreferences?.salesHistory !== false && canAccessSales ? [{ id: 'saleshistory', label: t('navSales') || 'Sales History', icon: History }] : []),
+    ...(dashboardPreferences?.salesCalendar !== false && canAccessSales ? [{ id: 'sales-calendar', label: t('modSalesCalendar') || 'Sales Calendar', icon: Calendar }] : []),
+    ...(dashboardPreferences?.purchases !== false && canAccessInventory ? [{ id: 'purchases', label: t('navPurchases') || 'Purchases', icon: ShoppingBag }] : []),
+    ...(dashboardPreferences?.customers !== false && (canAccessSales || canAccessFinance) ? [{ id: 'customers', label: t('navCustomers') || 'Customers', icon: Users }] : []),
+    ...(dashboardPreferences?.customerLoyalty !== false && canAccessSales ? [{ id: 'loyalty', label: t('modCustomerLoyalty') || 'Customer Loyalty', icon: Award }] : []),
+    ...(dashboardPreferences?.suppliers !== false && canAccessInventory ? [{ id: 'suppliers', label: t('navSuppliers') || 'Suppliers', icon: Truck }] : []),
+    ...(dashboardPreferences?.dueManagement !== false && (canAccessSales || canAccessFinance) ? [{ id: 'due', label: t('navDue') || 'Due Management', icon: CreditCard }] : []),
+    ...(dashboardPreferences?.expenses !== false && canAccessFinance ? [{ id: 'expenses', label: t('navExpenses') || 'Expenses', icon: Receipt }] : []),
+  ];
+
+  // Secondary menu items after the Team & Payroll group
+  const secondaryMenuItems = [
+    ...(dashboardPreferences?.reports !== false && canAccessFinance ? [{ id: 'reports', label: t('navProfit') || 'Profit & Loss', icon: TrendingUp }] : []),
+    ...(dashboardPreferences?.expiryManagement !== false && canAccessInventory ? [{ id: 'expired', label: t('navExpired') || 'Expired Products', icon: AlertTriangle }] : []),
+    ...(dashboardPreferences?.barcode !== false && canAccessInventory ? [{ id: 'barcode', label: t('navBarcode') || 'Barcode & QR Code', icon: QrCode }] : []),
+    ...(dashboardPreferences?.aiAssistant !== false ? [{ id: 'ai', label: t('navAiInsights') || 'AI Business Assistant', icon: Sparkles }] : []),
+    ...(canAccessSettings ? [{ id: 'branding', label: t('branding') || 'Store Branding', icon: Store }] : []),
+    ...(canAccessSettings ? [{ id: 'settings', label: t('navSettings') || t('settings') || 'Settings', icon: Settings }] : []),
     ...(dashboardPreferences?.support !== false ? [{ id: 'help', label: t('navHelp') || 'Help & Support', icon: HelpCircle }] : []),
     { id: 'about', label: t('navAbout') || 'About', icon: Info },
   ];
-
-  const menuItems = rawMenuItems;
 
   return (
     <>
@@ -130,7 +202,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -138,7 +210,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
         {/* Menu Navigation Items */}
         <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto custom-scrollbar">
-          {menuItems.map((item) => {
+          {/* Primary items */}
+          {primaryMenuItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
 
@@ -172,6 +245,87 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                       {item.badge}
                     </span>
                   )}
+                </div>
+              </button>
+            );
+          })}
+
+          {/* Grouped Parent Menu: Team Management & Payroll */}
+          {hasTeamGroup && (
+            <div className="pt-0.5 pb-0.5">
+              <button
+                type="button"
+                onClick={() => setIsTeamExpanded((prev) => !prev)}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer group ${
+                  isTeamActive
+                    ? 'bg-slate-800/90 text-white font-bold border border-slate-700/60'
+                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Users className={`w-4 h-4 shrink-0 transition-colors ${isTeamActive ? 'text-[#ff5c01]' : 'text-slate-400 group-hover:text-slate-200'}`} />
+                  <span className="truncate">{t('navTeamAndPayroll') || 'Team Management & Payroll'}</span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0 pl-1">
+                  {isTeamExpanded ? (
+                    <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-white transition-transform" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-white transition-transform" />
+                  )}
+                </div>
+              </button>
+
+              {/* Indented Child Items */}
+              {isTeamExpanded && (
+                <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-slate-800 ml-4 my-1">
+                  {teamChildren.map((child) => {
+                    const ChildIcon = child.icon;
+                    const isChildActive = activeTab === child.id;
+                    return (
+                      <button
+                        key={child.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveTab(child.id);
+                          onClose();
+                        }}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer group ${
+                          isChildActive
+                            ? 'bg-[#ff5c01] text-white shadow-sm shadow-[#ff5c01]/25 font-bold'
+                            : 'text-slate-400 hover:bg-slate-800/70 hover:text-slate-100'
+                        }`}
+                      >
+                        <ChildIcon className={`w-3.5 h-3.5 shrink-0 ${isChildActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`} />
+                        <span className="truncate">{child.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Secondary items */}
+          {secondaryMenuItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setActiveTab(item.id);
+                  onClose();
+                }}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer group ${
+                  isActive
+                    ? 'bg-[#ff5c01] text-white shadow-md shadow-[#ff5c01]/30 font-bold'
+                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Icon className={`w-4 h-4 transition-colors ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`} />
+                  <span>{item.label}</span>
                 </div>
               </button>
             );

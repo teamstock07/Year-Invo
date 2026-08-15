@@ -24,6 +24,11 @@ import {
   PlusCircle,
   Package,
   Zap,
+  Calendar,
+  Award,
+  ShieldCheck,
+  Banknote,
+  Activity,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -171,9 +176,23 @@ export const DashboardView: React.FC = () => {
           icon: Boxes,
           color: 'from-violet-500 to-pink-600',
         }] : []),
+        ...(isProductsOn && dashboardPreferences?.smartReorder !== false ? [{
+          id: 'smart-reorder',
+          title: language === 'bn' ? 'স্মার্ট রি-অর্ডার' : 'Smart Reorder',
+          desc: language === 'bn' ? 'সেলস ভেলোসিটি ও অটো পারচেজ' : 'Sales velocity & stock replenishment',
+          icon: Sparkles,
+          color: 'from-amber-500 to-emerald-600',
+        }] : []),
+        ...(dashboardPreferences?.customerLoyalty !== false ? [{
+          id: 'loyalty',
+          title: language === 'bn' ? 'কাস্টমার লয়্যালটি' : 'Customer Loyalty',
+          desc: language === 'bn' ? 'পয়েন্ট আর্ন ও ডিসকাউন্ট রিডিম' : 'Loyalty tiers, points & cashback rewards',
+          icon: Award,
+          color: 'from-pink-500 to-rose-600',
+        }] : []),
         ...(dashboardPreferences?.expiryManagement !== false ? [{
           id: 'expired',
-          title: language === 'bn' ? '⚠️ মেয়ার্দউত্তীর্ণ প্রোডাক্ট' : 'Expired Items',
+          title: language === 'bn' ? 'মেয়াদোত্তীর্ণ পণ্য' : 'Expired Items',
           desc: language === 'bn' ? 'এক্সপায়ারি ডেট ট্র্যাকার' : 'Identify & clear expiring inventory',
           icon: AlertTriangle,
           color: 'from-rose-500 to-red-600',
@@ -181,14 +200,47 @@ export const DashboardView: React.FC = () => {
       ],
     },
     {
-      title: language === 'bn' ? 'হিসাব ও রিপোর্ট (Analytics)' : 'Reports & Tools',
+      title: language === 'bn' ? 'টিম ও পে-রোল' : 'Team & Payroll',
+      items: [
+        ...(dashboardPreferences?.payroll !== false ? [{
+          id: 'payroll',
+          title: language === 'bn' ? 'এমপ্লয়ি পে-রোল' : 'Employee Payroll',
+          desc: language === 'bn' ? 'বেতন হিসাব, অগ্রিম ও পে-রোল হিস্টোরি' : 'Manage employee salary, advances & slips',
+          icon: Banknote,
+          color: 'from-emerald-500 to-green-600',
+        }] : []),
+        ...(dashboardPreferences?.teamManagement !== false ? [{
+          id: 'team',
+          title: language === 'bn' ? 'টিম ম্যানেজমেন্ট' : 'Team Management',
+          desc: language === 'bn' ? 'ক্যাশিয়ার, ম্যানেজার ও রোল কন্ট্রোল' : 'Role-based permissions & invitations',
+          icon: ShieldCheck,
+          color: 'from-blue-500 to-indigo-600',
+        }] : []),
+        ...(dashboardPreferences?.auditLog !== false ? [{
+          id: 'audit-log',
+          title: language === 'bn' ? 'অডিট লগ' : 'Audit Log',
+          desc: language === 'bn' ? 'প্রতিটি এক্টিভিটি ও পে-রোল লগ রেকর্ড' : 'Track all staff actions & financial edits',
+          icon: Activity,
+          color: 'from-slate-600 to-slate-800',
+        }] : []),
+      ],
+    },
+    {
+      title: language === 'bn' ? 'হিসাব ও রিপোর্ট' : 'Reports & Analytics',
       items: [
         ...(dashboardPreferences?.reports !== false ? [{
           id: 'reports',
-          title: language === 'bn' ? '📊 বিজনেস রিপোর্ট' : 'Profit & Loss Reports',
+          title: language === 'bn' ? 'লাভ ও ক্ষতি' : 'Profit & Loss',
           desc: language === 'bn' ? 'লাভ-ক্ষতি ও স্টেটমেন্ট' : 'Sales analytics & profit breakdown',
           icon: FileSpreadsheet,
           color: 'from-blue-500 to-cyan-600',
+        }] : []),
+        ...(dashboardPreferences?.salesCalendar !== false ? [{
+          id: 'sales-calendar',
+          title: language === 'bn' ? 'সেলস ক্যালেন্ডার' : 'Sales Calendar',
+          desc: language === 'bn' ? 'মাসিক ক্যালেন্ডার ভিউ ও ড্রিলডাউন' : 'Daily sales breakdown on calendar view',
+          icon: Calendar,
+          color: 'from-purple-500 to-indigo-600',
         }] : []),
         ...(dashboardPreferences?.barcode !== false ? [{
           id: 'barcode',

@@ -29,12 +29,24 @@ import { AboutView } from './components/about/AboutView';
 import { OwnerDashboard } from './components/owner/OwnerDashboard';
 import { LoginView } from './components/auth/LoginView';
 import { LivePublicView } from './components/public/LivePublicView';
+import { TeamManagementView } from './components/team/TeamManagementView';
+import { PayrollView } from './components/payroll/PayrollView';
+import { SmartReorderView } from './components/stock/SmartReorderView';
+import { CustomerLoyaltyView } from './components/customers/CustomerLoyaltyView';
+import { SalesCalendarView } from './components/sales/SalesCalendarView';
+import { AuditLogView } from './components/audit/AuditLogView';
+import { BusinessTypeSetupModal } from './components/common/BusinessTypeSetupModal';
 
 import { getDisplayBrandName } from './utils/brand';
 
 const MainLayout: React.FC = () => {
   const { user, activeTab, theme, settings } = useApp();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showFirstTimeBizModal, setShowFirstTimeBizModal] = useState(() => {
+    if (!user) return false;
+    const hasPrompted = localStorage.getItem(`biz_type_prompted_${user.id}`);
+    return !user.businessType && !hasPrompted;
+  });
 
   // Check URL parameters for Live Customer Due or Live Invoice View
   const [urlParams, setUrlParams] = useState(() => new URLSearchParams(window.location.search));
@@ -81,18 +93,37 @@ const MainLayout: React.FC = () => {
         return <CategoryBrandView />;
       case 'stock':
         return <StockManagement />;
+      case 'smart-reorder':
+      case 'smartReorder':
+        return <SmartReorderView />;
       case 'saleshistory':
         return <SalesModule initialSubTab="history" />;
+      case 'sales-calendar':
+      case 'salesCalendar':
+        return <SalesCalendarView />;
       case 'purchases':
         return <StockManagement />;
       case 'customers':
         return <CustomerDirectoryView />;
+      case 'loyalty':
+      case 'customerLoyalty':
+        return <CustomerLoyaltyView />;
       case 'suppliers':
         return <SupplierDirectoryView />;
       case 'due':
         return <DueManagement />;
       case 'expenses':
         return <ExpenseList />;
+      case 'team':
+      case 'teamManagement':
+        return <TeamManagementView />;
+      case 'payroll':
+      case 'salary':
+        return <PayrollView />;
+      case 'audit':
+      case 'audit-log':
+      case 'auditLog':
+        return <AuditLogView />;
       case 'reports':
       case 'profit':
         return <ReportsView />;
@@ -138,6 +169,19 @@ const MainLayout: React.FC = () => {
           {renderActiveView()}
         </main>
       </div>
+
+      {/* First-time Business Type Selection Modal */}
+      {showFirstTimeBizModal && (
+        <BusinessTypeSetupModal
+          isOpen={showFirstTimeBizModal}
+          onClose={() => {
+            if (user) {
+              localStorage.setItem(`biz_type_prompted_${user.id}`, 'true');
+            }
+            setShowFirstTimeBizModal(false);
+          }}
+        />
+      )}
 
       {/* Mobile Bottom Navigation */}
       <MobileNav onOpenSidebar={() => setIsSidebarOpen(true)} />

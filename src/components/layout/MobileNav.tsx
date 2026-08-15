@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   Home,
@@ -25,6 +25,13 @@ import {
   Crown,
   Store,
   TrendingUp,
+  Calendar,
+  Award,
+  ShieldCheck,
+  Banknote,
+  Activity,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 
 export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSidebar }) => {
@@ -36,11 +43,77 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
     setShowAllMenuSheet(false);
   };
 
-  const isProductsOn = dashboardPreferences?.products !== false;
+  const role = user?.role || 'Owner';
+
+  // Role based visibility checks
+  const canAccessSales = role === 'Owner' || role === 'Manager' || role === 'Cashier' || role === 'Accountant' || role === 'PlatformOwner';
+  const canAccessInventory = role === 'Owner' || role === 'Manager' || role === 'Inventory Manager' || role === 'PlatformOwner';
+  const canAccessFinance = role === 'Owner' || role === 'Manager' || role === 'Accountant' || role === 'PlatformOwner';
+  const canAccessTeam = role === 'Owner' || role === 'PlatformOwner';
+  const canAccessPayroll = role === 'Owner' || role === 'Accountant' || role === 'PlatformOwner';
+  const canAccessSettings = role === 'Owner' || role === 'Manager' || role === 'PlatformOwner';
+
+  const isProductsOn = dashboardPreferences?.products !== false && canAccessInventory;
+
+  // Grouped Team Management & Payroll Children
+  const teamChildren = [
+    ...(dashboardPreferences?.teamManagement !== false && canAccessTeam
+      ? [
+          {
+            id: 'team',
+            name: t('modTeamManagement') || 'Team Management',
+            desc: t('modTeamManagementDesc') || 'Staff accounts, roles & cashier access',
+            icon: ShieldCheck,
+            color: 'bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400',
+          },
+        ]
+      : []),
+    ...(dashboardPreferences?.payroll !== false && canAccessPayroll
+      ? [
+          {
+            id: 'payroll',
+            name: t('modPayroll') || 'Employee Payroll',
+            desc: t('modPayrollDesc') || 'Salaries, disbursements, pay slips & advances',
+            icon: Banknote,
+            color: 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400',
+          },
+        ]
+      : []),
+    ...(dashboardPreferences?.auditLog !== false && canAccessTeam
+      ? [
+          {
+            id: 'audit-log',
+            name: t('modAuditLog') || 'Audit Log',
+            desc: t('modAuditLogDesc') || 'Security audit trail of team, stock & financial actions',
+            icon: Activity,
+            color: 'bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400',
+          },
+        ]
+      : []),
+  ];
+
+  const hasTeamGroup = teamChildren.length > 0;
+  const isTeamActive =
+    activeTab === 'team' ||
+    activeTab === 'teamManagement' ||
+    activeTab === 'payroll' ||
+    activeTab === 'salary' ||
+    activeTab === 'audit' ||
+    activeTab === 'audit-log' ||
+    activeTab === 'auditLog';
+
+  const [isTeamExpandedMobile, setIsTeamExpandedMobile] = useState<boolean>(true);
+
+  // Auto-expand if active tab belongs to team group
+  useEffect(() => {
+    if (isTeamActive) {
+      setIsTeamExpandedMobile(true);
+    }
+  }, [isTeamActive]);
 
   // Feature Categories for Mobile Sheet
   const rawFeatureCategories = [
-    ...(user?.role === 'Owner'
+    ...(user?.role === 'Owner' || user?.role === 'PlatformOwner'
       ? [
           {
             title: t('adminControl') || 'Admin Control',
@@ -59,7 +132,7 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
     {
       title: t('salesOperations') || 'Sales Operations',
       items: [
-        ...(dashboardPreferences?.quickSale !== false
+        ...(dashboardPreferences?.quickSale !== false && canAccessSales
           ? [
               {
                 id: 'quicksale',
@@ -70,7 +143,7 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
               },
             ]
           : []),
-        ...(dashboardPreferences?.pos !== false
+        ...(dashboardPreferences?.pos !== false && canAccessSales
           ? [
               {
                 id: 'pos',
@@ -81,7 +154,7 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
               },
             ]
           : []),
-        ...(dashboardPreferences?.salesHistory !== false
+        ...(dashboardPreferences?.salesHistory !== false && canAccessSales
           ? [
               {
                 id: 'saleshistory',
@@ -91,7 +164,17 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
               },
             ]
           : []),
-        ...(dashboardPreferences?.dueManagement !== false
+        ...(dashboardPreferences?.salesCalendar !== false && canAccessSales
+          ? [
+              {
+                id: 'sales-calendar',
+                name: t('modSalesCalendar') || 'Sales Calendar',
+                icon: Calendar,
+                color: 'bg-cyan-500/10 text-cyan-600 dark:bg-cyan-500/20 dark:text-cyan-400',
+              },
+            ]
+          : []),
+        ...(dashboardPreferences?.dueManagement !== false && (canAccessSales || canAccessFinance)
           ? [
               {
                 id: 'due',
@@ -136,7 +219,17 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
               },
             ]
           : []),
-        ...(dashboardPreferences?.purchases !== false
+        ...(dashboardPreferences?.smartReorder !== false && canAccessInventory
+          ? [
+              {
+                id: 'smart-reorder',
+                name: t('modSmartReorder') || 'Smart Reorder',
+                icon: Sparkles,
+                color: 'bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400',
+              },
+            ]
+          : []),
+        ...(dashboardPreferences?.purchases !== false && canAccessInventory
           ? [
               {
                 id: 'purchases',
@@ -146,7 +239,7 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
               },
             ]
           : []),
-        ...(dashboardPreferences?.barcode !== false
+        ...(dashboardPreferences?.barcode !== false && canAccessInventory
           ? [
               {
                 id: 'barcode',
@@ -156,7 +249,7 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
               },
             ]
           : []),
-        ...(dashboardPreferences?.expiryManagement !== false
+        ...(dashboardPreferences?.expiryManagement !== false && canAccessInventory
           ? [
               {
                 id: 'expired',
@@ -171,7 +264,7 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
     {
       title: t('partiesContacts') || 'Customers & Suppliers',
       items: [
-        ...(dashboardPreferences?.customers !== false
+        ...(dashboardPreferences?.customers !== false && (canAccessSales || canAccessFinance)
           ? [
               {
                 id: 'customers',
@@ -181,7 +274,17 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
               },
             ]
           : []),
-        ...(dashboardPreferences?.suppliers !== false
+        ...(dashboardPreferences?.customerLoyalty !== false && canAccessSales
+          ? [
+              {
+                id: 'loyalty',
+                name: t('modCustomerLoyalty') || 'Customer Loyalty',
+                icon: Award,
+                color: 'bg-pink-500/10 text-pink-600 dark:bg-pink-500/20 dark:text-pink-400',
+              },
+            ]
+          : []),
+        ...(dashboardPreferences?.suppliers !== false && canAccessInventory
           ? [
               {
                 id: 'suppliers',
@@ -196,7 +299,7 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
     {
       title: t('financeAnalytics') || 'Finance & Analytics',
       items: [
-        ...(dashboardPreferences?.expenses !== false
+        ...(dashboardPreferences?.expenses !== false && canAccessFinance
           ? [
               {
                 id: 'expenses',
@@ -206,7 +309,7 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
               },
             ]
           : []),
-        ...(dashboardPreferences?.reports !== false
+        ...(dashboardPreferences?.reports !== false && canAccessFinance
           ? [
               {
                 id: 'reports',
@@ -216,30 +319,37 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
               },
             ]
           : []),
-        {
-          id: 'ai',
-          name: t('navAiInsights') || 'AI Business Advisor',
-          icon: Sparkles,
-          color: 'bg-violet-500/10 text-violet-600 dark:bg-violet-500/20 dark:text-violet-400',
-          badge: 'SOON',
-        },
+        ...(dashboardPreferences?.aiAssistant !== false
+          ? [
+              {
+                id: 'ai',
+                name: t('navAiInsights') || 'AI Business Assistant',
+                icon: Sparkles,
+                color: 'bg-violet-500/10 text-violet-600 dark:bg-violet-500/20 dark:text-violet-400',
+              },
+            ]
+          : []),
       ],
     },
     {
       title: t('storeManagement') || 'Management & Store',
       items: [
-        {
-          id: 'branding',
-          name: t('branding') || 'Store Branding',
-          icon: Store,
-          color: 'bg-cyan-500/10 text-cyan-600 dark:bg-cyan-500/20 dark:text-cyan-400',
-        },
-        {
-          id: 'settings',
-          name: t('navSettings') || t('settings') || 'Settings',
-          icon: Settings,
-          color: 'bg-slate-500/10 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300',
-        },
+        ...(canAccessSettings
+          ? [
+              {
+                id: 'branding',
+                name: t('branding') || 'Store Branding',
+                icon: Store,
+                color: 'bg-cyan-500/10 text-cyan-600 dark:bg-cyan-500/20 dark:text-cyan-400',
+              },
+              {
+                id: 'settings',
+                name: t('navSettings') || t('settings') || 'Settings',
+                icon: Settings,
+                color: 'bg-slate-500/10 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300',
+              },
+            ]
+          : []),
         ...(dashboardPreferences?.support !== false
           ? [
               {
@@ -436,6 +546,90 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
                   </div>
                 </div>
               ))}
+
+              {/* Grouped Parent Menu on Mobile: Team Management & Payroll */}
+              {hasTeamGroup && (
+                <div className="space-y-2.5 pt-1">
+                  <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                    {t('navTeamAndPayroll') || 'Team Management & Payroll'}
+                  </h4>
+
+                  <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40 p-3 space-y-3 shadow-2xs">
+                    {/* Expandable Parent Header Button */}
+                    <button
+                      type="button"
+                      onClick={() => setIsTeamExpandedMobile((prev) => !prev)}
+                      className={`w-full flex items-center justify-between p-2.5 rounded-xl transition-all cursor-pointer group ${
+                        isTeamActive
+                          ? 'bg-[#ff5c01]/10 dark:bg-[#ff5c01]/20 border border-[#ff5c01]/30 text-[#ff5c01]'
+                          : 'bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700/80'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-indigo-500/15 dark:bg-indigo-500/25 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                          <Users className="w-4.5 h-4.5" />
+                        </div>
+                        <div className="text-left min-w-0">
+                          <h5 className="text-xs font-bold truncate flex items-center gap-1.5">
+                            <span>{t('navTeamAndPayroll') || 'Team Management & Payroll'}</span>
+                            <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded-md bg-indigo-500/15 text-indigo-600 dark:bg-indigo-500/25 dark:text-indigo-300 shrink-0">
+                              {teamChildren.length}
+                            </span>
+                          </h5>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">
+                            {teamChildren.map((c) => c.name).join(' • ')}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="p-1 rounded-lg text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200 transition-colors shrink-0 ml-2">
+                        {isTeamExpandedMobile ? (
+                          <ChevronDown className="w-4.5 h-4.5" />
+                        ) : (
+                          <ChevronRight className="w-4.5 h-4.5" />
+                        )}
+                      </div>
+                    </button>
+
+                    {/* Expandable Child Items */}
+                    {isTeamExpandedMobile && (
+                      <div className="space-y-2 pt-1 border-t border-slate-200/80 dark:border-slate-700/60">
+                        {teamChildren.map((item) => {
+                          const Icon = item.icon;
+                          const isItemActive = activeTab === item.id;
+                          return (
+                            <button
+                              key={item.id}
+                              onClick={() => handleSelectTab(item.id)}
+                              className={`w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all active:scale-[0.98] text-left cursor-pointer group ${
+                                isItemActive
+                                  ? 'bg-[#ff5c01]/10 dark:bg-[#ff5c01]/20 border-[#ff5c01]/50 text-[#ff5c01] font-bold shadow-2xs'
+                                  : 'bg-white dark:bg-slate-800/80 hover:bg-slate-100/80 dark:hover:bg-slate-750 border-slate-200/80 dark:border-slate-700 text-slate-800 dark:text-slate-100 shadow-2xs'
+                              }`}
+                            >
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${item.color}`}>
+                                <Icon className="w-4.5 h-4.5" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <span
+                                  className={`block text-xs font-bold leading-snug truncate ${
+                                    isItemActive ? 'text-[#ff5c01]' : 'text-slate-800 dark:text-slate-100'
+                                  }`}
+                                >
+                                  {item.name}
+                                </span>
+                                <span className="block text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                                  {item.desc}
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Bottom Close Button */}

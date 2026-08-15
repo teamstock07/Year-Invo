@@ -1,4 +1,21 @@
-import { Product, Customer, Supplier, Expense, Sale, Purchase, AppNotification, ActivityLog, Category, Brand } from '../types';
+import {
+  Product,
+  Customer,
+  Supplier,
+  Expense,
+  Sale,
+  Purchase,
+  AppNotification,
+  ActivityLog,
+  Category,
+  Brand,
+  TeamMember,
+  Employee,
+  PayrollPayment,
+  SalaryAdjustment,
+  CustomerLoyaltySettings,
+  AuditLogEntry,
+} from '../types';
 
 export const initialCategories: Category[] = [
   { id: 'cat-1', name: 'Grocery & Staples', description: 'Daily essential grocery items', productCount: 0 },
@@ -31,3 +48,21 @@ export const initialPurchases: Purchase[] = [];
 export const initialNotifications: AppNotification[] = [];
 
 export const initialActivityLogs: ActivityLog[] = [];
+
+export const initialTeamMembers: TeamMember[] = [];
+
+export const initialEmployees: Employee[] = [];
+
+export const initialSalaryAdjustments: SalaryAdjustment[] = [];
+
+export const initialPayrollPayments: PayrollPayment[] = [];
+
+export const defaultLoyaltySettings: CustomerLoyaltySettings = {
+  enabled: true,
+  pointsPerAmount: 100, // 1 point per ৳100 (or $100)
+  rewardThreshold: 50, // 50 points to unlock reward
+  rewardDiscountValue: 50, // ৳50 discount when redeemed
+};
+
+export const initialAuditLogs: AuditLogEntry[] = [];
+
