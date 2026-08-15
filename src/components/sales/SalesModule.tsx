@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { QuickSaleView } from './QuickSaleView';
 import { PosSystem } from '../pos/PosSystem';
 import { SalesHistoryView } from './SalesHistoryView';
-import { Zap, History, Sparkles } from 'lucide-react';
+import { Zap, History, Sparkles, ShoppingCart } from 'lucide-react';
 
 interface SalesModuleProps {
   initialSubTab?: 'quicksale' | 'pos' | 'history';
@@ -24,7 +24,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({ initialSubTab = 'quick
       {/* Sub-Tab Navigation Bar: [ Quick Sale ] [ Sales History ] [ Upgrade ] */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-2 sm:p-2.5 shadow-xs flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700/80 overflow-x-auto">
-          {/* 1. Quick Sale (Active/Current Section) */}
+          {/* 1. Quick Sale */}
           <button
             type="button"
             onClick={() => setSubTab('quicksale')}
@@ -38,7 +38,21 @@ export const SalesModule: React.FC<SalesModuleProps> = ({ initialSubTab = 'quick
             <span>{t('quickSaleTitle') || 'Quick Sale'}</span>
           </button>
 
-          {/* 2. Sales History */}
+          {/* 2. Simple POS */}
+          <button
+            type="button"
+            onClick={() => setSubTab('pos')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+              subTab === 'pos'
+                ? 'bg-white dark:bg-slate-900 text-[#ff5c01] shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <ShoppingCart className="w-3.5 h-3.5 text-[#ff5c01]" />
+            <span>{t('posSystem') || 'Simple POS'}</span>
+          </button>
+
+          {/* 3. Sales History */}
           <button
             type="button"
             onClick={() => setSubTab('history')}
@@ -52,7 +66,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({ initialSubTab = 'quick
             <span>{t('salesHistory') || 'Sales History'}</span>
           </button>
 
-          {/* 3. Subscription / Upgrade */}
+          {/* 4. Subscription / Upgrade */}
           <button
             type="button"
             onClick={() => setActiveTab('subscription')}

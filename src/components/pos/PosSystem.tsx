@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Product, Sale } from '../../types';
+import { QuickReceiptModal } from '../sales/QuickReceiptModal';
 import { ReceiptModal } from './ReceiptModal';
 import { QrScannerModal } from './QrScannerModal';
 import { CustomerSelector } from '../common/CustomerSelector';
@@ -279,11 +280,15 @@ export const PosSystem: React.FC = () => {
         cashReceived: numericPaid,
       });
 
-      playSuccessSound();
       setCompletedSale(sale);
       setIsReceiptOpen(true);
       setDiscountValue(0);
       setPaidAmountInput('');
+      try {
+        playSuccessSound();
+      } catch (soundErr) {
+        console.warn('Audio playback error (ignored):', soundErr);
+      }
     } catch (err: any) {
       console.error('POS Checkout failed:', err);
       alert(`Checkout failed: ${err?.message || 'Database error occurred. Transaction was not saved.'}`);
@@ -308,58 +313,6 @@ export const PosSystem: React.FC = () => {
       alert(`Failed to add customer: ${err?.message || 'Database error occurred'}`);
     }
   };
-
-  if (!isProOrPremium) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center p-4">
-        <div className="max-w-xl w-full p-8 rounded-3xl bg-white dark:bg-slate-900 border-2 border-[#ff5c01]/30 shadow-2xl text-center space-y-6">
-          <div className="w-16 h-16 rounded-2xl bg-[#ff5c01] text-white flex items-center justify-center mx-auto shadow-lg shadow-[#ff5c01]/20">
-            <ShoppingCart className="w-8 h-8" />
-          </div>
-
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ff5c01]/10 text-[#ff5c01] text-xs font-bold border border-[#ff5c01]/20">
-              <AlertCircle className="w-3.5 h-3.5" />
-              <span>POS System Requires Pro or Premium Plan</span>
-            </div>
-            <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100">
-              Upgrade Your Plan to Access POS System
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
-              You are currently on the <strong className="text-slate-800 dark:text-slate-200">{plan} Plan</strong>. 
-              The Free Plan includes <strong className="text-[#ff5c01]">Quick Sale</strong> and basic sales transactions. To unlock the full <strong className="text-slate-900 dark:text-white">POS Register</strong> for supermarkets and large businesses, upgrade to <strong className="text-[#ff5c01]">Pro</strong> or <strong className="text-[#ff5c01]">Premium</strong>.
-            </p>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 text-left space-y-2 text-xs text-slate-700 dark:text-slate-300">
-            <div className="font-bold text-slate-900 dark:text-slate-100 text-center mb-2">
-              🚀 Upgrade Plan Access Comparison:
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-              <div className="flex items-start gap-2">
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                <span><strong>Pro Plan:</strong> Unlocks POS System Register + Sales Reports</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                <span><strong>Premium Plan:</strong> Full POS + Barcode Scanner + QR Payments &amp; Code Print</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
-            <button
-              type="button"
-              onClick={() => setActiveTab('subscription')}
-              className="px-6 py-3 rounded-xl bg-[#ff5c01] hover:bg-[#e05100] text-white font-black text-xs shadow-lg shadow-[#ff5c01]/20 cursor-pointer transition-all"
-            >
-              🚀 View Subscription Plans &amp; Upgrade
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[calc(100vh-6rem)]">
@@ -873,7 +826,7 @@ export const PosSystem: React.FC = () => {
             <div className="grid grid-cols-4 gap-1.5">
               {[
                 { id: 'Cash', label: 'Cash', icon: Banknote },
-                { id: 'bKash/Mobile', label: 'QR / Mobile', icon: Smartphone, isPremiumOnly: true },
+                { id: 'bKash/Mobile', label: 'QR / Mobile', icon: Smartphone },
                 { id: 'Card', label: 'Card', icon: CreditCard },
                 { id: 'Due/Credit', label: 'Due / Credit', icon: Tag },
               ].map((pm) => {
@@ -882,11 +835,8 @@ export const PosSystem: React.FC = () => {
                 return (
                   <button
                     key={pm.id}
+                    type="button"
                     onClick={() => {
-                      if (pm.isPremiumOnly && !isPremiumPlan) {
-                        alert('QR Payment & Mobile Banking is a Premium Plan feature. Please upgrade to Premium.');
-                        return;
-                      }
                       setPaymentMethod(pm.id as any);
                       if (pm.id === 'bKash/Mobile') {
                         setIsQrPaymentModalOpen(true);
@@ -895,14 +845,9 @@ export const PosSystem: React.FC = () => {
                     className={`py-1.5 px-1 rounded-xl text-[10px] font-bold flex flex-col items-center justify-center gap-1 border transition-all cursor-pointer relative ${
                       isSelected
                         ? 'bg-[#ff5c01] text-white border-[#ff5c01] shadow-xs'
-                        : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                        : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300'
                     }`}
                   >
-                    {pm.isPremiumOnly && !isPremiumPlan && (
-                      <span className="absolute top-0.5 right-0.5 px-1 py-0.2 bg-amber-500 text-white rounded text-[8px] font-black">
-                        PRO+
-                      </span>
-                    )}
                     <Icon className="w-3.5 h-3.5" />
                     <span>{pm.label}</span>
                   </button>
@@ -928,12 +873,13 @@ export const PosSystem: React.FC = () => {
           </div>
 
           <button
+            type="button"
             onClick={handleCheckout}
-            disabled={cart.length === 0}
+            disabled={cart.length === 0 || isProcessing}
             className="w-full py-3 bg-[#ff5c01] hover:bg-[#e05100] disabled:bg-slate-300 dark:disabled:bg-slate-800 disabled:text-slate-500 text-white font-black text-xs rounded-xl shadow-lg shadow-[#ff5c01]/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             <CheckCircle className="w-4 h-4" />
-            <span>{t('checkout')}</span>
+            <span>{isProcessing ? 'Processing Transaction...' : (t('checkout') || 'Complete POS Sale')}</span>
           </button>
         </div>
       </div>
@@ -1079,11 +1025,19 @@ export const PosSystem: React.FC = () => {
         </div>
       )}
 
-      {/* Printable Receipt Modal */}
-      <ReceiptModal
+      {/* Order Successful Popup Modal */}
+      <QuickReceiptModal
         sale={completedSale}
         isOpen={isReceiptOpen}
-        onClose={() => setIsReceiptOpen(false)}
+        mode="pos"
+        onClose={() => {
+          setIsReceiptOpen(false);
+          setCompletedSale(null);
+          setSelectedCustomerId('');
+          setSearchQuery('');
+          setDiscountValue(0);
+          setPaidAmountInput('');
+        }}
       />
     </div>
   );

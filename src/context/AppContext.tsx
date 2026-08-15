@@ -2858,6 +2858,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const randStr = Math.floor(100 + Math.random() * 900);
     const invoiceNo = `ORD-${dateStr}-${timeStr}-${randStr}`;
 
+    console.log('[QUICK SALE] creating sale items', { itemCount: cart.length });
     const saleItems = cart.map((item) => {
       const buyingPrice = Number(item.product.buyingPrice) || 0;
       const sellingPrice = Number(item.product.sellingPrice) || 0;
@@ -2875,6 +2876,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     });
 
+    console.log('[QUICK SALE] creating sale', { invoiceNo, total: grandTotal, paymentMethod: saleData.paymentMethod });
     const newSale: Sale = {
       id: `sale-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       invoiceNo,
@@ -2895,6 +2897,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       note: saleData.note || '',
     };
 
+    console.log('[QUICK SALE] updating stock');
     // 1. Calculate stock deductions
     const nextProducts = products.map((p) => {
       const cartMatch = cart.find((c) => c.product.id === p.id);
@@ -2932,22 +2935,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const nextSales = [newSale, ...sales];
 
-    // Atomically persist sales, products, and customers to Firestore FIRST
-    const uid = user?.id || auth.currentUser?.uid;
-    if (uid) {
-      console.log(`[CloudSync] Persisting POS sale ${invoiceNo} to Firestore...`);
-      await saveUserCloudCollectionsBatch(uid, {
-        sales: { items: nextSales },
-        products: { items: nextProducts },
-        customers: { items: nextCustomers },
-      });
-      console.log(`[CloudSync] POS sale ${invoiceNo} successfully persisted.`);
-    }
-
-    // Update local React state and storage ONLY after database confirms success
+    // Update local React state and storage IMMEDIATELY
     setProducts(nextProducts);
     setCustomers(nextCustomers);
     setSales(nextSales);
+    const uid = user?.id || auth.currentUser?.uid;
     try {
       localStorage.setItem('biz_products', JSON.stringify(nextProducts));
       if (uid) localStorage.setItem(`biz_products_${uid}`, JSON.stringify(nextProducts));
@@ -2959,6 +2951,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     clearCart();
     logActivity('Completed POS Sale', 'নতুন বিক্রয় ইনভয়েস সম্পন্ন', `${invoiceNo} - Total: ৳${grandTotal}`);
+
+    // Persist to Firestore asynchronously in the background so POS transaction is instant
+    if (uid) {
+      saveUserCloudCollectionsBatch(uid, {
+        sales: { items: nextSales },
+        products: { items: nextProducts },
+        customers: { items: nextCustomers },
+      }).catch((err) => {
+        console.warn('[CloudSync] Background save of POS sale failed:', err);
+      });
+    }
 
     return newSale;
   };

@@ -3,21 +3,62 @@ import { Sale } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { ReceiptModal } from '../pos/ReceiptModal';
 import { ShareInvoiceModal } from './ShareInvoiceModal';
+import { getCustomerStoreName } from '../../utils/brand';
 import { CheckCircle, Eye, Share2, X } from 'lucide-react';
 
 interface QuickReceiptModalProps {
   sale: Sale | null;
   isOpen: boolean;
   onClose: () => void;
+  mode?: 'quicksale' | 'pos';
 }
 
-export const QuickReceiptModal: React.FC<QuickReceiptModalProps> = ({ sale, isOpen, onClose }) => {
-  const { settings } = useApp();
+export const QuickReceiptModal: React.FC<QuickReceiptModalProps> = ({ sale, isOpen, onClose, mode = 'quicksale' }) => {
+  const { settings, user } = useApp();
   const symbol = settings.currency || '৳';
   const [isFullReceiptOpen, setIsFullReceiptOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
 
   if (!isOpen || !sale) return null;
+
+  const rawBrand = settings.brandName || user?.brandName || '';
+  const storeName = getCustomerStoreName(rawBrand) || rawBrand || 'Our Store';
+  const storePhone = settings.phone || user?.mobile || '';
+  const currentUrl = window.location.origin + window.location.pathname + `?invoice=${sale.invoiceNo}`;
+
+  const handleShareClick = async () => {
+    const invoiceText = `
+🧾 INVOICE FROM ${storeName.toUpperCase()}
+----------------------------------
+Invoice No: ${sale.invoiceNo}
+Date: ${new Date(sale.date).toLocaleDateString()} ${new Date(sale.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+Customer: ${sale.customerName || 'Valued Customer'}
+
+ITEMS:
+${sale.items.map((item) => `- ${item.productName} x${item.quantity} = ${symbol}${item.total.toLocaleString()}`).join('\n')}
+
+Subtotal: ${symbol}${sale.subtotal.toLocaleString()}
+${sale.discount > 0 ? `Discount: -${symbol}${sale.discount.toLocaleString()}\n` : ''}${sale.tax > 0 ? `Tax: +${symbol}${sale.tax.toLocaleString()}\n` : ''}GRAND TOTAL: ${symbol}${sale.total.toLocaleString()}
+Paid Amount: ${symbol}${sale.paidAmount.toLocaleString()}
+${sale.dueAmount > 0 ? `DUE AMOUNT: ${symbol}${sale.dueAmount.toLocaleString()} (Partially Paid)\n` : 'STATUS: Fully Paid\n'}Payment Method: ${sale.paymentMethod}
+${storePhone ? `Contact: ${storePhone}\n` : ''}Thank you for your business!
+`.trim();
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Invoice #${sale.invoiceNo} - ${storeName}`,
+          text: invoiceText,
+          url: currentUrl,
+        });
+        return;
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        console.log('Native share cancelled or failed, opening share modal:', err);
+      }
+    }
+    setIsShareOpen(true);
+  };
 
   return (
     <>
@@ -36,10 +77,10 @@ export const QuickReceiptModal: React.FC<QuickReceiptModalProps> = ({ sale, isOp
               <CheckCircle className="w-7 h-7" />
             </div>
             <h3 className="font-extrabold text-base text-slate-900 dark:text-white">
-              Order Successful
+              {mode === 'pos' ? 'Sale Successful' : 'Order Successful'}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-              Quick Sale transaction completed
+              {mode === 'pos' ? 'POS Transaction Complete' : 'Quick Sale Transaction Complete'}
             </p>
           </div>
 
@@ -84,7 +125,7 @@ export const QuickReceiptModal: React.FC<QuickReceiptModalProps> = ({ sale, isOp
               </div>
             </div>
 
-            {/* Action Buttons */}
+            {/* Action Buttons: 1. View Invoice  2. Share Invoice  3. Close */}
             <div className="space-y-2 pt-1">
               <div className="grid grid-cols-2 gap-2">
                 <button
@@ -98,7 +139,7 @@ export const QuickReceiptModal: React.FC<QuickReceiptModalProps> = ({ sale, isOp
 
                 <button
                   type="button"
-                  onClick={() => setIsShareOpen(true)}
+                  onClick={handleShareClick}
                   className="py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs shadow-indigo-600/20"
                 >
                   <Share2 className="w-3.5 h-3.5" />
@@ -125,7 +166,7 @@ export const QuickReceiptModal: React.FC<QuickReceiptModalProps> = ({ sale, isOp
         onClose={() => setIsFullReceiptOpen(false)}
       />
 
-      {/* Share Invoice Modal */}
+      {/* Share Invoice Modal (Desktop & Fallback) */}
       <ShareInvoiceModal
         sale={sale}
         isOpen={isShareOpen}

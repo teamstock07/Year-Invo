@@ -128,6 +128,7 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleCheckout = async () => {
+    console.log('[QUICK SALE] button clicked', { cartCount: cart.length, isProcessing });
     if (isProcessing) return;
     if (cart.length === 0) {
       alert(t('cartEmpty') || 'Cart is empty. Select products to proceed.');
@@ -148,6 +149,15 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
       return;
     }
 
+    console.log('[QUICK SALE] cart validated', {
+      itemCount: cart.length,
+      subtotal,
+      discount: calculatedDiscount,
+      grandTotal,
+      paid: numericPaid,
+      due: remainingDue,
+    });
+
     try {
       setIsProcessing(true);
       const sale = await checkoutPOS({
@@ -160,13 +170,18 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
         cashReceived: numericPaid,
       });
 
-      playSuccessSound();
+      console.log('[QUICK SALE] opening success modal', { invoiceNo: sale.invoiceNo, total: sale.total });
       setCompletedSale(sale);
       setIsReceiptOpen(true);
       setDiscountInput('');
       setPaidAmountInput('');
+      try {
+        playSuccessSound();
+      } catch (soundErr) {
+        console.warn('Audio playback error (ignored):', soundErr);
+      }
     } catch (err: any) {
-      console.error('Quick Sale checkout failed:', err);
+      console.error('[QUICK SALE] Checkout execution failed:', err);
       alert(`Failed to complete transaction: ${err?.message || 'Database error occurred. Transaction was not saved.'}`);
     } finally {
       setIsProcessing(false);
@@ -737,11 +752,11 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
               <button
                 type="button"
                 onClick={handleCheckout}
-                disabled={cart.length === 0}
+                disabled={cart.length === 0 || isProcessing}
                 className="w-full py-3.5 bg-[#ff5c01] hover:bg-[#e05100] disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 text-white font-black text-xs sm:text-sm rounded-2xl shadow-lg shadow-[#ff5c01]/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <CheckCircle className="w-4 h-4" />
-                <span>{t('completeQuickSale') || 'Complete Quick Sale'}</span>
+                <span>{isProcessing ? (t('processing') || 'Processing Transaction...') : (t('completeQuickSale') || 'Complete Quick Sale')}</span>
               </button>
             </>
           )}
@@ -881,11 +896,19 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
         </div>
       )}
 
-      {/* Compact Quick Receipt Modal */}
+      {/* Order Successful Quick Receipt Modal */}
       <QuickReceiptModal
         sale={completedSale}
         isOpen={isReceiptOpen}
-        onClose={() => setIsReceiptOpen(false)}
+        mode="quicksale"
+        onClose={() => {
+          setIsReceiptOpen(false);
+          setCompletedSale(null);
+          setSelectedCustomerId('');
+          setSearchQuery('');
+          setDiscountInput('');
+          setPaidAmountInput('');
+        }}
       />
     </div>
   );
