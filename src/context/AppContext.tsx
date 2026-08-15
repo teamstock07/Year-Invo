@@ -55,6 +55,7 @@ import {
 } from '../types';
 import {
   saveUserCloudCollection,
+  saveUserCloudCollectionsBatch,
   subscribeToUserBusinessData,
 } from '../services/cloudSyncService';
 import {
@@ -2905,47 +2906,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       note: saleData.note,
     };
 
-    // 1. Deduct Stock
-    setProducts((prev) =>
-      prev.map((p) => {
-        const cartMatch = cart.find((c) => c.product.id === p.id);
-        if (cartMatch) {
-          const newStock = Math.max(0, p.currentStock - cartMatch.quantity);
-          let newStatus: Product['status'] = 'active';
-          if (newStock === 0) newStatus = 'out_of_stock';
-          else if (newStock <= p.minStockAlert) newStatus = 'low';
+    // 1. Calculate stock deductions
+    const nextProducts = products.map((p) => {
+      const cartMatch = cart.find((c) => c.product.id === p.id);
+      if (cartMatch) {
+        const newStock = Math.max(0, p.currentStock - cartMatch.quantity);
+        let newStatus: Product['status'] = 'active';
+        if (newStock === 0) newStatus = 'out_of_stock';
+        else if (newStock <= p.minStockAlert) newStatus = 'low';
 
-          return { ...p, currentStock: newStock, status: newStatus };
-        }
-        return p;
-      })
-    );
+        return { ...p, currentStock: newStock, status: newStatus };
+      }
+      return p;
+    });
 
-    // 2. Update Customer Due / Total Spent
+    // 2. Calculate updated customers
+    let nextCustomers = customers;
     if (saleData.customerId) {
-      setCustomers((prev) =>
-        prev.map((c) => {
-          if (c.id === saleData.customerId) {
-            return {
-              ...c,
-              totalSpent: c.totalSpent + grandTotal,
-              dueAmount: c.dueAmount + dueAmount,
-              lifetimePurchasesCount: c.lifetimePurchasesCount + 1,
-            };
-          }
-          return c;
-        })
-      );
+      nextCustomers = customers.map((c) => {
+        if (c.id === saleData.customerId) {
+          return {
+            ...c,
+            totalSpent: c.totalSpent + grandTotal,
+            dueAmount: c.dueAmount + dueAmount,
+            lifetimePurchasesCount: c.lifetimePurchasesCount + 1,
+          };
+        }
+        return c;
+      });
     }
 
-    setSales((prev) => {
-      const nextSales = [newSale, ...prev];
-      const uid = user?.id || auth.currentUser?.uid;
-      if (uid) {
-        saveUserCloudCollection(uid, 'sales', { items: nextSales });
-      }
-      return nextSales;
-    });
+    const nextSales = [newSale, ...sales];
+
+    // Atomically persist sales, products, and customers to Firestore
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      saveUserCloudCollectionsBatch(uid, {
+        sales: { items: nextSales },
+        products: { items: nextProducts },
+        customers: { items: nextCustomers },
+      });
+    }
+
+    // Update local React state and storage
+    setProducts(nextProducts);
+    setCustomers(nextCustomers);
+    setSales(nextSales);
     clearCart();
     logActivity('Completed POS Sale', 'নতুন বিক্রয় ইনভয়েস সম্পন্ন', `${invoiceNo} - Total: ৳${grandTotal}`);
 
@@ -3046,46 +3052,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status,
       createdAt: new Date().toISOString().split('T')[0],
     };
-    setProducts((prev) => {
-      const next = [newProd, ...prev];
-      const uid = user?.id || auth.currentUser?.uid;
-      if (uid) saveUserCloudCollection(uid, 'products', { items: next });
-      return next;
-    });
+    const nextProducts = [newProd, ...products];
+    setProducts(nextProducts);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) saveUserCloudCollection(uid, 'products', { items: nextProducts });
     logActivity('Added New Product', 'নতুন পণ্য যোগ করা হয়েছে', data.name);
   };
 
   const updateProduct = (id: string, updatedFields: Partial<Product>) => {
-    setProducts((prev) => {
-      const next = prev.map((p) => {
-        if (p.id === id) {
-          const sku = (updatedFields.sku || p.sku || '').trim() || generateUniqueSku(prev);
-          const barcode = (updatedFields.barcode || p.barcode || '').trim() || sku;
+    const nextProducts = products.map((p) => {
+      if (p.id === id) {
+        const sku = (updatedFields.sku || p.sku || '').trim() || generateUniqueSku(products);
+        const barcode = (updatedFields.barcode || p.barcode || '').trim() || sku;
 
-          const merged = { ...p, ...updatedFields, sku, barcode };
-          let status = merged.status;
-          if (merged.currentStock === 0) status = 'out_of_stock';
-          else if (merged.currentStock <= merged.minStockAlert) status = 'low';
-          else status = 'active';
+        const merged = { ...p, ...updatedFields, sku, barcode };
+        let status = merged.status;
+        if (merged.currentStock === 0) status = 'out_of_stock';
+        else if (merged.currentStock <= merged.minStockAlert) status = 'low';
+        else status = 'active';
 
-          return { ...merged, status };
-        }
-        return p;
-      });
-      const uid = user?.id || auth.currentUser?.uid;
-      if (uid) saveUserCloudCollection(uid, 'products', { items: next });
-      return next;
+        return { ...merged, status };
+      }
+      return p;
     });
+    setProducts(nextProducts);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) saveUserCloudCollection(uid, 'products', { items: nextProducts });
     logActivity('Updated Product', 'পণ্য এডিট করা হয়েছে', `ID: ${id}`);
   };
 
   const deleteProduct = (id: string) => {
-    setProducts((prev) => {
-      const next = prev.filter((p) => p.id !== id);
-      const uid = user?.id || auth.currentUser?.uid;
-      if (uid) saveUserCloudCollection(uid, 'products', { items: next });
-      return next;
-    });
+    const nextProducts = products.filter((p) => p.id !== id);
+    setProducts(nextProducts);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) saveUserCloudCollection(uid, 'products', { items: nextProducts });
     logActivity('Deleted Product', 'পণ্য মুছে ফেলা হয়েছে', `ID: ${id}`);
   };
 
@@ -3109,7 +3109,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!prod) return;
 
     const newStock = Math.max(0, prod.currentStock + quantityDelta);
-    updateProduct(productId, { currentStock: newStock });
+    let newStatus: Product['status'] = 'active';
+    if (newStock === 0) newStatus = 'out_of_stock';
+    else if (newStock <= prod.minStockAlert) newStatus = 'low';
+
+    const nextProducts = products.map((p) =>
+      p.id === productId ? { ...p, currentStock: newStock, status: newStatus } : p
+    );
 
     const newAdj: StockAdjustment = {
       id: `adj-${Date.now()}`,
@@ -3121,12 +3127,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       date: new Date().toISOString().split('T')[0],
       adjustedBy: user ? user.ownerName : 'Admin',
     };
-    setAdjustments((prev) => {
-      const next = [newAdj, ...prev];
-      const uid = user?.id || auth.currentUser?.uid;
-      if (uid) saveUserCloudCollection(uid, 'adjustments', { items: next });
-      return next;
-    });
+    const nextAdjustments = [newAdj, ...adjustments];
+
+    setProducts(nextProducts);
+    setAdjustments(nextAdjustments);
+
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      saveUserCloudCollectionsBatch(uid, {
+        products: { items: nextProducts },
+        adjustments: { items: nextAdjustments },
+      });
+    }
     logActivity('Stock Adjusted', 'স্টক পরিবর্তন করা হয়েছে', `${prod.name} (${quantityDelta > 0 ? '+' : ''}${quantityDelta})`);
   };
 
@@ -3140,32 +3152,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       lifetimePurchasesCount: 0,
       createdAt: new Date().toISOString().split('T')[0],
     };
-    setCustomers((prev) => {
-      const next = [newCust, ...prev];
-      const uid = user?.id || auth.currentUser?.uid;
-      if (uid) saveUserCloudCollection(uid, 'customers', { items: next });
-      return next;
-    });
+    const nextCustomers = [newCust, ...customers];
+    setCustomers(nextCustomers);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) saveUserCloudCollection(uid, 'customers', { items: nextCustomers });
     logActivity('Added Customer', 'নতুন গ্রাহক যোগ করা হয়েছে', custData.name);
+    return newCust;
   };
 
   const updateCustomer = (id: string, custData: Partial<Customer>) => {
-    setCustomers((prev) => {
-      const next = prev.map((c) => (c.id === id ? { ...c, ...custData } : c));
-      const uid = user?.id || auth.currentUser?.uid;
-      if (uid) saveUserCloudCollection(uid, 'customers', { items: next });
-      return next;
-    });
+    const nextCustomers = customers.map((c) => (c.id === id ? { ...c, ...custData } : c));
+    setCustomers(nextCustomers);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) saveUserCloudCollection(uid, 'customers', { items: nextCustomers });
     logActivity('Updated Customer', 'গ্রাহকের তথ্য আপডেট করা হয়েছে', `ID: ${id}`);
   };
 
   const deleteCustomer = (id: string) => {
-    setCustomers((prev) => {
-      const next = prev.filter((c) => c.id !== id);
-      const uid = user?.id || auth.currentUser?.uid;
-      if (uid) saveUserCloudCollection(uid, 'customers', { items: next });
-      return next;
-    });
+    const nextCustomers = customers.filter((c) => c.id !== id);
+    setCustomers(nextCustomers);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) saveUserCloudCollection(uid, 'customers', { items: nextCustomers });
     logActivity('Deleted Customer', 'গ্রাহক মুছে ফেলা হয়েছে', `ID: ${id}`);
   };
 
@@ -3177,22 +3184,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       totalPurchasesCount: 0,
       createdAt: new Date().toISOString().split('T')[0],
     };
-    setSuppliers((prev) => {
-      const next = [newSupp, ...prev];
-      const uid = user?.id || auth.currentUser?.uid;
-      if (uid) saveUserCloudCollection(uid, 'suppliers', { items: next });
-      return next;
-    });
+    const nextSuppliers = [newSupp, ...suppliers];
+    setSuppliers(nextSuppliers);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) saveUserCloudCollection(uid, 'suppliers', { items: nextSuppliers });
     logActivity('Added Supplier', 'নতুন সরবরাহকারী যোগ করা হয়েছে', suppData.name);
+    return newSupp;
   };
 
   const deleteSupplier = (id: string) => {
-    setSuppliers((prev) => {
-      const next = prev.filter((s) => s.id !== id);
-      const uid = user?.id || auth.currentUser?.uid;
-      if (uid) saveUserCloudCollection(uid, 'suppliers', { items: next });
-      return next;
-    });
+    const nextSuppliers = suppliers.filter((s) => s.id !== id);
+    setSuppliers(nextSuppliers);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) saveUserCloudCollection(uid, 'suppliers', { items: nextSuppliers });
     logActivity('Deleted Supplier', 'সরবরাহকারী মুছে ফেলা হয়েছে', `ID: ${id}`);
   };
 
@@ -3278,42 +3282,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     // Auto increase stock for purchased items
+    let nextProducts = [...products];
     pData.items.forEach((item) => {
-      const match = products.find((p) => p.id === item.productId);
-      if (match) {
-        updateProduct(match.id, {
-          currentStock: match.currentStock + item.quantity,
-          buyingPrice: item.buyingPrice,
-        });
-      }
+      nextProducts = nextProducts.map((p) => {
+        if (p.id === item.productId) {
+          const newStock = p.currentStock + item.quantity;
+          let status = p.status;
+          if (newStock === 0) status = 'out_of_stock';
+          else if (newStock <= p.minStockAlert) status = 'low';
+          else status = 'active';
+
+          return { ...p, currentStock: newStock, buyingPrice: item.buyingPrice, status };
+        }
+        return p;
+      });
     });
 
     // Update supplier due
+    let nextSuppliers = suppliers;
     if (pData.supplierId) {
-      setSuppliers((prev) => {
-        const next = prev.map((s) => {
-          if (s.id === pData.supplierId) {
-            return {
-              ...s,
-              dueAmount: s.dueAmount + pData.dueAmount,
-              totalPurchasesCount: s.totalPurchasesCount + 1,
-            };
-          }
-          return s;
-        });
-        const uid = user?.id || auth.currentUser?.uid;
-        if (uid) saveUserCloudCollection(uid, 'suppliers', { items: next });
-        return next;
+      nextSuppliers = suppliers.map((s) => {
+        if (s.id === pData.supplierId) {
+          return {
+            ...s,
+            dueAmount: s.dueAmount + pData.dueAmount,
+            totalPurchasesCount: s.totalPurchasesCount + 1,
+          };
+        }
+        return s;
       });
     }
 
-    setPurchases((prev) => {
-      const next = [newPurchase, ...prev];
-      const uid = user?.id || auth.currentUser?.uid;
-      if (uid) saveUserCloudCollection(uid, 'purchases', { items: next });
-      return next;
-    });
+    const nextPurchases = [newPurchase, ...purchases];
+
+    setProducts(nextProducts);
+    setSuppliers(nextSuppliers);
+    setPurchases(nextPurchases);
+
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      saveUserCloudCollectionsBatch(uid, {
+        products: { items: nextProducts },
+        suppliers: { items: nextSuppliers },
+        purchases: { items: nextPurchases },
+      });
+    }
+
     logActivity('Recorded Purchase', 'নতুন পারচেজ এন্ট্রি করা হয়েছে', `${purchaseNo} - Supplier: ${pData.supplierName}`);
+    return newPurchase;
   };
 
   // Due Collection
@@ -3331,12 +3347,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const previousDue = target.dueAmount;
       const remainingDue = Math.max(0, previousDue - data.amountPaid);
 
-      setCustomers((prev) => {
-        const next = prev.map((c) => (c.id === data.entityId ? { ...c, dueAmount: remainingDue } : c));
-        const uid = user?.id || auth.currentUser?.uid;
-        if (uid) saveUserCloudCollection(uid, 'customers', { items: next });
-        return next;
-      });
+      const nextCustomers = customers.map((c) => (c.id === data.entityId ? { ...c, dueAmount: remainingDue } : c));
 
       const record: DueCollection = {
         id: `due-rec-${Date.now()}`,
@@ -3349,13 +3360,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         date: new Date().toISOString(),
         paymentMethod: data.paymentMethod,
         note: data.note,
+        collectedBy: user ? user.ownerName : 'Admin',
       };
-      setDueCollections((prev) => {
-        const next = [record, ...prev];
-        const uid = user?.id || auth.currentUser?.uid;
-        if (uid) saveUserCloudCollection(uid, 'dueCollections', { items: next });
-        return next;
-      });
+      const nextDueCollections = [record, ...dueCollections];
+
+      setCustomers(nextCustomers);
+      setDueCollections(nextDueCollections);
+
+      const uid = user?.id || auth.currentUser?.uid;
+      if (uid) {
+        saveUserCloudCollectionsBatch(uid, {
+          customers: { items: nextCustomers },
+          dueCollections: { items: nextDueCollections },
+        });
+      }
+
       logActivity('Collected Customer Due', 'গ্রাহকের বকেয়া আদায় করা হয়েছে', `${target.name}: ৳${data.amountPaid}`);
     } else {
       const target = suppliers.find((s) => s.id === data.entityId);
@@ -3364,12 +3383,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const previousDue = target.dueAmount;
       const remainingDue = Math.max(0, previousDue - data.amountPaid);
 
-      setSuppliers((prev) => {
-        const next = prev.map((s) => (s.id === data.entityId ? { ...s, dueAmount: remainingDue } : s));
-        const uid = user?.id || auth.currentUser?.uid;
-        if (uid) saveUserCloudCollection(uid, 'suppliers', { items: next });
-        return next;
-      });
+      const nextSuppliers = suppliers.map((s) => (s.id === data.entityId ? { ...s, dueAmount: remainingDue } : s));
 
       const record: DueCollection = {
         id: `due-rec-${Date.now()}`,
@@ -3382,13 +3396,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         date: new Date().toISOString(),
         paymentMethod: data.paymentMethod,
         note: data.note,
+        collectedBy: user ? user.ownerName : 'Admin',
       };
-      setDueCollections((prev) => {
-        const next = [record, ...prev];
-        const uid = user?.id || auth.currentUser?.uid;
-        if (uid) saveUserCloudCollection(uid, 'dueCollections', { items: next });
-        return next;
-      });
+      const nextDueCollections = [record, ...dueCollections];
+
+      setSuppliers(nextSuppliers);
+      setDueCollections(nextDueCollections);
+
+      const uid = user?.id || auth.currentUser?.uid;
+      if (uid) {
+        saveUserCloudCollectionsBatch(uid, {
+          suppliers: { items: nextSuppliers },
+          dueCollections: { items: nextDueCollections },
+        });
+      }
+
       logActivity('Paid Supplier Due', 'সরবরাহকারীকে বকেয়া পরিশোধ', `${target.name}: ৳${data.amountPaid}`);
     }
   };

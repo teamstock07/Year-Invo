@@ -1,4 +1,4 @@
-import { doc, setDoc, onSnapshot, Unsubscribe } from 'firebase/firestore';
+import { doc, setDoc, writeBatch, onSnapshot, Unsubscribe } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import {
   Product,
@@ -63,7 +63,37 @@ export async function saveUserCloudCollection(
     );
     return true;
   } catch (err) {
-    console.warn(`[CloudSync] Error saving ${collectionKey} for user ${userId}:`, err);
+    console.error(`[CloudSync] Error saving ${collectionKey} for user ${userId}:`, err);
+    return false;
+  }
+}
+
+/**
+ * Atomically writes multiple businessData collections in a single Firestore writeBatch
+ */
+export async function saveUserCloudCollectionsBatch(
+  userId: string,
+  collections: Record<string, Record<string, any>>
+): Promise<boolean> {
+  if (!userId || !userId.trim()) return false;
+  try {
+    const batch = writeBatch(db);
+    const now = new Date().toISOString();
+    for (const [collectionKey, data] of Object.entries(collections)) {
+      const docRef = doc(db, 'users', userId, 'businessData', collectionKey);
+      batch.set(
+        docRef,
+        {
+          ...data,
+          updatedAt: now,
+        },
+        { merge: true }
+      );
+    }
+    await batch.commit();
+    return true;
+  } catch (err) {
+    console.error(`[CloudSync] Error committing batch write for user ${userId}:`, err);
     return false;
   }
 }

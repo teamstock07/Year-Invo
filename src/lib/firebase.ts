@@ -23,12 +23,14 @@ const app = !getApps().length ? initializeApp(activeConfig) : getApps()[0];
 
 export const auth = getAuth(app);
 
-// Always use default Firestore database to ensure compatibility with deployed Firestore rules
-export const db = getFirestore(app);
+// Always use provisioned Firestore database ID to ensure exact project database targeting
+export const db = defaultAppletConfig.firestoreDatabaseId
+  ? getFirestore(app, defaultAppletConfig.firestoreDatabaseId)
+  : getFirestore(app);
 
 console.log('[Firebase App initialized]:', app.name);
 console.log('[Firebase Auth Project ID]:', auth.app.options.projectId);
-console.log('[Firebase Firestore Database]: DEFAULT (getFirestore(app))');
+console.log('[Firebase Firestore Database ID]:', defaultAppletConfig.firestoreDatabaseId || '(default)');
 console.log('[Firebase Verification] Auth and Firestore targeting Project ID:', activeConfig.projectId);
 
 // Test Firestore connection on startup

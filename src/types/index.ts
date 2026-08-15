@@ -804,6 +804,7 @@ export interface DueCollection {
   paymentMethod: string;
   note?: string;
   status?: 'PAID' | 'PARTIAL' | 'PENDING' | 'OVERDUE';
+  collectedBy?: string;
 }
 
 export interface StockAdjustment {
