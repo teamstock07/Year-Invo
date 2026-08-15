@@ -131,27 +131,27 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
     }
   };
 
-  const handleCreateCategory = (e: React.FormEvent) => {
+  const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = newCategoryInput.trim();
     if (!trimmed) return;
-    addCategory(trimmed);
+    await addCategory(trimmed);
     setCategory(trimmed);
     setNewCategoryInput('');
     setIsCreateCategoryModalOpen(false);
   };
 
-  const handleCreateBrand = (e: React.FormEvent) => {
+  const handleCreateBrand = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = newBrandInput.trim();
     if (!trimmed) return;
-    addBrand(trimmed);
+    await addBrand(trimmed);
     setBrand(trimmed);
     setNewBrandInput('');
     setIsCreateBrandModalOpen(false);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = name.trim();
     if (!trimmedName) {
@@ -193,20 +193,25 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
       imageUrl: imageUrl || undefined,
     };
 
-    if (finalCategory) {
-      addCategory(finalCategory);
-    }
-    if (showBrand && finalBrand) {
-      addBrand(finalBrand);
-    }
+    try {
+      if (finalCategory) {
+        await addCategory(finalCategory);
+      }
+      if (showBrand && finalBrand) {
+        await addBrand(finalBrand);
+      }
 
-    if (productToEdit) {
-      updateProduct(productToEdit.id, submissionData);
-    } else {
-      addProduct(submissionData as any);
-    }
+      if (productToEdit) {
+        await updateProduct(productToEdit.id, submissionData);
+      } else {
+        await addProduct(submissionData as any);
+      }
 
-    onClose();
+      onClose();
+    } catch (err: any) {
+      console.error('Failed to save product:', err);
+      alert(`Failed to save product: ${err?.message || 'Database error occurred.'}`);
+    }
   };
 
   return (

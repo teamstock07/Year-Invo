@@ -125,7 +125,10 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
     }
   }, [grandTotal, paymentMethod]);
 
-  const handleCheckout = () => {
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleCheckout = async () => {
+    if (isProcessing) return;
     if (cart.length === 0) {
       alert(t('cartEmpty') || 'Cart is empty. Select products to proceed.');
       return;
@@ -145,33 +148,46 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
       return;
     }
 
-    const sale = checkoutPOS({
-      customerId: selectedCustomerId || undefined,
-      customerName: selectedCustomerObj ? selectedCustomerObj.name : (t('walkInCustomer') || 'Walk-in Customer'),
-      customerPhone: selectedCustomerObj ? selectedCustomerObj.phone : undefined,
-      discount: calculatedDiscount,
-      tax: 0,
-      paymentMethod: paymentMethod === 'Due/Credit' ? 'Due/Credit' : paymentMethod,
-      cashReceived: numericPaid,
-    });
+    try {
+      setIsProcessing(true);
+      const sale = await checkoutPOS({
+        customerId: selectedCustomerId || undefined,
+        customerName: selectedCustomerObj ? selectedCustomerObj.name : (t('walkInCustomer') || 'Walk-in Customer'),
+        customerPhone: selectedCustomerObj ? selectedCustomerObj.phone : undefined,
+        discount: calculatedDiscount,
+        tax: 0,
+        paymentMethod: paymentMethod === 'Due/Credit' ? 'Due/Credit' : paymentMethod,
+        cashReceived: numericPaid,
+      });
 
-    playSuccessSound();
-    setCompletedSale(sale);
-    setIsReceiptOpen(true);
-    setDiscountInput('');
-    setPaidAmountInput('');
+      playSuccessSound();
+      setCompletedSale(sale);
+      setIsReceiptOpen(true);
+      setDiscountInput('');
+      setPaidAmountInput('');
+    } catch (err: any) {
+      console.error('Quick Sale checkout failed:', err);
+      alert(`Failed to complete transaction: ${err?.message || 'Database error occurred. Transaction was not saved.'}`);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const handleAddQuickCustomer = (e: React.FormEvent) => {
+  const handleAddQuickCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCustName.trim()) return;
-    const created = addCustomer({ name: newCustName.trim(), phone: newCustPhone.trim() });
-    if (created && created.id) {
-      setSelectedCustomerId(created.id);
+    try {
+      const created = await addCustomer({ name: newCustName.trim(), phone: newCustPhone.trim() });
+      if (created && created.id) {
+        setSelectedCustomerId(created.id);
+      }
+      setNewCustName('');
+      setNewCustPhone('');
+      setIsAddCustModalOpen(false);
+    } catch (err: any) {
+      console.error('Failed to add customer:', err);
+      alert(`Failed to add customer: ${err?.message || 'Database error occurred'}`);
     }
-    setNewCustName('');
-    setNewCustPhone('');
-    setIsAddCustModalOpen(false);
   };
 
   return (

@@ -18,14 +18,24 @@ export const StockManagement: React.FC = () => {
     return matchesSearch;
   });
 
-  const handleStockUpdate = (productId: string) => {
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const handleStockUpdate = async (productId: string) => {
     const qtyToAdd = quickAddQty[productId] || 0;
     if (qtyToAdd <= 0) return;
 
     const prod = products.find((p) => p.id === productId);
     if (prod) {
-      updateProduct(productId, { currentStock: prod.currentStock + qtyToAdd });
-      setQuickAddQty({ ...quickAddQty, [productId]: 0 });
+      try {
+        setUpdatingId(productId);
+        await updateProduct(productId, { currentStock: prod.currentStock + qtyToAdd });
+        setQuickAddQty((prev) => ({ ...prev, [productId]: 0 }));
+      } catch (err: any) {
+        console.error('Failed to update stock:', err);
+        alert(`Stock update failed: ${err?.message || 'Database error occurred'}`);
+      } finally {
+        setUpdatingId(null);
+      }
     }
   };
 

@@ -244,7 +244,10 @@ export const PosSystem: React.FC = () => {
     }
   }, [grandTotal, paymentMethod]);
 
-  const handleCheckout = () => {
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleCheckout = async () => {
+    if (isProcessing) return;
     if (cart.length === 0) {
       alert('Cart is empty! Add products to proceed.');
       return;
@@ -264,30 +267,46 @@ export const PosSystem: React.FC = () => {
       return;
     }
 
-    const sale = checkoutPOS({
-      customerId: selectedCustomerId || undefined,
-      customerName: selectedCustomerObj ? selectedCustomerObj.name : 'Walk-in Customer',
-      customerPhone: selectedCustomerObj ? selectedCustomerObj.phone : undefined,
-      discount: calculatedDiscount,
-      tax: taxPercent,
-      paymentMethod,
-      cashReceived: numericPaid,
-    });
+    try {
+      setIsProcessing(true);
+      const sale = await checkoutPOS({
+        customerId: selectedCustomerId || undefined,
+        customerName: selectedCustomerObj ? selectedCustomerObj.name : 'Walk-in Customer',
+        customerPhone: selectedCustomerObj ? selectedCustomerObj.phone : undefined,
+        discount: calculatedDiscount,
+        tax: taxPercent,
+        paymentMethod,
+        cashReceived: numericPaid,
+      });
 
-    playSuccessSound();
-    setCompletedSale(sale);
-    setIsReceiptOpen(true);
-    setDiscountValue(0);
-    setPaidAmountInput('');
+      playSuccessSound();
+      setCompletedSale(sale);
+      setIsReceiptOpen(true);
+      setDiscountValue(0);
+      setPaidAmountInput('');
+    } catch (err: any) {
+      console.error('POS Checkout failed:', err);
+      alert(`Checkout failed: ${err?.message || 'Database error occurred. Transaction was not saved.'}`);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const handleAddQuickCustomer = (e: React.FormEvent) => {
+  const handleAddQuickCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCustName) return;
-    addCustomer({ name: newCustName, phone: newCustPhone });
-    setNewCustName('');
-    setNewCustPhone('');
-    setIsAddCustModalOpen(false);
+    if (!newCustName.trim()) return;
+    try {
+      const created = await addCustomer({ name: newCustName.trim(), phone: newCustPhone.trim() });
+      if (created && created.id) {
+        setSelectedCustomerId(created.id);
+      }
+      setNewCustName('');
+      setNewCustPhone('');
+      setIsAddCustModalOpen(false);
+    } catch (err: any) {
+      console.error('Failed to add customer:', err);
+      alert(`Failed to add customer: ${err?.message || 'Database error occurred'}`);
+    }
   };
 
   if (!isProOrPremium) {

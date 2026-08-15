@@ -43,6 +43,30 @@ export interface CloudBusinessDataCallbacks {
 }
 
 /**
+ * Recursively removes all `undefined` values from objects and arrays so Firestore never throws unsupported field value errors.
+ */
+export function sanitizeForFirestore<T>(data: T): T {
+  if (data === undefined) {
+    return null as unknown as T;
+  }
+  if (data === null || typeof data !== 'object') {
+    return data;
+  }
+  if (Array.isArray(data)) {
+    return data
+      .filter((item) => item !== undefined)
+      .map((item) => sanitizeForFirestore(item)) as unknown as T;
+  }
+  const result: Record<string, any> = {};
+  for (const [key, val] of Object.entries(data as Record<string, any>)) {
+    if (val !== undefined) {
+      result[key] = sanitizeForFirestore(val);
+    }
+  }
+  return result as T;
+}
+
+/**
  * Helper to write document in user's businessData subcollection in Firestore
  */
 export async function saveUserCloudCollection(
@@ -50,21 +74,23 @@ export async function saveUserCloudCollection(
   collectionKey: string,
   data: Record<string, any>
 ): Promise<boolean> {
-  if (!userId || !userId.trim()) return false;
+  if (!userId || !userId.trim()) {
+    console.error(`[CloudSync] Cannot save ${collectionKey}: User ID is missing.`);
+    throw new Error(`Authentication required to save ${collectionKey}.`);
+  }
   try {
     const docRef = doc(db, 'users', userId, 'businessData', collectionKey);
-    await setDoc(
-      docRef,
-      {
-        ...data,
-        updatedAt: new Date().toISOString(),
-      },
-      { merge: true }
-    );
+    const sanitizedData = sanitizeForFirestore(data);
+    const payload = {
+      ...sanitizedData,
+      updatedAt: new Date().toISOString(),
+    };
+    await setDoc(docRef, payload, { merge: true });
+    console.log(`[CloudSync] Successfully saved ${collectionKey} for user ${userId} to Firestore.`);
     return true;
-  } catch (err) {
+  } catch (err: any) {
     console.error(`[CloudSync] Error saving ${collectionKey} for user ${userId}:`, err);
-    return false;
+    throw new Error(`Failed to persist ${collectionKey} in cloud database: ${err?.message || err}`);
   }
 }
 
@@ -75,26 +101,31 @@ export async function saveUserCloudCollectionsBatch(
   userId: string,
   collections: Record<string, Record<string, any>>
 ): Promise<boolean> {
-  if (!userId || !userId.trim()) return false;
+  if (!userId || !userId.trim()) {
+    console.error(`[CloudSync] Cannot commit batch: User ID is missing.`);
+    throw new Error(`Authentication required to commit cloud database batch.`);
+  }
   try {
     const batch = writeBatch(db);
     const now = new Date().toISOString();
     for (const [collectionKey, data] of Object.entries(collections)) {
       const docRef = doc(db, 'users', userId, 'businessData', collectionKey);
+      const sanitizedData = sanitizeForFirestore(data);
       batch.set(
         docRef,
         {
-          ...data,
+          ...sanitizedData,
           updatedAt: now,
         },
         { merge: true }
       );
     }
     await batch.commit();
+    console.log(`[CloudSync] Successfully committed batch (${Object.keys(collections).join(', ')}) for user ${userId} to Firestore.`);
     return true;
-  } catch (err) {
+  } catch (err: any) {
     console.error(`[CloudSync] Error committing batch write for user ${userId}:`, err);
-    return false;
+    throw new Error(`Failed to commit atomic batch to cloud database: ${err?.message || err}`);
   }
 }
 

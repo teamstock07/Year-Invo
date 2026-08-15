@@ -72,31 +72,48 @@ export const ExpiredProductsView: React.FC = () => {
   };
 
   // Actions
-  const handleSingleWriteOff = (prod: Product) => {
-    if (prod.currentStock > 0) {
-      adjustStock(prod.id, -prod.currentStock, 'Expired product write-off', 'damage_writeoff');
-    } else {
-      updateProduct(prod.id, { status: 'out_of_stock' });
-    }
-    setShowWriteOffConfirm(null);
-  };
-
-  const handleWriteOffAll = () => {
-    allExpiredProducts.forEach((prod) => {
+  const handleSingleWriteOff = async (prod: Product) => {
+    try {
       if (prod.currentStock > 0) {
-        adjustStock(prod.id, -prod.currentStock, 'Bulk expired product write-off', 'damage_writeoff');
+        await adjustStock(prod.id, -prod.currentStock, 'Expired product write-off', 'damage_writeoff');
+      } else {
+        await updateProduct(prod.id, { status: 'out_of_stock' });
       }
-    });
-    setShowWriteOffAllConfirm(false);
+    } catch (err: any) {
+      console.error('Failed to write off expired product:', err);
+      alert(`Write-off failed: ${err?.message || 'Database error occurred'}`);
+    } finally {
+      setShowWriteOffConfirm(null);
+    }
   };
 
-  const handleUpdateExpiryDate = (e: React.FormEvent) => {
+  const handleWriteOffAll = async () => {
+    try {
+      for (const prod of allExpiredProducts) {
+        if (prod.currentStock > 0) {
+          await adjustStock(prod.id, -prod.currentStock, 'Bulk expired product write-off', 'damage_writeoff');
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to write off all expired products:', err);
+      alert(`Bulk write-off failed: ${err?.message || 'Database error occurred'}`);
+    } finally {
+      setShowWriteOffAllConfirm(false);
+    }
+  };
+
+  const handleUpdateExpiryDate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct || !newExpiryDate) return;
 
-    updateProduct(editingProduct.id, { expiryDate: newExpiryDate });
-    setEditingProduct(null);
-    setNewExpiryDate('');
+    try {
+      await updateProduct(editingProduct.id, { expiryDate: newExpiryDate });
+      setEditingProduct(null);
+      setNewExpiryDate('');
+    } catch (err: any) {
+      console.error('Failed to update expiry date:', err);
+      alert(`Update failed: ${err?.message || 'Database error occurred'}`);
+    }
   };
 
   return (

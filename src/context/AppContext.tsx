@@ -198,19 +198,19 @@ interface AppContextType {
     paymentMethod: 'Cash' | 'Card' | 'bKash/Mobile' | 'Due/Credit' | 'Split';
     cashReceived: number;
     note?: string;
-  }) => Sale;
+  }) => Promise<Sale>;
 
   // Categories & Brands CRUD
-  addCategory: (name: string, description?: string) => void;
-  deleteCategory: (id: string) => void;
-  addBrand: (name: string, description?: string) => void;
-  deleteBrand: (id: string) => void;
+  addCategory: (name: string, description?: string) => Promise<void>;
+  deleteCategory: (id: string) => Promise<void>;
+  addBrand: (name: string, description?: string) => Promise<void>;
+  deleteBrand: (id: string) => Promise<void>;
 
   // Product CRUD
-  addProduct: (product: Omit<Product, 'id' | 'createdAt' | 'status'>) => void;
-  updateProduct: (id: string, product: Partial<Product>) => void;
-  deleteProduct: (id: string) => void;
-  clearAllProducts: () => void;
+  addProduct: (product: Omit<Product, 'id' | 'createdAt' | 'status'>) => Promise<Product>;
+  updateProduct: (id: string, product: Partial<Product>) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
+  clearAllProducts: () => Promise<void>;
 
   // POS / QR Code Limit Helpers
   generatedProductCodes: string[];
@@ -221,23 +221,23 @@ interface AppContextType {
   recordGeneratedQRCodes: (productId: string, requestedCount: number) => { success: boolean; message?: string };
 
   // Stock Actions
-  adjustStock: (productId: string, quantityDelta: number, reason: string, type: 'addition' | 'reduction' | 'damage_writeoff' | 'audit_correction') => void;
+  adjustStock: (productId: string, quantityDelta: number, reason: string, type: 'addition' | 'reduction' | 'damage_writeoff' | 'audit_correction') => Promise<void>;
 
   // Customers & Suppliers CRUD
-  addCustomer: (cust: Omit<Customer, 'id' | 'createdAt' | 'dueAmount' | 'totalSpent' | 'lifetimePurchasesCount'>) => void;
-  updateCustomer: (id: string, cust: Partial<Customer>) => void;
-  deleteCustomer: (id: string) => void;
-  addSupplier: (supp: Omit<Supplier, 'id' | 'createdAt' | 'dueAmount' | 'totalPurchasesCount'>) => void;
-  deleteSupplier: (id: string) => void;
-  resetAllDataToZero: () => void;
-  loadSampleDemoData: () => void;
+  addCustomer: (cust: Omit<Customer, 'id' | 'createdAt' | 'dueAmount' | 'totalSpent' | 'lifetimePurchasesCount'>) => Promise<Customer>;
+  updateCustomer: (id: string, cust: Partial<Customer>) => Promise<void>;
+  deleteCustomer: (id: string) => Promise<void>;
+  addSupplier: (supp: Omit<Supplier, 'id' | 'createdAt' | 'dueAmount' | 'totalPurchasesCount'>) => Promise<Supplier>;
+  deleteSupplier: (id: string) => Promise<void>;
+  resetAllDataToZero: () => Promise<void>;
+  loadSampleDemoData: () => Promise<void>;
 
   // Expenses & Purchases
-  addExpense: (exp: Omit<Expense, 'id'>) => void;
-  addPurchase: (purchase: Omit<Purchase, 'id' | 'purchaseNo'>) => void;
+  addExpense: (exp: Omit<Expense, 'id'>) => Promise<Expense>;
+  addPurchase: (purchase: Omit<Purchase, 'id' | 'purchaseNo'>) => Promise<Purchase>;
 
   // Due Collection
-  collectDue: (data: { type: 'customer' | 'supplier'; entityId: string; amountPaid: number; paymentMethod: string; note?: string }) => void;
+  collectDue: (data: { type: 'customer' | 'supplier'; entityId: string; amountPaid: number; paymentMethod: string; note?: string }) => Promise<DueCollection | undefined>;
 
   // Notifications
   markNotificationRead: (id: string) => void;
@@ -787,59 +787,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
   const [globalSearch, setGlobalSearch] = useState<string>('');
 
-  // Main Data Repositories - Clean zero initialization for new system
-  const isFreshVersion = localStorage.getItem('biz_fresh_zero_v2');
-  if (!isFreshVersion) {
-    localStorage.removeItem('biz_sales');
-    localStorage.removeItem('biz_products');
-    localStorage.removeItem('biz_customers');
-    localStorage.removeItem('biz_suppliers');
-    localStorage.removeItem('biz_expenses');
-    localStorage.removeItem('biz_purchases');
-    localStorage.removeItem('biz_user');
-    localStorage.removeItem('biz_settings');
-    localStorage.setItem('biz_fresh_zero_v2', 'true');
-  }
+  // Main Data Repositories - Safe load with user-scoped storage fallback
+  const getStoredData = <T,>(key: string, fallback: T): T => {
+    try {
+      const savedUser = localStorage.getItem('biz_user');
+      const uid = savedUser && savedUser !== 'null' ? JSON.parse(savedUser)?.id : '';
+      const userScoped = uid ? localStorage.getItem(`${key}_${uid}`) : null;
+      const globalScoped = localStorage.getItem(key);
+      const saved = userScoped || globalScoped;
+      return saved ? JSON.parse(saved) : fallback;
+    } catch (e) {
+      return fallback;
+    }
+  };
 
-  const [products, setProducts] = useState<Product[]>(() => {
-    const saved = localStorage.getItem('biz_products');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [categories, setCategories] = useState<Category[]>(() => {
-    const saved = localStorage.getItem('biz_categories');
-    return saved ? JSON.parse(saved) : initialCategories;
-  });
-
-  const [brands, setBrands] = useState<Brand[]>(() => {
-    const saved = localStorage.getItem('biz_brands');
-    return saved ? JSON.parse(saved) : initialBrands;
-  });
-
-  const [customers, setCustomers] = useState<Customer[]>(() => {
-    const saved = localStorage.getItem('biz_customers');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
-    const saved = localStorage.getItem('biz_suppliers');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [expenses, setExpenses] = useState<Expense[]>(() => {
-    const saved = localStorage.getItem('biz_expenses');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [sales, setSales] = useState<Sale[]>(() => {
-    const saved = localStorage.getItem('biz_sales');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [purchases, setPurchases] = useState<Purchase[]>(() => {
-    const saved = localStorage.getItem('biz_purchases');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [products, setProducts] = useState<Product[]>(() => getStoredData('biz_products', []));
+  const [categories, setCategories] = useState<Category[]>(() => getStoredData('biz_categories', initialCategories));
+  const [brands, setBrands] = useState<Brand[]>(() => getStoredData('biz_brands', initialBrands));
+  const [customers, setCustomers] = useState<Customer[]>(() => getStoredData('biz_customers', []));
+  const [suppliers, setSuppliers] = useState<Supplier[]>(() => getStoredData('biz_suppliers', []));
+  const [expenses, setExpenses] = useState<Expense[]>(() => getStoredData('biz_expenses', []));
+  const [sales, setSales] = useState<Sale[]>(() => getStoredData('biz_sales', []));
+  const [purchases, setPurchases] = useState<Purchase[]>(() => getStoredData('biz_purchases', []));
 
   // Notifications state: Manual/system notifications + Read status map
   const [manualNotifications, setManualNotifications] = useState<AppNotification[]>(() => {
@@ -2837,7 +2806,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const clearCart = () => setCart([]);
 
   // Complete POS sale
-  const checkoutPOS = (saleData: {
+  const checkoutPOS = async (saleData: {
     customerId?: string;
     customerName: string;
     customerPhone?: string;
@@ -2846,7 +2815,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     paymentMethod: 'Cash' | 'Card' | 'bKash/Mobile' | 'Due/Credit' | 'Split';
     cashReceived: number;
     note?: string;
-  }): Sale => {
+  }): Promise<Sale> => {
+    if (!cart || cart.length === 0) {
+      throw new Error('Cart is empty. Please add products to complete the sale.');
+    }
+
     const todayStr = new Date().toISOString().split('T')[0];
     const expiredItem = cart.find(
       (item) => item.product.expiryDate && item.product.expiryDate <= todayStr
@@ -2855,65 +2828,83 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       alert(`Expired Product (${expiredItem.product.name}). Sale is not allowed.`);
       throw new Error('This product has expired and cannot be sold.');
     }
-    const subtotal = cart.reduce((acc, item) => acc + item.product.sellingPrice * item.quantity, 0);
-    const taxAmount = Math.round((subtotal * saleData.tax) / 100);
-    const grandTotal = Math.max(0, subtotal - saleData.discount + taxAmount);
 
-    let paidAmount = saleData.cashReceived;
+    const subtotal = cart.reduce((acc, item) => {
+      const price = Number(item.product.sellingPrice) || 0;
+      const qty = Number(item.quantity) || 1;
+      return acc + price * qty;
+    }, 0);
+
+    const taxPercent = Number(saleData.tax) || 0;
+    const taxAmount = Math.round((subtotal * taxPercent) / 100);
+    const discountAmount = Math.max(0, Number(saleData.discount) || 0);
+    const grandTotal = Math.max(0, subtotal - discountAmount + taxAmount);
+
+    let paidAmount = Number(saleData.cashReceived) || 0;
     if (saleData.paymentMethod === 'Due/Credit') {
-      paidAmount = saleData.cashReceived || 0;
+      paidAmount = Number(saleData.cashReceived) || 0;
     } else {
-      paidAmount = Math.min(saleData.cashReceived || grandTotal, grandTotal);
+      paidAmount = Math.min(
+        saleData.cashReceived !== undefined ? Number(saleData.cashReceived) || 0 : grandTotal,
+        grandTotal
+      );
     }
 
     const dueAmount = Math.max(0, grandTotal - paidAmount);
-    const changeAmount = Math.max(0, saleData.cashReceived - grandTotal);
+    const changeAmount = Math.max(0, (Number(saleData.cashReceived) || 0) - grandTotal);
 
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const timeStr = Date.now().toString().slice(-6);
     const randStr = Math.floor(100 + Math.random() * 900);
     const invoiceNo = `ORD-${dateStr}-${timeStr}-${randStr}`;
 
-    const saleItems = cart.map((item) => ({
-      productId: item.product.id,
-      productName: item.product.name,
-      sku: item.product.sku,
-      buyingPrice: item.product.buyingPrice,
-      sellingPrice: item.product.sellingPrice,
-      quantity: item.quantity,
-      unit: item.product.unit,
-      total: item.product.sellingPrice * item.quantity,
-      image: item.product.image,
-    }));
+    const saleItems = cart.map((item) => {
+      const buyingPrice = Number(item.product.buyingPrice) || 0;
+      const sellingPrice = Number(item.product.sellingPrice) || 0;
+      const quantity = Number(item.quantity) || 1;
+      return {
+        productId: item.product.id,
+        productName: item.product.name || 'Item',
+        sku: (item.product.sku || '').trim(),
+        buyingPrice,
+        sellingPrice,
+        quantity,
+        unit: item.product.unit || 'pcs',
+        total: sellingPrice * quantity,
+        image: item.product.image || '',
+      };
+    });
 
     const newSale: Sale = {
-      id: `sale-${Date.now()}`,
+      id: `sale-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       invoiceNo,
-      customerId: saleData.customerId,
+      customerId: saleData.customerId || '',
       customerName: saleData.customerName || 'Walk-in Customer',
-      customerPhone: saleData.customerPhone,
+      customerPhone: saleData.customerPhone || '',
       items: saleItems,
       subtotal,
-      discount: saleData.discount,
+      discount: discountAmount,
       tax: taxAmount,
       total: grandTotal,
       paidAmount,
       dueAmount,
       changeAmount,
       paymentMethod: saleData.paymentMethod,
-      cashierName: user ? user.ownerName : 'Cashier',
+      cashierName: user ? (user.ownerName || user.fullName || 'Cashier') : 'Cashier',
       date: new Date().toISOString(),
-      note: saleData.note,
+      note: saleData.note || '',
     };
 
     // 1. Calculate stock deductions
     const nextProducts = products.map((p) => {
       const cartMatch = cart.find((c) => c.product.id === p.id);
       if (cartMatch) {
-        const newStock = Math.max(0, p.currentStock - cartMatch.quantity);
+        const current = Number(p.currentStock) || 0;
+        const deduct = Number(cartMatch.quantity) || 1;
+        const newStock = Math.max(0, current - deduct);
         let newStatus: Product['status'] = 'active';
         if (newStock === 0) newStatus = 'out_of_stock';
-        else if (newStock <= p.minStockAlert) newStatus = 'low';
+        else if (newStock <= (Number(p.minStockAlert) || 5)) newStatus = 'low';
 
         return { ...p, currentStock: newStock, status: newStatus };
       }
@@ -2925,11 +2916,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (saleData.customerId) {
       nextCustomers = customers.map((c) => {
         if (c.id === saleData.customerId) {
+          const currentSpent = Number(c.totalSpent) || 0;
+          const currentDue = Number(c.dueAmount) || 0;
+          const currentCount = Number(c.lifetimePurchasesCount) || 0;
           return {
             ...c,
-            totalSpent: c.totalSpent + grandTotal,
-            dueAmount: c.dueAmount + dueAmount,
-            lifetimePurchasesCount: c.lifetimePurchasesCount + 1,
+            totalSpent: currentSpent + grandTotal,
+            dueAmount: currentDue + dueAmount,
+            lifetimePurchasesCount: currentCount + 1,
           };
         }
         return c;
@@ -2938,20 +2932,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const nextSales = [newSale, ...sales];
 
-    // Atomically persist sales, products, and customers to Firestore
+    // Atomically persist sales, products, and customers to Firestore FIRST
     const uid = user?.id || auth.currentUser?.uid;
     if (uid) {
-      saveUserCloudCollectionsBatch(uid, {
+      console.log(`[CloudSync] Persisting POS sale ${invoiceNo} to Firestore...`);
+      await saveUserCloudCollectionsBatch(uid, {
         sales: { items: nextSales },
         products: { items: nextProducts },
         customers: { items: nextCustomers },
       });
+      console.log(`[CloudSync] POS sale ${invoiceNo} successfully persisted.`);
     }
 
-    // Update local React state and storage
+    // Update local React state and storage ONLY after database confirms success
     setProducts(nextProducts);
     setCustomers(nextCustomers);
     setSales(nextSales);
+    try {
+      localStorage.setItem('biz_products', JSON.stringify(nextProducts));
+      if (uid) localStorage.setItem(`biz_products_${uid}`, JSON.stringify(nextProducts));
+      localStorage.setItem('biz_sales', JSON.stringify(nextSales));
+      if (uid) localStorage.setItem(`biz_sales_${uid}`, JSON.stringify(nextSales));
+      localStorage.setItem('biz_customers', JSON.stringify(nextCustomers));
+      if (uid) localStorage.setItem(`biz_customers_${uid}`, JSON.stringify(nextCustomers));
+    } catch (e) {}
+
     clearCart();
     logActivity('Completed POS Sale', 'নতুন বিক্রয় ইনভয়েস সম্পন্ন', `${invoiceNo} - Total: ৳${grandTotal}`);
 
@@ -2968,7 +2973,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [brands]);
 
   // Categories & Brands CRUD Methods
-  const addCategory = (name: string, description?: string) => {
+  const addCategory = async (name: string, description?: string): Promise<void> => {
     if (!name || !name.trim()) return;
     const trimmed = name.trim();
     const exists = categories.find((c) => c.name.toLowerCase() === trimmed.toLowerCase());
@@ -2979,24 +2984,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       description: description || '',
       productCount: 0,
     };
-    setCategories((prev) => {
-      const next = [...prev, newCat];
-      const uid = user?.id || auth.currentUser?.uid;
-      if (uid) saveUserCloudCollection(uid, 'categories', { items: next });
-      return next;
-    });
+    const next = [...categories, newCat];
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      await saveUserCloudCollection(uid, 'categories', { items: next });
+    }
+    setCategories(next);
   };
 
-  const deleteCategory = (id: string) => {
-    setCategories((prev) => {
-      const next = prev.filter((c) => c.id !== id);
-      const uid = user?.id || auth.currentUser?.uid;
-      if (uid) saveUserCloudCollection(uid, 'categories', { items: next });
-      return next;
-    });
+  const deleteCategory = async (id: string): Promise<void> => {
+    const next = categories.filter((c) => c.id !== id);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      await saveUserCloudCollection(uid, 'categories', { items: next });
+    }
+    setCategories(next);
   };
 
-  const addBrand = (name: string, description?: string) => {
+  const addBrand = async (name: string, description?: string): Promise<void> => {
     if (!name || !name.trim()) return;
     const trimmed = name.trim();
     const exists = brands.find((b) => b.name.toLowerCase() === trimmed.toLowerCase());
@@ -3006,36 +3011,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       name: trimmed,
       description: description || '',
     };
-    setBrands((prev) => {
-      const next = [...prev, newBrand];
-      const uid = user?.id || auth.currentUser?.uid;
-      if (uid) saveUserCloudCollection(uid, 'brands', { items: next });
-      return next;
-    });
+    const next = [...brands, newBrand];
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      await saveUserCloudCollection(uid, 'brands', { items: next });
+    }
+    setBrands(next);
   };
 
-  const deleteBrand = (id: string) => {
-    setBrands((prev) => {
-      const next = prev.filter((b) => b.id !== id);
-      const uid = user?.id || auth.currentUser?.uid;
-      if (uid) saveUserCloudCollection(uid, 'brands', { items: next });
-      return next;
-    });
+  const deleteBrand = async (id: string): Promise<void> => {
+    const next = brands.filter((b) => b.id !== id);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      await saveUserCloudCollection(uid, 'brands', { items: next });
+    }
+    setBrands(next);
   };
 
   // Product CRUD
-  const addProduct = (data: Omit<Product, 'id' | 'createdAt' | 'status'>) => {
+  const addProduct = async (data: Omit<Product, 'id' | 'createdAt' | 'status'>): Promise<Product> => {
     // Check product limits based on user.subscriptionPlan
     const plan = user?.subscriptionPlan || 'Free';
     const limit = (plan === 'Free' || plan === 'Starter') ? 10 : ((plan === 'Pro' || plan === 'Tier2') ? 25 : Infinity);
     if (products.length >= limit) {
-      alert(`Product limit reached for ${plan} Plan (${limit} products max). Please upgrade your subscription plan to add more products!`);
-      return;
+      const msg = `Product limit reached for ${plan} Plan (${limit} products max). Please upgrade your subscription plan to add more products!`;
+      alert(msg);
+      throw new Error(msg);
     }
 
     // Auto add category & brand if new
-    if (data.category) addCategory(data.category);
-    if (data.brand) addBrand(data.brand);
+    if (data.category) await addCategory(data.category);
+    if (data.brand) await addBrand(data.brand);
 
     let status: Product['status'] = 'active';
     if (data.currentStock === 0) status = 'out_of_stock';
@@ -3053,13 +3059,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString().split('T')[0],
     };
     const nextProducts = [newProd, ...products];
-    setProducts(nextProducts);
+
     const uid = user?.id || auth.currentUser?.uid;
-    if (uid) saveUserCloudCollection(uid, 'products', { items: nextProducts });
+    if (uid) {
+      console.log(`[CloudSync] Persisting product ${newProd.name} to Firestore...`);
+      await saveUserCloudCollection(uid, 'products', { items: nextProducts });
+      console.log(`[CloudSync] Product ${newProd.name} persisted.`);
+    }
+
+    setProducts(nextProducts);
+    try {
+      localStorage.setItem('biz_products', JSON.stringify(nextProducts));
+      if (uid) localStorage.setItem(`biz_products_${uid}`, JSON.stringify(nextProducts));
+    } catch (e) {}
+
     logActivity('Added New Product', 'নতুন পণ্য যোগ করা হয়েছে', data.name);
+    return newProd;
   };
 
-  const updateProduct = (id: string, updatedFields: Partial<Product>) => {
+  const updateProduct = async (id: string, updatedFields: Partial<Product>): Promise<void> => {
     const nextProducts = products.map((p) => {
       if (p.id === id) {
         const sku = (updatedFields.sku || p.sku || '').trim() || generateUniqueSku(products);
@@ -3075,36 +3093,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return p;
     });
-    setProducts(nextProducts);
+
     const uid = user?.id || auth.currentUser?.uid;
-    if (uid) saveUserCloudCollection(uid, 'products', { items: nextProducts });
+    if (uid) {
+      console.log(`[CloudSync] Persisting updated product ${id} to Firestore...`);
+      await saveUserCloudCollection(uid, 'products', { items: nextProducts });
+      console.log(`[CloudSync] Product ${id} updated.`);
+    }
+
+    setProducts(nextProducts);
+    try {
+      localStorage.setItem('biz_products', JSON.stringify(nextProducts));
+      if (uid) localStorage.setItem(`biz_products_${uid}`, JSON.stringify(nextProducts));
+    } catch (e) {}
+
     logActivity('Updated Product', 'পণ্য এডিট করা হয়েছে', `ID: ${id}`);
   };
 
-  const deleteProduct = (id: string) => {
+  const deleteProduct = async (id: string): Promise<void> => {
     const nextProducts = products.filter((p) => p.id !== id);
-    setProducts(nextProducts);
     const uid = user?.id || auth.currentUser?.uid;
-    if (uid) saveUserCloudCollection(uid, 'products', { items: nextProducts });
+    if (uid) {
+      console.log(`[CloudSync] Persisting deleted product ${id} to Firestore...`);
+      await saveUserCloudCollection(uid, 'products', { items: nextProducts });
+      console.log(`[CloudSync] Product ${id} deleted.`);
+    }
+
+    setProducts(nextProducts);
+    try {
+      localStorage.setItem('biz_products', JSON.stringify(nextProducts));
+      if (uid) localStorage.setItem(`biz_products_${uid}`, JSON.stringify(nextProducts));
+    } catch (e) {}
+
     logActivity('Deleted Product', 'পণ্য মুছে ফেলা হয়েছে', `ID: ${id}`);
   };
 
-  const clearAllProducts = () => {
+  const clearAllProducts = async (): Promise<void> => {
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      await saveUserCloudCollection(uid, 'products', { items: [] });
+    }
+
     setProducts([]);
     setCart([]);
-    localStorage.setItem('biz_products', JSON.stringify([]));
-    const uid = user?.id || auth.currentUser?.uid;
-    if (uid) saveUserCloudCollection(uid, 'products', { items: [] });
+    try {
+      localStorage.setItem('biz_products', JSON.stringify([]));
+      if (uid) localStorage.setItem(`biz_products_${uid}`, JSON.stringify([]));
+    } catch (e) {}
+
     logActivity('Cleared All Products', 'সকল টেস্ট প্রোডাক্ট মুছে ফেলা হয়েছে');
   };
 
   // Stock Adjustment
-  const adjustStock = (
+  const adjustStock = async (
     productId: string,
     quantityDelta: number,
     reason: string,
     type: 'addition' | 'reduction' | 'damage_writeoff' | 'audit_correction'
-  ) => {
+  ): Promise<void> => {
     const prod = products.find((p) => p.id === productId);
     if (!prod) return;
 
@@ -3129,21 +3175,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     const nextAdjustments = [newAdj, ...adjustments];
 
-    setProducts(nextProducts);
-    setAdjustments(nextAdjustments);
-
     const uid = user?.id || auth.currentUser?.uid;
     if (uid) {
-      saveUserCloudCollectionsBatch(uid, {
+      console.log(`[CloudSync] Persisting stock adjustment for product ${productId} to Firestore...`);
+      await saveUserCloudCollectionsBatch(uid, {
         products: { items: nextProducts },
         adjustments: { items: nextAdjustments },
       });
+      console.log(`[CloudSync] Stock adjustment persisted.`);
     }
+
+    setProducts(nextProducts);
+    setAdjustments(nextAdjustments);
+    try {
+      localStorage.setItem('biz_products', JSON.stringify(nextProducts));
+      if (uid) localStorage.setItem(`biz_products_${uid}`, JSON.stringify(nextProducts));
+    } catch (e) {}
+
     logActivity('Stock Adjusted', 'স্টক পরিবর্তন করা হয়েছে', `${prod.name} (${quantityDelta > 0 ? '+' : ''}${quantityDelta})`);
   };
 
   // Customers & Suppliers
-  const addCustomer = (custData: Omit<Customer, 'id' | 'createdAt' | 'dueAmount' | 'totalSpent' | 'lifetimePurchasesCount'>) => {
+  const addCustomer = async (custData: Omit<Customer, 'id' | 'createdAt' | 'dueAmount' | 'totalSpent' | 'lifetimePurchasesCount'>): Promise<Customer> => {
     const newCust: Customer = {
       ...custData,
       id: `cust-${Date.now()}`,
@@ -3153,30 +3206,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString().split('T')[0],
     };
     const nextCustomers = [newCust, ...customers];
-    setCustomers(nextCustomers);
+
     const uid = user?.id || auth.currentUser?.uid;
-    if (uid) saveUserCloudCollection(uid, 'customers', { items: nextCustomers });
+    if (uid) {
+      await saveUserCloudCollection(uid, 'customers', { items: nextCustomers });
+    }
+
+    setCustomers(nextCustomers);
+    try {
+      localStorage.setItem('biz_customers', JSON.stringify(nextCustomers));
+      if (uid) localStorage.setItem(`biz_customers_${uid}`, JSON.stringify(nextCustomers));
+    } catch (e) {}
+
     logActivity('Added Customer', 'নতুন গ্রাহক যোগ করা হয়েছে', custData.name);
     return newCust;
   };
 
-  const updateCustomer = (id: string, custData: Partial<Customer>) => {
+  const updateCustomer = async (id: string, custData: Partial<Customer>): Promise<void> => {
     const nextCustomers = customers.map((c) => (c.id === id ? { ...c, ...custData } : c));
-    setCustomers(nextCustomers);
     const uid = user?.id || auth.currentUser?.uid;
-    if (uid) saveUserCloudCollection(uid, 'customers', { items: nextCustomers });
+    if (uid) {
+      await saveUserCloudCollection(uid, 'customers', { items: nextCustomers });
+    }
+
+    setCustomers(nextCustomers);
+    try {
+      localStorage.setItem('biz_customers', JSON.stringify(nextCustomers));
+      if (uid) localStorage.setItem(`biz_customers_${uid}`, JSON.stringify(nextCustomers));
+    } catch (e) {}
+
     logActivity('Updated Customer', 'গ্রাহকের তথ্য আপডেট করা হয়েছে', `ID: ${id}`);
   };
 
-  const deleteCustomer = (id: string) => {
+  const deleteCustomer = async (id: string): Promise<void> => {
     const nextCustomers = customers.filter((c) => c.id !== id);
-    setCustomers(nextCustomers);
     const uid = user?.id || auth.currentUser?.uid;
-    if (uid) saveUserCloudCollection(uid, 'customers', { items: nextCustomers });
+    if (uid) {
+      await saveUserCloudCollection(uid, 'customers', { items: nextCustomers });
+    }
+
+    setCustomers(nextCustomers);
+    try {
+      localStorage.setItem('biz_customers', JSON.stringify(nextCustomers));
+      if (uid) localStorage.setItem(`biz_customers_${uid}`, JSON.stringify(nextCustomers));
+    } catch (e) {}
+
     logActivity('Deleted Customer', 'গ্রাহক মুছে ফেলা হয়েছে', `ID: ${id}`);
   };
 
-  const addSupplier = (suppData: Omit<Supplier, 'id' | 'createdAt' | 'dueAmount' | 'totalPurchasesCount'>) => {
+  const addSupplier = async (suppData: Omit<Supplier, 'id' | 'createdAt' | 'dueAmount' | 'totalPurchasesCount'>): Promise<Supplier> => {
     const newSupp: Supplier = {
       ...suppData,
       id: `supp-${Date.now()}`,
@@ -3185,22 +3263,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString().split('T')[0],
     };
     const nextSuppliers = [newSupp, ...suppliers];
-    setSuppliers(nextSuppliers);
     const uid = user?.id || auth.currentUser?.uid;
-    if (uid) saveUserCloudCollection(uid, 'suppliers', { items: nextSuppliers });
+    if (uid) {
+      await saveUserCloudCollection(uid, 'suppliers', { items: nextSuppliers });
+    }
+
+    setSuppliers(nextSuppliers);
+    try {
+      localStorage.setItem('biz_suppliers', JSON.stringify(nextSuppliers));
+      if (uid) localStorage.setItem(`biz_suppliers_${uid}`, JSON.stringify(nextSuppliers));
+    } catch (e) {}
+
     logActivity('Added Supplier', 'নতুন সরবরাহকারী যোগ করা হয়েছে', suppData.name);
     return newSupp;
   };
 
-  const deleteSupplier = (id: string) => {
+  const deleteSupplier = async (id: string): Promise<void> => {
     const nextSuppliers = suppliers.filter((s) => s.id !== id);
-    setSuppliers(nextSuppliers);
     const uid = user?.id || auth.currentUser?.uid;
-    if (uid) saveUserCloudCollection(uid, 'suppliers', { items: nextSuppliers });
+    if (uid) {
+      await saveUserCloudCollection(uid, 'suppliers', { items: nextSuppliers });
+    }
+
+    setSuppliers(nextSuppliers);
+    try {
+      localStorage.setItem('biz_suppliers', JSON.stringify(nextSuppliers));
+      if (uid) localStorage.setItem(`biz_suppliers_${uid}`, JSON.stringify(nextSuppliers));
+    } catch (e) {}
+
     logActivity('Deleted Supplier', 'সরবরাহকারী মুছে ফেলা হয়েছে', `ID: ${id}`);
   };
 
-  const resetAllDataToZero = () => {
+  const resetAllDataToZero = async (): Promise<void> => {
     setProducts([]);
     setCustomers([]);
     setSuppliers([]);
@@ -3224,22 +3318,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('biz_purchases', JSON.stringify([]));
     const uid = user?.id || auth.currentUser?.uid;
     if (uid) {
-      saveUserCloudCollection(uid, 'products', { items: [] });
-      saveUserCloudCollection(uid, 'sales', { items: [] });
-      saveUserCloudCollection(uid, 'customers', { items: [] });
-      saveUserCloudCollection(uid, 'suppliers', { items: [] });
-      saveUserCloudCollection(uid, 'expenses', { items: [] });
-      saveUserCloudCollection(uid, 'purchases', { items: [] });
-      saveUserCloudCollection(uid, 'adjustments', { items: [] });
-      saveUserCloudCollection(uid, 'dueCollections', { items: [] });
-      saveUserCloudCollection(uid, 'team', { items: [] });
-      saveUserCloudCollection(uid, 'payroll', { employees: [], payments: [], adjustments: [] });
-      saveUserCloudCollection(uid, 'qrTracking', { generatedCodes: [], productQRCounts: {} });
+      await saveUserCloudCollection(uid, 'products', { items: [] });
+      await saveUserCloudCollection(uid, 'sales', { items: [] });
+      await saveUserCloudCollection(uid, 'customers', { items: [] });
+      await saveUserCloudCollection(uid, 'suppliers', { items: [] });
+      await saveUserCloudCollection(uid, 'expenses', { items: [] });
+      await saveUserCloudCollection(uid, 'purchases', { items: [] });
+      await saveUserCloudCollection(uid, 'adjustments', { items: [] });
+      await saveUserCloudCollection(uid, 'dueCollections', { items: [] });
+      await saveUserCloudCollection(uid, 'team', { items: [] });
+      await saveUserCloudCollection(uid, 'payroll', { employees: [], payments: [], adjustments: [] });
+      await saveUserCloudCollection(uid, 'qrTracking', { generatedCodes: [], productQRCounts: {} });
     }
     logActivity('Reset All Data', 'সকল ডাটা ০ তে রিসেট করা হয়েছে');
   };
 
-  const loadSampleDemoData = () => {
+  const loadSampleDemoData = async (): Promise<void> => {
     setProducts(initialProducts);
     setCustomers(initialCustomers);
     setSuppliers(initialSuppliers);
@@ -3248,32 +3342,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPurchases(initialPurchases);
     const uid = user?.id || auth.currentUser?.uid;
     if (uid) {
-      saveUserCloudCollection(uid, 'products', { items: initialProducts });
-      saveUserCloudCollection(uid, 'sales', { items: initialSales });
-      saveUserCloudCollection(uid, 'customers', { items: initialCustomers });
-      saveUserCloudCollection(uid, 'suppliers', { items: initialSuppliers });
-      saveUserCloudCollection(uid, 'expenses', { items: initialExpenses });
-      saveUserCloudCollection(uid, 'purchases', { items: initialPurchases });
+      await saveUserCloudCollection(uid, 'products', { items: initialProducts });
+      await saveUserCloudCollection(uid, 'sales', { items: initialSales });
+      await saveUserCloudCollection(uid, 'customers', { items: initialCustomers });
+      await saveUserCloudCollection(uid, 'suppliers', { items: initialSuppliers });
+      await saveUserCloudCollection(uid, 'expenses', { items: initialExpenses });
+      await saveUserCloudCollection(uid, 'purchases', { items: initialPurchases });
     }
     logActivity('Loaded Demo Data', 'স্যাম্পল ডেমো ডাটা লোড করা হয়েছে');
   };
 
   // Expenses & Purchases
-  const addExpense = (expData: Omit<Expense, 'id'>) => {
+  const addExpense = async (expData: Omit<Expense, 'id'>): Promise<Expense> => {
     const newExp: Expense = {
       ...expData,
       id: `exp-${Date.now()}`,
     };
-    setExpenses((prev) => {
-      const next = [newExp, ...prev];
-      const uid = user?.id || auth.currentUser?.uid;
-      if (uid) saveUserCloudCollection(uid, 'expenses', { items: next });
-      return next;
-    });
+    const next = [newExp, ...expenses];
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      await saveUserCloudCollection(uid, 'expenses', { items: next });
+    }
+
+    setExpenses(next);
+    try {
+      localStorage.setItem('biz_expenses', JSON.stringify(next));
+      if (uid) localStorage.setItem(`biz_expenses_${uid}`, JSON.stringify(next));
+    } catch (e) {}
+
     logActivity('Added Expense', 'নতুন খরচ এন্ট্রি করা হয়েছে', `${expData.title} (৳${expData.amount})`);
+    return newExp;
   };
 
-  const addPurchase = (pData: Omit<Purchase, 'id' | 'purchaseNo'>) => {
+  const addPurchase = async (pData: Omit<Purchase, 'id' | 'purchaseNo'>): Promise<Purchase> => {
     const purchaseNo = `PUR-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
     const newPurchase: Purchase = {
       ...pData,
@@ -3315,31 +3416,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const nextPurchases = [newPurchase, ...purchases];
 
-    setProducts(nextProducts);
-    setSuppliers(nextSuppliers);
-    setPurchases(nextPurchases);
-
     const uid = user?.id || auth.currentUser?.uid;
     if (uid) {
-      saveUserCloudCollectionsBatch(uid, {
+      console.log(`[CloudSync] Persisting purchase ${purchaseNo} to Firestore...`);
+      await saveUserCloudCollectionsBatch(uid, {
         products: { items: nextProducts },
         suppliers: { items: nextSuppliers },
         purchases: { items: nextPurchases },
       });
+      console.log(`[CloudSync] Purchase ${purchaseNo} persisted.`);
     }
+
+    setProducts(nextProducts);
+    setSuppliers(nextSuppliers);
+    setPurchases(nextPurchases);
+    try {
+      localStorage.setItem('biz_products', JSON.stringify(nextProducts));
+      if (uid) localStorage.setItem(`biz_products_${uid}`, JSON.stringify(nextProducts));
+      localStorage.setItem('biz_purchases', JSON.stringify(nextPurchases));
+      if (uid) localStorage.setItem(`biz_purchases_${uid}`, JSON.stringify(nextPurchases));
+      localStorage.setItem('biz_suppliers', JSON.stringify(nextSuppliers));
+      if (uid) localStorage.setItem(`biz_suppliers_${uid}`, JSON.stringify(nextSuppliers));
+    } catch (e) {}
 
     logActivity('Recorded Purchase', 'নতুন পারচেজ এন্ট্রি করা হয়েছে', `${purchaseNo} - Supplier: ${pData.supplierName}`);
     return newPurchase;
   };
 
   // Due Collection
-  const collectDue = (data: {
+  const collectDue = async (data: {
     type: 'customer' | 'supplier';
     entityId: string;
     amountPaid: number;
     paymentMethod: string;
     note?: string;
-  }) => {
+  }): Promise<DueCollection | undefined> => {
+    const uid = user?.id || auth.currentUser?.uid;
     if (data.type === 'customer') {
       const target = customers.find((c) => c.id === data.entityId);
       if (!target) return;
@@ -3364,18 +3476,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       const nextDueCollections = [record, ...dueCollections];
 
-      setCustomers(nextCustomers);
-      setDueCollections(nextDueCollections);
-
-      const uid = user?.id || auth.currentUser?.uid;
       if (uid) {
-        saveUserCloudCollectionsBatch(uid, {
+        await saveUserCloudCollectionsBatch(uid, {
           customers: { items: nextCustomers },
           dueCollections: { items: nextDueCollections },
         });
       }
 
+      setCustomers(nextCustomers);
+      setDueCollections(nextDueCollections);
+      try {
+        localStorage.setItem('biz_customers', JSON.stringify(nextCustomers));
+        if (uid) localStorage.setItem(`biz_customers_${uid}`, JSON.stringify(nextCustomers));
+      } catch (e) {}
+
       logActivity('Collected Customer Due', 'গ্রাহকের বকেয়া আদায় করা হয়েছে', `${target.name}: ৳${data.amountPaid}`);
+      return record;
     } else {
       const target = suppliers.find((s) => s.id === data.entityId);
       if (!target) return;
@@ -3400,18 +3516,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       const nextDueCollections = [record, ...dueCollections];
 
-      setSuppliers(nextSuppliers);
-      setDueCollections(nextDueCollections);
-
-      const uid = user?.id || auth.currentUser?.uid;
       if (uid) {
-        saveUserCloudCollectionsBatch(uid, {
+        await saveUserCloudCollectionsBatch(uid, {
           suppliers: { items: nextSuppliers },
           dueCollections: { items: nextDueCollections },
         });
       }
 
+      setSuppliers(nextSuppliers);
+      setDueCollections(nextDueCollections);
+      try {
+        localStorage.setItem('biz_suppliers', JSON.stringify(nextSuppliers));
+        if (uid) localStorage.setItem(`biz_suppliers_${uid}`, JSON.stringify(nextSuppliers));
+      } catch (e) {}
+
       logActivity('Paid Supplier Due', 'সরবরাহকারীকে বকেয়া পরিশোধ', `${target.name}: ৳${data.amountPaid}`);
+      return record;
     }
   };
 
