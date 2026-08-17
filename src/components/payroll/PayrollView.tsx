@@ -472,7 +472,7 @@ export const PayrollView: React.FC = () => {
 
             <button
               onClick={openAddEmployeeModal}
-              className="px-4 py-2.5 bg-[#ff5c01] hover:bg-[#e05200] text-white text-xs font-bold rounded-xl shadow-md shadow-[#ff5c01]/20 transition-all flex items-center gap-2 cursor-pointer"
+              className="px-4 py-2.5 bg-[#ff5c01] hover:bg-[#e05100] text-white text-xs font-bold rounded-xl shadow-md shadow-[#ff5c01]/20 transition-all flex items-center gap-2 cursor-pointer"
             >
               <UserPlus className="w-4 h-4" />
               <span>Add Employee</span>
@@ -954,7 +954,7 @@ export const PayrollView: React.FC = () => {
 
                     <button
                       onClick={() => openPaySalaryModal(emp, payment)}
-                      className="px-3.5 py-1.5 rounded-xl bg-[#ff5c01] hover:bg-[#e05200] text-xs font-bold text-white shadow-xs cursor-pointer"
+                      className="px-3.5 py-1.5 rounded-xl bg-[#ff5c01] hover:bg-[#e05100] text-xs font-bold text-white shadow-xs cursor-pointer"
                     >
                       {isPaid ? 'Add Adjustment' : isPartial ? 'Pay Remaining' : 'Disburse Salary'}
                     </button>
@@ -1304,7 +1304,7 @@ export const PayrollView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#ff5c01] hover:bg-[#e05200] text-xs font-bold text-white shadow-md shadow-[#ff5c01]/20 cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-[#ff5c01] hover:bg-[#e05100] text-xs font-bold text-white shadow-md shadow-[#ff5c01]/20 cursor-pointer"
                 >
                   {editingEmployee ? 'Save Changes' : 'Add Employee'}
                 </button>

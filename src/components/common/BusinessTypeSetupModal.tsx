@@ -235,7 +235,7 @@ export const BusinessTypeSetupModal: React.FC<BusinessTypeSetupModalProps> = ({ 
               type="button"
               disabled={isSubmitting}
               onClick={() => handleApply(false)}
-              className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-[#ff5c01] hover:bg-[#e05200] text-xs font-bold text-white shadow-md shadow-[#ff5c01]/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-[#ff5c01] hover:bg-[#e05100] text-xs font-bold text-white shadow-md shadow-[#ff5c01]/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>{isSubmitting ? 'Applying...' : 'Apply & Continue'}</span>
               <ArrowRight className="w-4 h-4" />

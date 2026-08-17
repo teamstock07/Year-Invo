@@ -32,7 +32,7 @@ export const MainWebsiteLogo: React.FC<MainWebsiteLogoProps> = ({
               {siteName}
             </span>
             {subName && (
-              <span className="text-[10px] font-extrabold text-[#7C3AED] dark:text-[#a78bfa] tracking-wider uppercase mt-0.5">
+              <span className="text-[10px] font-extrabold text-[#ff5c01] tracking-wider uppercase mt-0.5">
                 {subName}
               </span>
             )}
@@ -44,35 +44,46 @@ export const MainWebsiteLogo: React.FC<MainWebsiteLogoProps> = ({
 
   return (
     <div className={`inline-flex items-center gap-2.5 ${className}`}>
-      {/* Sleek Geometric Y/YM Logo Vector */}
+      {/* Official YearInvo Geometric Logo */}
       <svg
         width={size}
         height={size}
-        viewBox="0 0 200 200"
+        viewBox="0 0 512 512"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         className="shrink-0 rounded-xl drop-shadow-md"
       >
         {/* Dark Frame Canvas */}
-        <rect width="200" height="200" rx="40" fill="#0A0A0C" />
+        <rect width="512" height="512" rx="110" fill="#0A0A0E" />
 
-        {/* Left White Arm & Stem of 'Y' */}
+        {/* Left White Chevron Arm of 'Y' */}
         <path
-          d="M 32 32 H 86 L 116 80 V 168 H 82 V 104 L 32 32 Z"
+          d="M 144 116 H 210 L 288 238 L 224 312 H 182 L 232 246 L 144 116 Z"
           fill="#FFFFFF"
         />
 
-        {/* Top Right Purple Accent Polygon */}
+        {/* Top Right Purple Arm of 'Y' (#792AEE) */}
         <path
-          d="M 132 32 H 168 L 118 96 L 118 60 Z"
-          fill="#7C3AED"
+          d="M 314 116 H 380 L 294 214 L 265 174 Z"
+          fill="#792AEE"
         />
 
-        {/* Bottom Right White Chevron Structural Shape */}
+        {/* Document / Invoice Body (White) */}
         <path
-          d="M 122 108 L 168 56 V 152 L 138 176 V 128 L 122 144 Z"
+          d="M 295 166 L 352 166 V 278 L 312 312 H 295 V 166 Z"
           fill="#FFFFFF"
         />
+
+        {/* Document Folded Flap (Purple #792AEE) */}
+        <path
+          d="M 312 312 L 352 278 H 312 V 312 Z"
+          fill="#792AEE"
+        />
+
+        {/* Document 3 Invoice Lines (Purple #792AEE) */}
+        <rect x="306" y="228" width="36" height="6.5" rx="3.25" fill="#792AEE" />
+        <rect x="306" y="244" width="36" height="6.5" rx="3.25" fill="#792AEE" />
+        <rect x="306" y="260" width="36" height="6.5" rx="3.25" fill="#792AEE" />
       </svg>
 
       {showText && (
@@ -81,7 +92,7 @@ export const MainWebsiteLogo: React.FC<MainWebsiteLogoProps> = ({
             {siteName}
           </span>
           {subName && (
-            <span className="text-[10px] font-extrabold text-[#7C3AED] dark:text-[#a78bfa] tracking-wider uppercase mt-0.5">
+            <span className="text-[10px] font-extrabold text-[#ff5c01] tracking-wider uppercase mt-0.5">
               {subName}
             </span>
           )}

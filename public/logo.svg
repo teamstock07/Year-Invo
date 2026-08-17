@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Background Dark Rounded Canvas -->
+  <rect width="512" height="512" rx="110" fill="#0A0A0E"/>
+  
+  <!-- Left White Chevron Arm of 'Y' -->
+  <path d="M 144 116 H 210 L 288 238 L 224 312 H 182 L 232 246 L 144 116 Z" fill="#FFFFFF"/>
+  
+  <!-- Top Right Purple Arm of 'Y' (#792AEE) -->
+  <path d="M 314 116 H 380 L 294 214 L 265 174 Z" fill="#792AEE"/>
+  
+  <!-- Document / Invoice Body (White) -->
+  <path d="M 295 166 L 352 166 V 278 L 312 312 H 295 V 166 Z" fill="#FFFFFF"/>
+  
+  <!-- Document Folded Flap (Purple #792AEE) -->
+  <path d="M 312 312 L 352 278 H 312 V 312 Z" fill="#792AEE"/>
+  
+  <!-- Document 3 Invoice Lines (Purple #792AEE) -->
+  <rect x="306" y="228" width="36" height="6.5" rx="3.25" fill="#792AEE"/>
+  <rect x="306" y="244" width="36" height="6.5" rx="3.25" fill="#792AEE"/>
+  <rect x="306" y="260" width="36" height="6.5" rx="3.25" fill="#792AEE"/>
+</svg>

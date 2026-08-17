@@ -197,7 +197,7 @@ export const LoginView: React.FC = () => {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="store@example.com"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-[#7C3AED]"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-[#ff5c01]"
                         required
                       />
                     </div>
@@ -216,7 +216,7 @@ export const LoginView: React.FC = () => {
                           setForgotEmail(email);
                           setMode('forgot');
                         }}
-                        className="text-[11px] font-medium text-[#a78bfa] hover:underline cursor-pointer"
+                        className="text-[11px] font-medium text-[#ff8038] hover:underline cursor-pointer"
                       >
                         {isBn ? 'পাসওয়ার্ড ভুলে গেছেন?' : 'Forgot Password?'}
                       </button>
@@ -228,7 +228,7 @@ export const LoginView: React.FC = () => {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-10 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-[#7C3AED] focus:ring-2 focus:ring-[#7C3AED]/20 transition-all"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-10 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-[#ff5c01] focus:ring-2 focus:ring-[#ff5c01]/20 transition-all"
                         required
                       />
                       <button
@@ -250,7 +250,7 @@ export const LoginView: React.FC = () => {
                   <button
                     type="submit"
                     disabled={authLoading}
-                    className="w-full py-3 bg-[#7C3AED] hover:bg-[#6d28d9] text-white font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#7C3AED]/20 mt-2 cursor-pointer disabled:opacity-50"
+                    className="w-full py-3 bg-[#ff5c01] hover:bg-[#e05100] text-white font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#ff5c01]/20 mt-2 cursor-pointer disabled:opacity-50"
                   >
                     <span>{authLoading ? (isBn ? 'লগইন হচ্ছে...' : 'Signing In...') : (isBn ? 'স্টোরে প্রবেশ করুন' : 'Sign In to Store')}</span>
                     <ArrowRight className="w-4 h-4" />
@@ -263,7 +263,7 @@ export const LoginView: React.FC = () => {
                       setError('');
                       setMode('signup');
                     }}
-                    className="text-xs font-bold text-[#a78bfa] hover:underline"
+                    className="text-xs font-bold text-[#ff8038] hover:underline"
                   >
                     Need a new account? Sign Up Here
                   </button>
@@ -282,8 +282,8 @@ export const LoginView: React.FC = () => {
                 </button>
 
                 <div className="text-center mb-6 pr-8">
-                  <div className="w-12 h-12 rounded-2xl bg-[#7C3AED]/10 border border-[#7C3AED]/30 text-[#a78bfa] flex items-center justify-center mx-auto mb-3">
-                    <Lock className="w-6 h-6 text-[#a78bfa]" />
+                  <div className="w-12 h-12 rounded-2xl bg-[#ff5c01]/10 border border-[#ff5c01]/30 text-[#ff8038] flex items-center justify-center mx-auto mb-3">
+                    <Lock className="w-6 h-6 text-[#ff8038]" />
                   </div>
                   <h2 className="text-2xl font-black text-white">
                     {isBn ? 'পাসওয়ার্ড রিসেট করুন' : 'Reset Your Password'}
@@ -320,7 +320,7 @@ export const LoginView: React.FC = () => {
                         value={forgotEmail}
                         onChange={(e) => setForgotEmail(e.target.value)}
                         placeholder="you@example.com"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-[#7C3AED]"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-[#ff5c01]"
                         required
                       />
                     </div>
@@ -329,7 +329,7 @@ export const LoginView: React.FC = () => {
                   <button
                     type="submit"
                     disabled={forgotLoading}
-                    className="w-full py-3 bg-[#7C3AED] hover:bg-[#6d28d9] text-white font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#7C3AED]/20 mt-2 cursor-pointer disabled:opacity-50"
+                    className="w-full py-3 bg-[#ff5c01] hover:bg-[#e05100] text-white font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#ff5c01]/20 mt-2 cursor-pointer disabled:opacity-50"
                   >
                     <span>{forgotLoading ? (isBn ? 'পাঠানো হচ্ছে...' : 'Sending...') : (isBn ? 'রিসেট লিংক পাঠান' : 'Send Password Reset Email')}</span>
                     <ArrowRight className="w-4 h-4" />
@@ -343,7 +343,7 @@ export const LoginView: React.FC = () => {
                       setError('');
                       setMode('login');
                     }}
-                    className="text-xs font-bold text-[#a78bfa] hover:underline cursor-pointer"
+                    className="text-xs font-bold text-[#ff8038] hover:underline cursor-pointer"
                   >
                     {isBn ? '← লগইন পেজে ফিরে যান' : '← Back to Sign In'}
                   </button>
@@ -367,7 +367,7 @@ export const LoginView: React.FC = () => {
 
                 {/* Top Pill Badge */}
                 <div>
-                  <span className="px-3 py-1 rounded-full bg-indigo-950 border border-indigo-800/80 text-[#a78bfa] text-[11px] font-extrabold uppercase tracking-wider inline-block">
+                  <span className="px-3 py-1 rounded-full bg-indigo-950 border border-indigo-800/80 text-[#ff8038] text-[11px] font-extrabold uppercase tracking-wider inline-block">
                     FREE STARTER PLAN
                   </span>
                 </div>

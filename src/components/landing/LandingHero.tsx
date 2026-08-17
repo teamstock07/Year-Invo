@@ -118,7 +118,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onOpenSignup, onOpenLo
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-500/10 dark:bg-purple-950/60 border border-purple-500/30 text-purple-700 dark:text-[#a78bfa] text-xs font-black tracking-wide shadow-xs backdrop-blur-sm"
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-500/10 dark:bg-purple-950/60 border border-purple-500/30 text-purple-700 dark:text-[#ff8038] text-xs font-black tracking-wide shadow-xs backdrop-blur-sm"
           >
             <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500 animate-pulse" />
             <span>
@@ -138,7 +138,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onOpenSignup, onOpenLo
             {isBn ? (
               <>
                 আধুনিক খুচরা বিজনেসের <br className="hidden sm:inline" />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#7C3AED] via-purple-600 to-indigo-500 dark:from-[#a78bfa] dark:via-purple-400 dark:to-indigo-300">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ff5c01] via-purple-600 to-indigo-500 dark:from-[#ff8038] dark:via-purple-400 dark:to-indigo-300">
                   স্মার্ট POS ও ইনভেন্টরি
                 </span>{' '}
                 সিস্টেম
@@ -146,7 +146,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onOpenSignup, onOpenLo
             ) : (
               <>
                 Modern Retail POS &amp;{' '}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#7C3AED] via-purple-600 to-indigo-500 dark:from-[#a78bfa] dark:via-purple-400 dark:to-indigo-300">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ff5c01] via-purple-600 to-indigo-500 dark:from-[#ff8038] dark:via-purple-400 dark:to-indigo-300">
                   Smart Inventory
                 </span>{' '}
                 Platform
@@ -177,7 +177,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onOpenSignup, onOpenLo
               whileHover={{ scale: 1.04, y: -2 }}
               whileTap={{ scale: 0.97 }}
               onClick={onOpenSignup}
-              className="px-6 py-3.5 bg-[#7C3AED] hover:bg-[#6d28d9] text-white font-black rounded-2xl text-sm transition-all shadow-xl shadow-[#7C3AED]/30 flex items-center gap-2.5 cursor-pointer relative overflow-hidden group"
+              className="px-6 py-3.5 bg-[#ff5c01] hover:bg-[#e05100] text-white font-black rounded-2xl text-sm transition-all shadow-xl shadow-[#ff5c01]/30 flex items-center gap-2.5 cursor-pointer relative overflow-hidden group"
             >
               <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
               <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300 animate-spin-slow" />
@@ -241,7 +241,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onOpenSignup, onOpenLo
             whileHover={{ y: -4, transition: { duration: 0.2 } }}
             className="bg-white/80 dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 text-center space-y-1 shadow-2xs backdrop-blur-sm"
           >
-            <p className="text-2xl sm:text-3xl font-black text-purple-600 dark:text-[#a78bfa]">
+            <p className="text-2xl sm:text-3xl font-black text-purple-600 dark:text-[#ff8038]">
               <AnimatedCounter value={150} prefix={symbol} suffix="M+" />
             </p>
             <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
@@ -314,7 +314,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onOpenSignup, onOpenLo
             }}
             className="hidden md:flex absolute -bottom-6 -right-6 z-20 bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 shadow-2xl items-center gap-3 backdrop-blur-md"
           >
-            <div className="w-9 h-9 rounded-xl bg-purple-500/15 text-[#7C3AED] dark:text-[#a78bfa] flex items-center justify-center font-bold">
+            <div className="w-9 h-9 rounded-xl bg-purple-500/15 text-[#ff5c01] dark:text-[#ff8038] flex items-center justify-center font-bold">
               <Printer className="w-5 h-5" />
             </div>
             <div className="text-left pr-2">
@@ -348,7 +348,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onOpenSignup, onOpenLo
                   onClick={() => setPreviewTab('pos')}
                   className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
                     previewTab === 'pos'
-                      ? 'bg-white dark:bg-slate-800 text-[#7C3AED] dark:text-[#a78bfa] shadow-2xs'
+                      ? 'bg-white dark:bg-slate-800 text-[#ff5c01] dark:text-[#ff8038] shadow-2xs'
                       : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
@@ -360,7 +360,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onOpenSignup, onOpenLo
                   onClick={() => setPreviewTab('barcode')}
                   className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
                     previewTab === 'barcode'
-                      ? 'bg-white dark:bg-slate-800 text-[#7C3AED] dark:text-[#a78bfa] shadow-2xs'
+                      ? 'bg-white dark:bg-slate-800 text-[#ff5c01] dark:text-[#ff8038] shadow-2xs'
                       : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
@@ -372,7 +372,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onOpenSignup, onOpenLo
                   onClick={() => setPreviewTab('ai')}
                   className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
                     previewTab === 'ai'
-                      ? 'bg-white dark:bg-slate-800 text-[#7C3AED] dark:text-[#a78bfa] shadow-2xs'
+                      ? 'bg-white dark:bg-slate-800 text-[#ff5c01] dark:text-[#ff8038] shadow-2xs'
                       : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
@@ -427,7 +427,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onOpenSignup, onOpenLo
                         <span className="text-[10px] font-bold uppercase">{isBn ? 'আজকের লাভ' : 'Net Profit'}</span>
                         <BarChart3 className="w-4 h-4 text-purple-500" />
                       </div>
-                      <p className="text-lg font-black text-purple-600 dark:text-[#a78bfa]">{symbol}9,350</p>
+                      <p className="text-lg font-black text-purple-600 dark:text-[#ff8038]">{symbol}9,350</p>
                       <span className="text-[10px] text-slate-500 font-bold">Auto computed</span>
                     </div>
                   </div>
@@ -449,8 +449,8 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onOpenSignup, onOpenLo
                       <svg className="w-full h-full overflow-visible" viewBox="0 0 500 80" preserveAspectRatio="none">
                         <defs>
                           <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#7C3AED" stopOpacity="0.4" />
-                            <stop offset="100%" stopColor="#7C3AED" stopOpacity="0.0" />
+                            <stop offset="0%" stopColor="#ff5c01" stopOpacity="0.4" />
+                            <stop offset="100%" stopColor="#ff5c01" stopOpacity="0.0" />
                           </linearGradient>
                         </defs>
                         <motion.path
@@ -459,7 +459,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onOpenSignup, onOpenLo
                           transition={{ duration: 1.5, ease: "easeInOut" }}
                           d="M 0,60 Q 75,20 150,45 T 300,15 T 450,30 T 500,5"
                           fill="none"
-                          stroke="#7C3AED"
+                          stroke="#ff5c01"
                           strokeWidth="3"
                           strokeLinecap="round"
                         />
@@ -467,15 +467,15 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onOpenSignup, onOpenLo
                           d="M 0,60 Q 75,20 150,45 T 300,15 T 450,30 T 500,5 L 500,80 L 0,80 Z"
                           fill="url(#chartGradient)"
                         />
-                        <circle cx="500" cy="5" r="4" fill="#a78bfa" className="animate-ping" />
-                        <circle cx="500" cy="5" r="4" fill="#7C3AED" />
+                        <circle cx="500" cy="5" r="4" fill="#ff8038" className="animate-ping" />
+                        <circle cx="500" cy="5" r="4" fill="#ff5c01" />
                       </svg>
                     </div>
 
                     {/* Sample Cart / POS Register Stream */}
                     <div className="pt-1 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-200 dark:border-slate-800/80">
                       <div className="flex items-center gap-3 w-full sm:w-auto">
-                        <div className="w-10 h-10 rounded-2xl bg-[#7C3AED] text-white flex items-center justify-center font-bold text-lg shrink-0 shadow-md">
+                        <div className="w-10 h-10 rounded-2xl bg-[#ff5c01] text-white flex items-center justify-center font-bold text-lg shrink-0 shadow-md">
                           ⚡
                         </div>
                         <div>

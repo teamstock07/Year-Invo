@@ -60,7 +60,7 @@ export const LandingAbout: React.FC = () => {
           transition={{ duration: 0.5 }}
           className="text-center space-y-3 max-w-3xl mx-auto"
         >
-          <span className="px-3 py-1 rounded-full bg-purple-500/10 text-purple-700 dark:bg-purple-950/60 dark:text-[#a78bfa] text-xs font-black uppercase tracking-wider border border-purple-500/20">
+          <span className="px-3 py-1 rounded-full bg-purple-500/10 text-purple-700 dark:bg-purple-950/60 dark:text-[#ff8038] text-xs font-black uppercase tracking-wider border border-purple-500/20">
             {isBn ? 'ইয়ারইনভো পরিচিতি' : 'ABOUT YEARINVO'}
           </span>
           <h2 className="text-2xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
@@ -82,7 +82,7 @@ export const LandingAbout: React.FC = () => {
           className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-6 sm:p-10 shadow-xs space-y-6"
         >
           <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
-            <div className="w-12 h-12 rounded-2xl bg-[#7C3AED]/10 text-[#7C3AED] dark:text-[#a78bfa] flex items-center justify-center shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-[#ff5c01]/10 text-[#ff5c01] dark:text-[#ff8038] flex items-center justify-center shrink-0">
               <Building2 className="w-6 h-6" />
             </div>
             <div>
@@ -109,7 +109,7 @@ export const LandingAbout: React.FC = () => {
               whileHover={{ y: -3 }}
               className="p-5 rounded-2xl bg-purple-500/5 dark:bg-slate-950/80 border border-purple-500/20 space-y-2"
             >
-              <div className="flex items-center gap-2 text-purple-700 dark:text-[#a78bfa]">
+              <div className="flex items-center gap-2 text-purple-700 dark:text-[#ff8038]">
                 <Target className="w-5 h-5" />
                 <h4 className="text-sm font-black uppercase tracking-wider">{isBn ? 'আমাদের মিশন' : 'OUR MISSION'}</h4>
               </div>
@@ -158,7 +158,7 @@ export const LandingAbout: React.FC = () => {
                   whileHover={{ y: -4, transition: { duration: 0.2 } }}
                   className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 flex items-start gap-3.5 shadow-xs"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-[#7C3AED] dark:text-[#a78bfa] flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-[#ff5c01] dark:text-[#ff8038] flex items-center justify-center shrink-0">
                     <Icon className="w-5 h-5" />
                   </div>
                   <div className="space-y-1">

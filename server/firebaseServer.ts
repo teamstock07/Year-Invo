@@ -14,37 +14,33 @@ import {
 import fs from 'fs';
 import path from 'path';
 
-let firebaseConfig: any = {
-  apiKey: process.env.VITE_FIREBASE_API_KEY,
-  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.VITE_FIREBASE_APP_ID,
-};
-
-// Fallback to reading firebase-applet-config.json
+// Load configuration directly from firebase-applet-config.json
+let firebaseConfig: any = {};
 try {
   const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
   if (fs.existsSync(configPath)) {
     const raw = fs.readFileSync(configPath, 'utf8');
-    const jsonConfig = JSON.parse(raw);
-    firebaseConfig = {
-      ...jsonConfig,
-      apiKey: firebaseConfig.apiKey || jsonConfig.apiKey,
-      authDomain: firebaseConfig.authDomain || jsonConfig.authDomain,
-      projectId: firebaseConfig.projectId || jsonConfig.projectId,
-      storageBucket: firebaseConfig.storageBucket || jsonConfig.storageBucket,
-      messagingSenderId: firebaseConfig.messagingSenderId || jsonConfig.messagingSenderId,
-      appId: firebaseConfig.appId || jsonConfig.appId,
-    };
+    firebaseConfig = JSON.parse(raw);
   }
 } catch (e) {
   console.warn('[Server Firebase] Could not load firebase-applet-config.json:', e);
 }
 
+// Fallback to environment variables if config was not fully populated
+firebaseConfig = {
+  apiKey: firebaseConfig.apiKey || process.env.VITE_FIREBASE_API_KEY,
+  authDomain: firebaseConfig.authDomain || process.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: firebaseConfig.projectId || process.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: firebaseConfig.storageBucket || process.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: firebaseConfig.messagingSenderId || process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: firebaseConfig.appId || process.env.VITE_FIREBASE_APP_ID,
+  firestoreDatabaseId: firebaseConfig.firestoreDatabaseId,
+};
+
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
-export const serverDb = getFirestore(app);
+export const serverDb = firebaseConfig.firestoreDatabaseId
+  ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+  : getFirestore(app);
 
 export {
   doc,

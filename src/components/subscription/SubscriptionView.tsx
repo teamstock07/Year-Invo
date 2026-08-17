@@ -427,7 +427,7 @@ const subTranslations: Record<string, SubDict> = {
 };
 
 export const SubscriptionView: React.FC = () => {
-  const { user, updateUser, language, settings, requestSubscription, exchangeRates } = useApp();
+  const { user, updateUser, language, settings, requestSubscription, activateUserSubscription, exchangeRates } = useApp();
   const currentPlan = user?.subscriptionPlan || 'Free';
   const displayCurrency = settings.currency || '৳';
   const normCurrency = normalizeCurrencyCode(displayCurrency);
@@ -438,8 +438,9 @@ export const SubscriptionView: React.FC = () => {
   // Dual Payment System Selection State
   const [requestPlan, setRequestPlan] = useState<'Pro' | 'Business' | null>(null);
   const [activeRegion, setActiveRegion] = useState<PaymentRegionId>(isBDT ? 'bangladesh' : 'international');
-  const [selectedProviderId, setSelectedProviderId] = useState<string>(isBDT ? 'bkash' : 'paddle');
+  const [selectedProviderId, setSelectedProviderId] = useState<string>(isBDT ? 'bkash' : 'paddle_checkout');
   const [transactionId, setTransactionId] = useState('');
+  const [intlManualMode, setIntlManualMode] = useState(false);
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -527,16 +528,39 @@ export const SubscriptionView: React.FC = () => {
         userId: user.id,
         userEmail: user.email,
         brandName: user.brandName,
+        onSuccess: async (data: any) => {
+          setIsSubmitting(false);
+          const txId = data?.transaction_id || data?.id || `PADDLE_${Date.now()}`;
+          try {
+            await activateUserSubscription({
+              userId: user.id,
+              plan: requestPlan,
+              billingPeriod: billingCycle,
+              paymentMethod: 'Paddle Billing (Card/PayPal)',
+              paymentProvider: 'Paddle',
+              paymentRegion: 'international',
+              transactionId: txId,
+              currency: 'USD',
+            });
+            setRequestPlan(null);
+            setSubmittedSuccess(true);
+            setTimeout(() => setSubmittedSuccess(false), 7000);
+          } catch (e: any) {
+            console.error('[Subscription Activation Error]:', e);
+          }
+        },
         onClose: () => setIsSubmitting(false),
         onError: (err: any) => {
           setIsSubmitting(false);
-          setSubmitError(err?.message || 'Paddle checkout encountered an error.');
+          setSubmitError(err?.message || 'Paddle checkout encountered an error. You can submit your payment transaction reference below for manual approval.');
+          setIntlManualMode(true);
         },
       });
       setIsSubmitting(false);
     } catch (err: any) {
       console.error('[Paddle Checkout Launch Error]:', err);
-      setSubmitError(err.message || 'Failed to initialize Paddle Checkout. Please verify your internet connection.');
+      setSubmitError('Paddle automated popup was blocked or unavailable. You can enter your payment reference / transaction ID below for immediate review.');
+      setIntlManualMode(true);
       setIsSubmitting(false);
     }
   };
@@ -1227,7 +1251,7 @@ export const SubscriptionView: React.FC = () => {
             )}
 
             {/* Transaction ID Form Submission or Paddle Checkout */}
-            {selectedProvider?.region === 'international' || selectedProvider?.id === 'paddle' ? (
+            {activeRegion === 'international' && !intlManualMode ? (
               <div className="space-y-4 pt-1">
                 {submitError && (
                   <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs font-medium">
@@ -1261,32 +1285,45 @@ export const SubscriptionView: React.FC = () => {
                 </p>
 
                 {/* Primary Action Button */}
-                <div className="flex flex-col sm:flex-row justify-end gap-2.5">
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-2.5 pt-1">
                   <button
                     type="button"
-                    disabled={isSubmitting}
-                    onClick={() => setRequestPlan(null)}
-                    className="px-4 py-3 bg-slate-800/80 text-slate-300 rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                    onClick={() => {
+                      setIntlManualMode(true);
+                      setSubmitError(null);
+                    }}
+                    className="text-xs text-blue-400 hover:text-blue-300 underline cursor-pointer"
                   >
-                    Cancel
+                    Or submit transaction ID / reference manually
                   </button>
-                  <button
-                    type="button"
-                    disabled={isSubmitting}
-                    onClick={handleLaunchPaddleCheckout}
-                    className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-extrabold cursor-pointer shadow-lg shadow-blue-600/25 disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
-                  >
-                    {isSubmitting ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <CreditCard className="w-4 h-4" />
-                    )}
-                    <span>
-                      {isSubmitting
-                        ? 'Opening Secure Payment...'
-                        : 'Continue to Secure Payment'}
-                    </span>
-                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => setRequestPlan(null)}
+                      className="px-4 py-3 bg-slate-800/80 text-slate-300 rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={handleLaunchPaddleCheckout}
+                      className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-extrabold cursor-pointer shadow-lg shadow-blue-600/25 disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
+                    >
+                      {isSubmitting ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <CreditCard className="w-4 h-4" />
+                      )}
+                      <span>
+                        {isSubmitting
+                          ? 'Opening Secure Payment...'
+                          : 'Continue to Secure Payment'}
+                      </span>
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -1309,7 +1346,7 @@ export const SubscriptionView: React.FC = () => {
                     required
                     value={transactionId}
                     onChange={(e) => setTransactionId(e.target.value)}
-                    placeholder="e.g. TrxID TRX982347192"
+                    placeholder="e.g. TrxID TRX982347192 or Paddle/PayPal Invoice #"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-[#ff5c01] focus:ring-1 focus:ring-[#ff5c01]"
                   />
                 </div>
@@ -1340,27 +1377,39 @@ export const SubscriptionView: React.FC = () => {
                 </p>
 
                 {/* Modal Buttons */}
-                <div className="flex justify-end gap-3 pt-2">
-                  <button
-                    type="button"
-                    disabled={isSubmitting}
-                    onClick={() => setRequestPlan(null)}
-                    className="px-4 py-2.5 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-700 disabled:opacity-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="px-5 py-2.5 bg-[#ff5c01] hover:bg-[#e05100] text-white rounded-xl text-xs font-extrabold cursor-pointer shadow-lg shadow-[#ff5c01]/20 disabled:opacity-50 flex items-center gap-2 transition-colors"
-                  >
-                    {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                    <span>
-                      {isSubmitting
-                        ? 'Submitting Request...'
-                        : 'Submit Payment for Verification'}
-                    </span>
-                  </button>
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-2">
+                  {activeRegion === 'international' ? (
+                    <button
+                      type="button"
+                      onClick={() => setIntlManualMode(false)}
+                      className="text-xs text-blue-400 hover:text-blue-300 underline cursor-pointer"
+                    >
+                      ← Back to automated checkout
+                    </button>
+                  ) : <div />}
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => setRequestPlan(null)}
+                      className="px-4 py-2.5 bg-slate-800 text-slate-300 rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-700 disabled:opacity-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="px-5 py-2.5 bg-[#ff5c01] hover:bg-[#e05100] text-white rounded-xl text-xs font-extrabold cursor-pointer shadow-lg shadow-[#ff5c01]/20 disabled:opacity-50 flex items-center gap-2 transition-colors"
+                    >
+                      {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      <span>
+                        {isSubmitting
+                          ? 'Submitting Request...'
+                          : 'Submit Payment for Verification'}
+                      </span>
+                    </button>
+                  </div>
                 </div>
               </form>
             )}

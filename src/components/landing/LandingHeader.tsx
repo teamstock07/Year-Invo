@@ -64,10 +64,10 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({
           />
           <div className="flex flex-col">
             <div className="flex items-center gap-1.5">
-              <span className="font-black text-base sm:text-lg text-slate-900 dark:text-white tracking-tight leading-tight group-hover:text-[#7C3AED] transition-colors">
+              <span className="font-black text-base sm:text-lg text-slate-900 dark:text-white tracking-tight leading-tight group-hover:text-[#ff5c01] transition-colors">
                 {settings.siteBrandName || 'YearInvo'}
               </span>
-              <span className="text-[9px] sm:text-[10px] bg-purple-500/10 dark:bg-[#7C3AED]/20 border border-purple-500/20 dark:border-[#7C3AED]/40 text-purple-700 dark:text-[#a78bfa] font-extrabold uppercase px-1.5 py-0.5 rounded-md">
+              <span className="text-[9px] sm:text-[10px] bg-purple-500/10 dark:bg-[#ff5c01]/20 border border-purple-500/20 dark:border-[#ff5c01]/40 text-purple-700 dark:text-[#ff8038] font-extrabold uppercase px-1.5 py-0.5 rounded-md">
                 {settings.siteSubBrandName !== undefined ? settings.siteSubBrandName : 'by Year Media'}
               </span>
             </div>
@@ -144,7 +144,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({
 
             <button
               onClick={onOpenSignup}
-              className="px-4 py-1.5 text-xs font-black text-white bg-[#7C3AED] hover:bg-[#6d28d9] rounded-xl shadow-md shadow-[#7C3AED]/25 transition-all cursor-pointer flex items-center gap-1.5"
+              className="px-4 py-1.5 text-xs font-black text-white bg-[#ff5c01] hover:bg-[#e05100] rounded-xl shadow-md shadow-[#ff5c01]/25 transition-all cursor-pointer flex items-center gap-1.5"
             >
               <Sparkles className="w-3.5 h-3.5" />
               <span>{t('landing.getStarted') || t('signUp')}</span>
@@ -157,7 +157,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({
             className="p-1.5 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden cursor-pointer"
             title="Toggle Menu"
           >
-            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5 text-[#7C3AED]" />}
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5 text-[#ff5c01]" />}
           </button>
         </div>
       </div>
@@ -196,7 +196,7 @@ export const LandingHeader: React.FC<LandingHeaderProps> = ({
                 onOpenSignup();
                 setMobileMenuOpen(false);
               }}
-              className="flex-1 py-2 text-xs font-black text-white bg-[#7C3AED] rounded-xl text-center shadow-md shadow-[#7C3AED]/20 flex items-center justify-center gap-1"
+              className="flex-1 py-2 text-xs font-black text-white bg-[#ff5c01] rounded-xl text-center shadow-md shadow-[#ff5c01]/20 flex items-center justify-center gap-1"
             >
               <Sparkles className="w-3.5 h-3.5" />
               <span>{t('landing.getStarted') || t('signUp')}</span>

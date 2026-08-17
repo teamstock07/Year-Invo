@@ -10,6 +10,8 @@ declare global {
 let paddleInitPromise: Promise<any> | null = null;
 let isPaddleInitialized = false;
 let activeOnErrorCallback: ((err: any) => void) | null = null;
+let activeOnSuccessCallback: ((data: any) => void) | null = null;
+let activeOnCloseCallback: (() => void) | null = null;
 
 /**
  * Dynamically loads official Paddle.js Billing (v2) from CDN and initializes it once.
@@ -49,7 +51,22 @@ export const initializePaddle = (): Promise<any> => {
               eventCallback: (event: any) => {
                 const eventName = event?.name || event?.type || 'event';
                 console.log(`[PADDLE DEBUG] Paddle Event: ${eventName}`, event);
-                if (eventName === 'checkout.error' || eventName === 'error') {
+                
+                if (
+                  eventName === 'checkout.completed' ||
+                  eventName === 'transaction.completed' ||
+                  eventName === 'subscription.activated'
+                ) {
+                  console.log('[PADDLE DEBUG] Payment Success Event Received:', event);
+                  if (activeOnSuccessCallback) {
+                    activeOnSuccessCallback(event?.data || event);
+                  }
+                } else if (eventName === 'checkout.closed' || eventName === 'checkout.close') {
+                  console.log('[PADDLE DEBUG] Checkout Closed Event');
+                  if (activeOnCloseCallback) {
+                    activeOnCloseCallback();
+                  }
+                } else if (eventName === 'checkout.error' || eventName === 'error') {
                   console.error('[PADDLE DEBUG] Paddle Checkout Error Event:', event);
 
                   let userMsg = 'Paddle checkout encountered an error.';
@@ -135,6 +152,8 @@ export interface OpenCheckoutOptions {
  */
 export const openPaddleCheckout = async (options: OpenCheckoutOptions): Promise<void> => {
   activeOnErrorCallback = options.onError || null;
+  activeOnSuccessCallback = options.onSuccess || null;
+  activeOnCloseCallback = options.onClose || null;
   const priceId = getPaddlePriceId(options.plan, options.billingCycle);
 
   // --- Pre-flight Diagnostics & Debug Logging ---

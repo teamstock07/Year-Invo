@@ -585,13 +585,18 @@ export interface UserProfile {
   notes?: string;
   dashboardPreferences?: DashboardPreferences;
 
-  // Paddle Subscription details
+  // Subscription details
+  startDate?: string;
+  expiryDate?: string;
+  billingPeriod?: BillingCycle;
+  transactionId?: string;
+  paymentMethod?: string;
+  paymentProvider?: string;
+  paymentRegion?: 'international' | 'bangladesh';
   paddleCustomerId?: string;
   paddleSubscriptionId?: string;
   paddlePriceId?: string;
   billingCycle?: BillingCycle;
-  paymentProvider?: string;
-  paymentRegion?: 'international' | 'bangladesh';
   currentPeriodStart?: string;
   currentPeriodEnd?: string;
 }
@@ -615,6 +620,9 @@ export interface SubscriptionRequest {
   requestDate: string;
   reviewedDate?: string;
   approvedBy?: string;
+  startDate?: string;
+  expiryDate?: string;
+  billingPeriod?: BillingCycle;
   cancelledAt?: string;
   cancelledBy?: string;
   previousPlan?: SubscriptionPlan;

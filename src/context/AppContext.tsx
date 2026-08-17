@@ -16,6 +16,8 @@ import {
   updateDoc,
   collection,
   getDocs,
+  query,
+  where,
   onSnapshot,
   serverTimestamp,
   deleteField,
@@ -89,6 +91,33 @@ import {
 import { isBangladeshCountry } from '../config/pricing';
 import { generateSystemNotifications } from '../services/notificationService';
 
+export const normalizePlan = (rawPlan: any): SubscriptionPlan => {
+  if (!rawPlan) return 'Free';
+  const str = String(rawPlan).trim();
+  if (/^lifetime$/i.test(str)) return 'Lifetime';
+  if (/^pro$/i.test(str)) return 'Pro';
+  if (/^premium$/i.test(str)) return 'Premium';
+  if (/^business$/i.test(str)) return 'Business';
+  if (/^tier2$/i.test(str)) return 'Tier2';
+  if (/^starter$/i.test(str)) return 'Starter';
+  if (/^free$/i.test(str)) return 'Free';
+  return (str as SubscriptionPlan) || 'Free';
+};
+
+export const calculateSubscriptionExpiry = (startDate: Date | string, billingPeriod: BillingCycle | string): string => {
+  const start = new Date(startDate);
+  const expiry = new Date(start);
+  if (billingPeriod === 'five_year') {
+    expiry.setFullYear(expiry.getFullYear() + 5);
+  } else if (billingPeriod === 'yearly') {
+    expiry.setFullYear(expiry.getFullYear() + 1);
+  } else {
+    // monthly
+    expiry.setMonth(expiry.getMonth() + 1);
+  }
+  return expiry.toISOString();
+};
+
 interface AppContextType {
   // Auth & Profile
   user: UserProfile | null;
@@ -108,11 +137,11 @@ interface AppContextType {
   unblockUser: (userId: string) => void;
   deleteUser: (userId: string) => void;
   resetUserPassword: (userId: string, newPass: string) => void;
-  updateUserPlan: (userId: string, newPlan: SubscriptionPlan) => void;
+  updateUserPlan: (userId: string, newPlan: SubscriptionPlan, billingPeriod?: BillingCycle) => void;
   updateUserData: (userId: string, data: Partial<UserProfile>) => void;
   refreshUsers: () => Promise<void>;
 
-  // Subscription Approval System
+  // Subscription Approval & Activation System
   subscriptionRequests: SubscriptionRequest[];
   requestSubscription: (data: {
     requestedPlan: SubscriptionPlan;
@@ -124,6 +153,18 @@ interface AppContextType {
     transactionId?: string;
     amount: number;
   }) => Promise<boolean>;
+  activateUserSubscription: (params: {
+    userId: string;
+    plan: SubscriptionPlan;
+    billingPeriod: BillingCycle;
+    paymentMethod?: string;
+    paymentProvider?: string;
+    paymentRegion?: 'international' | 'bangladesh';
+    transactionId?: string;
+    amount?: number;
+    currency?: string;
+  }) => Promise<void>;
+  calculateSubscriptionExpiry: (startDate: Date | string, billingPeriod: BillingCycle | string) => string;
   approveSubscriptionRequest: (requestId: string) => Promise<void>;
   rejectSubscriptionRequest: (requestId: string, notes?: string) => Promise<void>;
   cancelSubscriptionRequest: (requestId: string, notes?: string) => Promise<void>;
@@ -461,105 +502,170 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const userEmail = (firebaseUser.email || (docSnap.exists() ? docSnap.data()?.email : '') || '').toLowerCase();
           const isAdmin = isTeamStockAdmin(userEmail);
 
+          let uData: any = null;
+
           if (docSnap.exists()) {
-            const uData = docSnap.data();
-            const roleRaw = uData.role || uData.roleName || 'Manager';
-            const normalizedRole: UserRole = (isAdmin || roleRaw.toString().toLowerCase() === 'owner' || roleRaw.toString().toLowerCase() === 'admin' || roleRaw.toString().toLowerCase() === 'platformowner') ? 'Owner' : 'Manager';
-
-            if (isAdmin && (uData.role !== 'owner' || uData.subscriptionPlan !== 'Lifetime')) {
-              try {
-                updateDoc(userRef, { role: 'owner', subscriptionPlan: 'Lifetime', subscription: 'lifetime' });
-              } catch (e) {
-                console.warn('Sync admin role notice:', e);
-              }
-            }
-
-            if (uData.status === 'suspended' && !isAdmin) {
-              await signOut(auth);
-              setUser(null);
-              return;
-            }
-
-            let savedBrand = '';
+            uData = docSnap.data();
+          } else if (userEmail) {
+            // Check if user profile was stored under another document matching this email
             try {
-              const savedSet = localStorage.getItem('biz_settings');
-              if (savedSet) {
-                const pSet = JSON.parse(savedSet);
-                if (pSet && pSet.brandName && pSet.brandName !== 'My Store') {
-                  savedBrand = pSet.brandName;
+              const q = query(collection(db, 'users'), where('email', '==', userEmail));
+              const querySnap = await getDocs(q);
+              if (!querySnap.empty) {
+                uData = querySnap.docs[0].data();
+                console.log('[Auth] Located existing user profile by email match:', userEmail);
+              }
+            } catch (queryErr) {
+              console.warn('[Auth] Email lookup notice:', queryErr);
+            }
+          }
+
+          const roleRaw = uData?.role || uData?.roleName || (isAdmin ? 'Owner' : 'Manager');
+          const normalizedRole: UserRole = (isAdmin || roleRaw.toString().toLowerCase() === 'owner' || roleRaw.toString().toLowerCase() === 'admin' || roleRaw.toString().toLowerCase() === 'platformowner') ? 'Owner' : 'Manager';
+
+          if (isAdmin && (!uData || uData.role !== 'owner' || uData.subscriptionPlan !== 'Lifetime')) {
+            try {
+              setDoc(userRef, {
+                uid: firebaseUser.uid,
+                id: firebaseUser.uid,
+                email: userEmail,
+                role: 'owner',
+                subscriptionPlan: 'Lifetime',
+                subscription: 'lifetime',
+                subscriptionStatus: 'active',
+                status: 'active',
+                updatedAt: serverTimestamp(),
+              }, { merge: true });
+            } catch (e) {
+              console.warn('Sync admin role notice:', e);
+            }
+          }
+
+          if (uData?.status === 'suspended' && !isAdmin) {
+            await signOut(auth);
+            setUser(null);
+            return;
+          }
+
+          let savedBrand = '';
+          try {
+            const savedSet = localStorage.getItem('biz_settings');
+            if (savedSet) {
+              const pSet = JSON.parse(savedSet);
+              if (pSet && pSet.brandName && pSet.brandName !== 'My Store') {
+                savedBrand = pSet.brandName;
+              }
+            }
+            if (!savedBrand) {
+              const savedU = localStorage.getItem('biz_user');
+              if (savedU && savedU !== 'null') {
+                const pU = JSON.parse(savedU);
+                if (pU && pU.brandName && pU.brandName !== 'My Store') {
+                  savedBrand = pU.brandName;
                 }
               }
-              if (!savedBrand) {
-                const savedU = localStorage.getItem('biz_user');
-                if (savedU && savedU !== 'null') {
-                  const pU = JSON.parse(savedU);
-                  if (pU && pU.brandName && pU.brandName !== 'My Store') {
-                    savedBrand = pU.brandName;
-                  }
-                }
-              }
+            }
+          } catch (e) {}
+
+          const fsBrand = uData?.brandName || uData?.storeName || '';
+          const effectiveBrandName = fsBrand && fsBrand !== 'My Store' ? fsBrand : (savedBrand || fsBrand || 'My Store');
+
+          if (savedBrand && fsBrand !== savedBrand) {
+            try {
+              updateDoc(userRef, { brandName: savedBrand, storeName: savedBrand });
             } catch (e) {}
+          }
 
-            const fsBrand = uData.brandName || uData.storeName || '';
-            const effectiveBrandName = fsBrand && fsBrand !== 'My Store' ? fsBrand : (savedBrand || fsBrand || 'My Store');
+          const userPreferredLang = uData?.preferredLanguage || uData?.language;
+          const subPlan: SubscriptionPlan = isAdmin ? 'Lifetime' : ((uData?.subscriptionPlan || uData?.subscription || 'Free') as SubscriptionPlan);
+          const subStatus = uData?.subscriptionStatus || 'active';
+          const subPending = uData?.pendingPlan || undefined;
+          const subStartDate = uData?.startDate || uData?.currentPeriodStart || undefined;
+          const subExpiryDate = uData?.expiryDate || uData?.currentPeriodEnd || undefined;
+          const subBillingPeriod = (uData?.billingPeriod || uData?.billingCycle || 'monthly') as BillingCycle;
 
-            if (savedBrand && fsBrand !== savedBrand) {
-              try {
-                updateDoc(userRef, { brandName: savedBrand, storeName: savedBrand });
-              } catch (e) {}
-            }
+          const profile: UserProfile = {
+            id: firebaseUser.uid,
+            brandName: effectiveBrandName,
+            ownerName: uData?.ownerName || uData?.fullName || firebaseUser.displayName || (isAdmin ? 'Admin Owner' : 'Store Owner'),
+            fullName: uData?.fullName || uData?.ownerName || firebaseUser.displayName || (isAdmin ? 'Admin Owner' : 'Store Owner'),
+            name: uData?.name || uData?.fullName || uData?.ownerName || '',
+            mobile: uData?.mobile || uData?.phone || '',
+            email: firebaseUser.email || uData?.email || userEmail,
+            businessType: uData?.businessType || uData?.storeType || 'General Retail & Grocery',
+            country: uData?.country || 'Bangladesh',
+            preferredLanguage: userPreferredLang && SUPPORTED_LANGUAGES.some((l) => l.code === userPreferredLang) ? (userPreferredLang as Language) : undefined,
+            currency: uData?.currency || '৳',
+            timeZone: uData?.timeZone || 'Asia/Dhaka',
+            role: normalizedRole,
+            subscriptionPlan: subPlan,
+            subscriptionStatus: subStatus,
+            pendingPlan: subPending,
+            startDate: subStartDate,
+            expiryDate: subExpiryDate,
+            billingPeriod: subBillingPeriod,
+            transactionId: uData?.transactionId || undefined,
+            paymentMethod: uData?.paymentMethod || uData?.paymentProvider || undefined,
+            status: uData?.status || 'active',
+            storeAddress: uData?.storeAddress || uData?.address || '',
+            affiliateCode: uData?.affiliateCode || '',
+            affiliateProgram: uData?.affiliateProgram || '',
+            verifiedEmail: true,
+            verifiedPhone: true,
+            createdAt: uData?.createdAt ? (typeof uData.createdAt === 'string' ? uData.createdAt : new Date().toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
+            dashboardPreferences: uData?.dashboardPreferences ? { ...defaultDashboardPreferences, ...uData.dashboardPreferences } : defaultDashboardPreferences,
+          };
 
-            const userPreferredLang = uData.preferredLanguage || uData.language;
-            const profile: UserProfile = {
-              id: firebaseUser.uid,
-              brandName: effectiveBrandName,
-              ownerName: uData.ownerName || uData.fullName || firebaseUser.displayName || 'Store Owner',
-              fullName: uData.fullName || uData.ownerName || firebaseUser.displayName || 'Store Owner',
-              name: uData.name || uData.fullName || uData.ownerName || '',
-              mobile: uData.mobile || uData.phone || '',
-              email: firebaseUser.email || uData.email || userEmail,
-              businessType: uData.businessType || uData.storeType || 'General Retail & Grocery',
-              country: uData.country || 'Bangladesh',
-              preferredLanguage: userPreferredLang && SUPPORTED_LANGUAGES.some((l) => l.code === userPreferredLang) ? (userPreferredLang as Language) : undefined,
-              currency: uData.currency || '৳',
-              timeZone: uData.timeZone || 'Asia/Dhaka',
-              role: normalizedRole,
-              subscriptionPlan: isAdmin ? 'Lifetime' : ((uData.subscriptionPlan || uData.subscription || 'Free') as SubscriptionPlan),
-              subscriptionStatus: uData.subscriptionStatus || 'active',
-              status: uData.status || 'active',
-              storeAddress: uData.storeAddress || uData.address || '',
-              affiliateCode: uData.affiliateCode || '',
-              affiliateProgram: uData.affiliateProgram || '',
-              verifiedEmail: true,
-              verifiedPhone: true,
-              createdAt: uData.createdAt ? (typeof uData.createdAt === 'string' ? uData.createdAt : new Date().toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
-              dashboardPreferences: uData.dashboardPreferences ? { ...defaultDashboardPreferences, ...uData.dashboardPreferences } : defaultDashboardPreferences,
-            };
+          // If document didn't exist in Firestore, save it now with merge
+          if (!docSnap.exists()) {
+            try {
+              setDoc(userRef, {
+                uid: firebaseUser.uid,
+                id: firebaseUser.uid,
+                fullName: profile.fullName,
+                ownerName: profile.ownerName,
+                email: profile.email,
+                brandName: profile.brandName,
+                storeName: profile.brandName,
+                businessType: profile.businessType,
+                storeType: profile.businessType,
+                mobile: profile.mobile,
+                phone: profile.mobile,
+                role: isAdmin ? 'owner' : (normalizedRole === 'Owner' ? 'owner' : 'manager'),
+                subscriptionPlan: subPlan,
+                subscription: subPlan.toLowerCase(),
+                subscriptionStatus: subStatus,
+                status: 'active',
+                createdAt: uData?.createdAt || serverTimestamp(),
+              }, { merge: true });
+            } catch (createErr) {
+              console.warn('[Auth] Notice setting user document:', createErr);
+            }
+          }
 
-            setUser(profile);
-            if (uData.dashboardPreferences && typeof uData.dashboardPreferences === 'object') {
-              const loadedPrefs = { ...defaultDashboardPreferences, ...uData.dashboardPreferences };
-              setDashboardPreferences(loadedPrefs);
-              localStorage.setItem('biz_dashboard_preferences', JSON.stringify(loadedPrefs));
-              localStorage.setItem(`biz_dashboard_preferences_${firebaseUser.uid}`, JSON.stringify(loadedPrefs));
-            }
-            if (userPreferredLang && SUPPORTED_LANGUAGES.some((l) => l.code === userPreferredLang)) {
-              setLanguageState(userPreferredLang as Language);
-              localStorage.setItem('biz_language', userPreferredLang);
-            }
-            if (profile.brandName) {
-              setSettings((prev) => ({ ...prev, brandName: profile.brandName }));
-            }
-            if (uData.paymentSettings || uData.storeSettings?.payment) {
-              const pSet = uData.paymentSettings || uData.storeSettings?.payment;
-              setSettings((prev) => ({
-                ...prev,
-                paymentSettings: parseOwnerPaymentSettings(pSet),
-              }));
-            }
-            if (normalizedRole === 'Owner') {
-              setActiveTabState('owner');
-            }
+          setUser(profile);
+          if (uData?.dashboardPreferences && typeof uData.dashboardPreferences === 'object') {
+            const loadedPrefs = { ...defaultDashboardPreferences, ...uData.dashboardPreferences };
+            setDashboardPreferences(loadedPrefs);
+            localStorage.setItem('biz_dashboard_preferences', JSON.stringify(loadedPrefs));
+            localStorage.setItem(`biz_dashboard_preferences_${firebaseUser.uid}`, JSON.stringify(loadedPrefs));
+          }
+          if (userPreferredLang && SUPPORTED_LANGUAGES.some((l) => l.code === userPreferredLang)) {
+            setLanguageState(userPreferredLang as Language);
+            localStorage.setItem('biz_language', userPreferredLang);
+          }
+          if (profile.brandName) {
+            setSettings((prev) => ({ ...prev, brandName: profile.brandName }));
+          }
+          if (uData?.paymentSettings || uData?.storeSettings?.payment) {
+            const pSet = uData.paymentSettings || uData.storeSettings?.payment;
+            setSettings((prev) => ({
+              ...prev,
+              paymentSettings: parseOwnerPaymentSettings(pSet),
+            }));
+          }
+          if (normalizedRole === 'Owner') {
+            setActiveTabState('owner');
           }
         } catch (err) {
           console.warn('Error fetching authenticated user profile from Firestore:', err);
@@ -641,10 +747,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           }
 
+          const subPending = uData.pendingPlan || undefined;
+          const subStartDate = uData.startDate || uData.currentPeriodStart || undefined;
+          const subExpiryDate = uData.expiryDate || uData.currentPeriodEnd || undefined;
+          const subBillingPeriod = (uData.billingPeriod || uData.billingCycle || 'monthly') as BillingCycle;
+
           list.push({
             id: docSnap.id || uData.uid || uData.id,
             brandName: uData.brandName || uData.storeName || 'My Store',
             ownerName: uData.ownerName || uData.fullName || 'Store Owner',
+            fullName: uData.fullName || uData.ownerName || 'Store Owner',
+            name: uData.name || uData.fullName || uData.ownerName || '',
             mobile: uData.mobile || uData.phone || '',
             email: uData.email || '',
             businessType: uData.businessType || uData.storeType || 'General Retail & Grocery',
@@ -654,6 +767,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             role: normalizedRole,
             subscriptionPlan: assignedPlan,
             subscriptionStatus: uData.subscriptionStatus || 'active',
+            pendingPlan: subPending,
+            startDate: subStartDate,
+            expiryDate: subExpiryDate,
+            billingPeriod: subBillingPeriod,
+            transactionId: uData.transactionId || undefined,
+            paymentMethod: uData.paymentMethod || uData.paymentProvider || undefined,
+            paymentProvider: uData.paymentProvider || undefined,
+            paymentRegion: uData.paymentRegion || undefined,
             status: (uData.status as any) || 'active',
             storeAddress: uData.storeAddress || uData.address || '',
             affiliateCode: uData.affiliateCode || '',
@@ -674,11 +795,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (currentInList) {
             setUser((prev) => {
               if (!prev) return currentInList;
-              if (prev.role !== currentInList.role || prev.status !== currentInList.status) {
-                if (currentInList.role === 'Owner') {
+              const hasChanged =
+                prev.role !== currentInList.role ||
+                prev.status !== currentInList.status ||
+                prev.subscriptionPlan !== currentInList.subscriptionPlan ||
+                prev.subscriptionStatus !== currentInList.subscriptionStatus ||
+                prev.pendingPlan !== currentInList.pendingPlan ||
+                prev.expiryDate !== currentInList.expiryDate ||
+                prev.billingPeriod !== currentInList.billingPeriod ||
+                prev.brandName !== currentInList.brandName;
+
+              if (hasChanged) {
+                if (currentInList.role === 'Owner' && prev.role !== 'Owner') {
                   setActiveTabState('owner');
                 }
-                return currentInList;
+                return {
+                  ...prev,
+                  ...currentInList,
+                };
               }
               return prev;
             });
@@ -724,12 +858,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             requestedPlan: d.requestedPlan || 'Pro',
             billingCycle: d.billingCycle || 'monthly',
             paymentMethod: d.paymentMethod || 'bKash',
+            paymentProvider: d.paymentProvider || d.paymentMethod || 'bKash',
+            paymentRegion: d.paymentRegion || (d.currency === 'USD' ? 'international' : 'bangladesh'),
+            currency: d.currency || (d.paymentRegion === 'international' ? 'USD' : 'BDT'),
             transactionId: d.transactionId || '',
-            amount: d.amount || 0,
+            amount: typeof d.amount === 'number' ? d.amount : 0,
             status: d.status || 'pending',
             requestDate: dateStr,
             reviewedDate: d.reviewedDate || '',
             approvedBy: d.approvedBy || d.reviewedBy || '',
+            startDate: d.startDate || undefined,
+            expiryDate: d.expiryDate || undefined,
+            billingPeriod: d.billingPeriod || d.billingCycle || 'monthly',
             cancelledAt: d.cancelledAt || '',
             cancelledBy: d.cancelledBy || '',
             previousPlan: d.previousPlan || undefined,
@@ -920,6 +1060,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const currentUserId = user?.id || auth.currentUser?.uid;
     if (!currentUserId) {
       setIsCloudSynced(false);
+      setProducts([]);
+      setCategories(initialCategories);
+      setBrands(initialBrands);
+      setCustomers([]);
+      setSuppliers([]);
+      setExpenses([]);
+      setSales([]);
+      setPurchases([]);
+      setAdjustments([]);
+      setDueCollections([]);
+      setTeamMembers([]);
+      setEmployees([]);
+      setPayrollPayments([]);
+      setSalaryAdjustments([]);
+      setAuditLogs([]);
       return;
     }
 
@@ -932,14 +1087,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             localStorage.setItem(`biz_products_${currentUserId}`, JSON.stringify(cloudProducts));
           } catch (e) {}
         } else {
-          // Cloud empty for this user: migrate local items if they exist on this device
+          // Cloud empty for this user: only migrate local items if they exist specifically for this user
           try {
-            const localSaved = localStorage.getItem(`biz_products_${currentUserId}`) || localStorage.getItem('biz_products');
+            const localSaved = localStorage.getItem(`biz_products_${currentUserId}`);
             const localItems: Product[] = localSaved ? JSON.parse(localSaved) : [];
             if (localItems.length > 0) {
+              setProducts(localItems);
               saveUserCloudCollection(currentUserId, 'products', { items: localItems });
+            } else {
+              setProducts([]);
             }
-          } catch (e) {}
+          } catch (e) {
+            setProducts([]);
+          }
         }
       },
 
@@ -952,12 +1112,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           } catch (e) {}
         } else {
           try {
-            const localSaved = localStorage.getItem(`biz_categories_${currentUserId}`) || localStorage.getItem('biz_categories');
+            const localSaved = localStorage.getItem(`biz_categories_${currentUserId}`);
             const localItems: Category[] = localSaved ? JSON.parse(localSaved) : initialCategories;
             if (localItems.length > 0) {
+              setCategories(localItems);
               saveUserCloudCollection(currentUserId, 'categories', { items: localItems });
+            } else {
+              setCategories(initialCategories);
             }
-          } catch (e) {}
+          } catch (e) {
+            setCategories(initialCategories);
+          }
         }
       },
 
@@ -970,12 +1135,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           } catch (e) {}
         } else {
           try {
-            const localSaved = localStorage.getItem(`biz_brands_${currentUserId}`) || localStorage.getItem('biz_brands');
+            const localSaved = localStorage.getItem(`biz_brands_${currentUserId}`);
             const localItems: Brand[] = localSaved ? JSON.parse(localSaved) : initialBrands;
             if (localItems.length > 0) {
+              setBrands(localItems);
               saveUserCloudCollection(currentUserId, 'brands', { items: localItems });
+            } else {
+              setBrands(initialBrands);
             }
-          } catch (e) {}
+          } catch (e) {
+            setBrands(initialBrands);
+          }
         }
       },
 
@@ -988,12 +1158,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           } catch (e) {}
         } else {
           try {
-            const localSaved = localStorage.getItem(`biz_customers_${currentUserId}`) || localStorage.getItem('biz_customers');
+            const localSaved = localStorage.getItem(`biz_customers_${currentUserId}`);
             const localItems: Customer[] = localSaved ? JSON.parse(localSaved) : [];
             if (localItems.length > 0) {
+              setCustomers(localItems);
               saveUserCloudCollection(currentUserId, 'customers', { items: localItems });
+            } else {
+              setCustomers([]);
             }
-          } catch (e) {}
+          } catch (e) {
+            setCustomers([]);
+          }
         }
       },
 
@@ -1006,12 +1181,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           } catch (e) {}
         } else {
           try {
-            const localSaved = localStorage.getItem(`biz_suppliers_${currentUserId}`) || localStorage.getItem('biz_suppliers');
+            const localSaved = localStorage.getItem(`biz_suppliers_${currentUserId}`);
             const localItems: Supplier[] = localSaved ? JSON.parse(localSaved) : [];
             if (localItems.length > 0) {
+              setSuppliers(localItems);
               saveUserCloudCollection(currentUserId, 'suppliers', { items: localItems });
+            } else {
+              setSuppliers([]);
             }
-          } catch (e) {}
+          } catch (e) {
+            setSuppliers([]);
+          }
         }
       },
 
@@ -1024,12 +1204,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           } catch (e) {}
         } else {
           try {
-            const localSaved = localStorage.getItem(`biz_expenses_${currentUserId}`) || localStorage.getItem('biz_expenses');
+            const localSaved = localStorage.getItem(`biz_expenses_${currentUserId}`);
             const localItems: Expense[] = localSaved ? JSON.parse(localSaved) : [];
             if (localItems.length > 0) {
+              setExpenses(localItems);
               saveUserCloudCollection(currentUserId, 'expenses', { items: localItems });
+            } else {
+              setExpenses([]);
             }
-          } catch (e) {}
+          } catch (e) {
+            setExpenses([]);
+          }
         }
       },
 
@@ -1042,12 +1227,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           } catch (e) {}
         } else {
           try {
-            const localSaved = localStorage.getItem(`biz_sales_${currentUserId}`) || localStorage.getItem('biz_sales');
+            const localSaved = localStorage.getItem(`biz_sales_${currentUserId}`);
             const localItems: Sale[] = localSaved ? JSON.parse(localSaved) : [];
             if (localItems.length > 0) {
+              setSales(localItems);
               saveUserCloudCollection(currentUserId, 'sales', { items: localItems });
+            } else {
+              setSales([]);
             }
-          } catch (e) {}
+          } catch (e) {
+            setSales([]);
+          }
         }
       },
 
@@ -1060,12 +1250,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           } catch (e) {}
         } else {
           try {
-            const localSaved = localStorage.getItem(`biz_purchases_${currentUserId}`) || localStorage.getItem('biz_purchases');
+            const localSaved = localStorage.getItem(`biz_purchases_${currentUserId}`);
             const localItems: Purchase[] = localSaved ? JSON.parse(localSaved) : [];
             if (localItems.length > 0) {
+              setPurchases(localItems);
               saveUserCloudCollection(currentUserId, 'purchases', { items: localItems });
+            } else {
+              setPurchases([]);
             }
-          } catch (e) {}
+          } catch (e) {
+            setPurchases([]);
+          }
         }
       },
 
@@ -1666,9 +1861,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const firebaseUser = userCredential.user;
 
       let docSnap;
+      let uData: any = null;
       try {
         const userRef = doc(db, 'users', firebaseUser.uid);
         docSnap = await getDoc(userRef);
+        if (docSnap.exists()) {
+          uData = docSnap.data();
+        } else {
+          const q = query(collection(db, 'users'), where('email', '==', cleanEmail));
+          const qSnap = await getDocs(q);
+          if (!qSnap.empty) {
+            uData = qSnap.docs[0].data();
+          }
+        }
       } catch (docErr) {
         console.warn('Could not fetch user document from Firestore directly:', docErr);
       }
@@ -1676,8 +1881,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       let foundUser: UserProfile;
       const isAdmin = isTeamStockAdmin(cleanEmail);
 
-      if (docSnap && docSnap.exists()) {
-        const uData = docSnap.data();
+      if (uData) {
         const roleRaw = uData.role || uData.roleName || 'Manager';
         const normalizedRole: UserRole = (isAdmin || roleRaw.toString().toLowerCase() === 'owner' || roleRaw.toString().toLowerCase() === 'admin' || roleRaw.toString().toLowerCase() === 'platformowner') ? 'Owner' : 'Manager';
 
@@ -1693,7 +1897,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         foundUser = {
           id: firebaseUser.uid,
           brandName: uData.brandName || uData.storeName || 'My Store',
-          ownerName: uData.ownerName || uData.fullName || firebaseUser.displayName || 'Store Owner',
+          ownerName: uData.ownerName || uData.fullName || firebaseUser.displayName || (isAdmin ? 'Admin Owner' : 'Store Owner'),
+          fullName: uData.fullName || uData.ownerName || firebaseUser.displayName || (isAdmin ? 'Admin Owner' : 'Store Owner'),
+          name: uData.name || uData.fullName || uData.ownerName || '',
           mobile: uData.mobile || uData.phone || '',
           email: firebaseUser.email || uData.email || cleanEmail,
           businessType: uData.businessType || uData.storeType || 'General Retail & Grocery',
@@ -1711,11 +1917,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           verifiedPhone: true,
           createdAt: uData.createdAt ? (typeof uData.createdAt === 'string' ? uData.createdAt : new Date().toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
         };
+
+        if (!docSnap || !docSnap.exists()) {
+          try {
+            const userRef = doc(db, 'users', firebaseUser.uid);
+            setDoc(userRef, {
+              ...uData,
+              uid: firebaseUser.uid,
+              id: firebaseUser.uid,
+              role: isAdmin ? 'owner' : (normalizedRole === 'Owner' ? 'owner' : 'manager'),
+              subscriptionPlan: isAdmin ? 'Lifetime' : foundUser.subscriptionPlan,
+              subscriptionStatus: 'active',
+              status: 'active',
+            }, { merge: true });
+          } catch (e) {}
+        }
       } else {
         foundUser = {
           id: firebaseUser.uid,
           brandName: 'My Store',
-          ownerName: firebaseUser.displayName || cleanEmail.split('@')[0] || 'Store Owner',
+          ownerName: firebaseUser.displayName || cleanEmail.split('@')[0] || (isAdmin ? 'Admin Owner' : 'Store Owner'),
+          fullName: firebaseUser.displayName || cleanEmail.split('@')[0] || (isAdmin ? 'Admin Owner' : 'Store Owner'),
+          name: '',
           mobile: '',
           email: cleanEmail,
           businessType: 'General Retail & Grocery',
@@ -1733,7 +1956,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         try {
           const userRef = doc(db, 'users', firebaseUser.uid);
-          await setDoc(userRef, {
+          setDoc(userRef, {
             uid: firebaseUser.uid,
             id: firebaseUser.uid,
             fullName: foundUser.ownerName,
@@ -1748,9 +1971,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             role: isAdmin ? 'owner' : 'manager',
             subscriptionPlan: isAdmin ? 'Lifetime' : 'Free',
             subscription: isAdmin ? 'lifetime' : 'free',
+            subscriptionStatus: 'active',
             status: 'active',
             createdAt: serverTimestamp(),
-          });
+          }, { merge: true });
         } catch (setErr) {
           console.warn('Notice setting initial user document:', setErr);
         }
@@ -1936,6 +2160,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('Firebase signOut notice:', e);
     }
     setUser(null);
+    setProducts([]);
+    setSales([]);
+    setCustomers([]);
+    setSuppliers([]);
+    setExpenses([]);
+    setPurchases([]);
+    setAdjustments([]);
+    setDueCollections([]);
+    setTeamMembers([]);
+    setEmployees([]);
+    setPayrollPayments([]);
+    setSalaryAdjustments([]);
+    setAuditLogs([]);
+    setCart([]);
+    setIsCloudSynced(false);
+    try {
+      localStorage.setItem('biz_user', 'null');
+    } catch (e) {}
     logActivity('User Logged Out', 'ব্যবহারকারী লগআউট করেছে');
   };
 
@@ -2050,11 +2292,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logActivity('Deleted User Account', 'অ্যাকোউন্ট ডিঅ্যাক্টিভেট/মুছে ফেলা হয়েছে', userId);
   };
 
-  const updateUserData = (userId: string, data: Partial<UserProfile>) => {
+  const updateUserData = async (userId: string, data: Partial<UserProfile>) => {
     setAllUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, ...data } : u))
     );
-    if (user && user.id === userId) {
+    if (user && (user.id === userId || user.email === data.email)) {
       setUser((prev) => (prev ? { ...prev, ...data } : prev));
     }
     try {
@@ -2066,10 +2308,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.email !== undefined) { fsData.email = data.email; }
       if (data.businessType !== undefined) { fsData.businessType = data.businessType; fsData.storeType = data.businessType; }
       if (data.role !== undefined) { fsData.role = data.role.toLowerCase(); }
-      if (data.subscriptionPlan !== undefined) { fsData.subscriptionPlan = data.subscriptionPlan; fsData.subscription = data.subscriptionPlan.toLowerCase(); }
+      if (data.subscriptionPlan !== undefined) {
+        fsData.subscriptionPlan = data.subscriptionPlan;
+        fsData.subscription = data.subscriptionPlan.toLowerCase();
+        fsData.subscriptionStatus = 'active';
+        fsData.pendingPlan = deleteField();
+      }
       if (data.status !== undefined) { fsData.status = data.status; }
       if (data.notes !== undefined) { fsData.notes = data.notes; }
-      updateDoc(userRef, fsData);
+      await setDoc(userRef, fsData, { merge: true });
     } catch (e) {
       console.warn('Firestore updateUserData notice:', e);
     }
@@ -2141,7 +2388,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logActivity('Reset User Password', 'পাসওয়ার্ড পরিবর্তন করা হয়েছে', userId);
   };
 
-  const updateUserPlan = (userId: string, newPlan: SubscriptionPlan) => {
+  const updateUserPlan = async (userId: string, newPlan: SubscriptionPlan, billingPeriod: BillingCycle = 'monthly') => {
+    const startDate = new Date().toISOString();
+    const expiryDate = newPlan === 'Lifetime' || newPlan === 'Free' ? undefined : calculateSubscriptionExpiry(startDate, billingPeriod);
+
     setAllUsers((prev) =>
       prev.map((u) =>
         u.id === userId
@@ -2149,6 +2399,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               ...u,
               subscriptionPlan: newPlan,
               subscriptionStatus: 'active',
+              startDate,
+              expiryDate,
+              billingPeriod,
               pendingPlan: undefined,
             }
           : u
@@ -2159,10 +2412,162 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...user,
         subscriptionPlan: newPlan,
         subscriptionStatus: 'active',
+        startDate,
+        expiryDate,
+        billingPeriod,
         pendingPlan: undefined,
       });
     }
+
+    try {
+      const userRef = doc(db, 'users', userId);
+      const updateData: Record<string, any> = {
+        subscriptionPlan: newPlan,
+        subscription: newPlan.toLowerCase(),
+        subscriptionStatus: 'active',
+        startDate,
+        billingPeriod,
+        pendingPlan: deleteField(),
+      };
+      if (expiryDate) {
+        updateData.expiryDate = expiryDate;
+      } else {
+        updateData.expiryDate = deleteField();
+      }
+      await setDoc(userRef, updateData, { merge: true });
+    } catch (e) {
+      console.warn('[AppContext] Failed to persist updateUserPlan to Firestore:', e);
+    }
+
     logActivity('Directly Updated User Plan', 'ব্যবহারকারীর প্ল্যান রেনু/আপগ্রেড করা হয়েছে', `${userId} -> ${newPlan}`);
+  };
+
+  const activateUserSubscription = async (params: {
+    userId: string;
+    plan: SubscriptionPlan;
+    billingPeriod: BillingCycle;
+    paymentMethod?: string;
+    paymentProvider?: string;
+    paymentRegion?: 'international' | 'bangladesh';
+    transactionId?: string;
+    amount?: number;
+    currency?: string;
+  }): Promise<void> => {
+    const { userId, plan, billingPeriod, paymentMethod, paymentProvider, paymentRegion, transactionId, amount, currency } = params;
+    const startDate = new Date().toISOString();
+    const expiryDate = plan === 'Lifetime' || plan === 'Free' ? undefined : calculateSubscriptionExpiry(startDate, billingPeriod);
+
+    console.log(`[AppContext] Activating subscription for user ${userId}: plan=${plan}, cycle=${billingPeriod}, txId=${transactionId}`);
+
+    // 1. Update Firestore user profile
+    try {
+      const userRef = doc(db, 'users', userId);
+      const userDocUpdate: Record<string, any> = {
+        subscriptionPlan: plan,
+        subscription: plan.toLowerCase(),
+        subscriptionStatus: 'active',
+        startDate,
+        billingPeriod,
+        billingCycle: billingPeriod,
+        paymentMethod: paymentMethod || paymentProvider || 'Online Payment',
+        paymentProvider: paymentProvider || paymentMethod || 'Online Payment',
+        paymentRegion: paymentRegion || 'international',
+        transactionId: transactionId || `TX_${Date.now()}`,
+        pendingPlan: deleteField(),
+      };
+      if (expiryDate) {
+        userDocUpdate.expiryDate = expiryDate;
+      } else {
+        userDocUpdate.expiryDate = deleteField();
+      }
+
+      await setDoc(userRef, userDocUpdate, { merge: true });
+      console.log(`[AppContext] User document updated successfully in Firestore.`);
+    } catch (e) {
+      console.warn('[AppContext] Error updating user in Firestore:', e);
+    }
+
+    // 2. Record approved subscription document in subscriptionRequests
+    try {
+      const subRequestsCollection = collection(db, 'subscriptionRequests');
+      const targetUser = allUsers.find((u) => u.id === userId) || user;
+      await addDoc(subRequestsCollection, {
+        userId,
+        uid: userId,
+        userEmail: targetUser?.email || '',
+        userName: targetUser?.ownerName || targetUser?.fullName || 'User',
+        brandName: targetUser?.brandName || '',
+        currentPlan: targetUser?.subscriptionPlan || 'Free',
+        requestedPlan: plan,
+        plan,
+        billingCycle: billingPeriod,
+        billingPeriod,
+        paymentMethod: paymentMethod || paymentProvider || 'Online Payment',
+        paymentProvider: paymentProvider || paymentMethod || 'Online Payment',
+        paymentRegion: paymentRegion || 'international',
+        currency: currency || 'USD',
+        transactionId: transactionId || `TX_${Date.now()}`,
+        amount: amount || 0,
+        status: 'approved',
+        startDate,
+        expiryDate: expiryDate || '',
+        requestDate: startDate,
+        reviewedDate: startDate,
+        approvedBy: 'Instant Payment Gateway (Paddle/Direct)',
+        createdAt: serverTimestamp(),
+      });
+    } catch (e) {
+      console.warn('[AppContext] Error adding approved record to subscriptionRequests:', e);
+    }
+
+    // 3. Update local state
+    setAllUsers((prev) =>
+      prev.map((u) =>
+        u.id === userId
+          ? {
+              ...u,
+              subscriptionPlan: plan,
+              subscriptionStatus: 'active',
+              startDate,
+              expiryDate,
+              billingPeriod,
+              transactionId,
+              paymentMethod: paymentMethod || paymentProvider,
+              pendingPlan: undefined,
+            }
+          : u
+      )
+    );
+
+    if (user && user.id === userId) {
+      setUser({
+        ...user,
+        subscriptionPlan: plan,
+        subscriptionStatus: 'active',
+        startDate,
+        expiryDate,
+        billingPeriod,
+        transactionId,
+        paymentMethod: paymentMethod || paymentProvider,
+        pendingPlan: undefined,
+      });
+    }
+
+    // 4. Trigger user notification
+    const notif: AppNotification = {
+      id: `notif-${Date.now()}`,
+      title: `${plan} Plan Activated!`,
+      titleBn: `${plan} প্ল্যান সক্রিয় হয়েছে!`,
+      message: `Your ${plan} subscription is active and ready to use.`,
+      messageBn: `আপনার ${plan} প্ল্যান সফলভাবে সক্রিয় করা হয়েছে।`,
+      type: 'subscription',
+      priority: 'info',
+      date: new Date().toISOString().split('T')[0],
+      read: false,
+      linkTab: 'subscription',
+    };
+    addManualNotification(notif);
+    logActivity('Activated Subscription', 'সাবস্ক্রিপশন সক্রিয় করা হয়েছে', `${plan} (${billingPeriod})`);
   };
 
   // Subscription Approval System Handlers
@@ -2300,6 +2705,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const nowIso = new Date().toISOString();
     const ownerIdentifier = user?.ownerName || user?.email || 'Owner';
+    const billingPeriod = req.billingCycle || req.billingPeriod || 'monthly';
+    const startDate = nowIso;
+    const expiryDate = req.requestedPlan === 'Lifetime' || req.requestedPlan === 'Free' ? undefined : calculateSubscriptionExpiry(startDate, billingPeriod);
 
     try {
       console.log('[Firestore Write Start] Approving request in "subscriptionRequests":', requestId);
@@ -2326,32 +2734,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // 2. Update request status in Firestore
       const reqRef = doc(db, 'subscriptionRequests', requestId);
-      await setDoc(
-        reqRef,
-        {
-          status: 'approved',
-          reviewedDate: nowIso,
-          approvedBy: ownerIdentifier,
-          reviewedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
+      const reqUpdateData: Record<string, any> = {
+        status: 'approved',
+        reviewedDate: nowIso,
+        approvedBy: ownerIdentifier,
+        reviewedAt: serverTimestamp(),
+        startDate,
+        billingPeriod,
+        billingCycle: billingPeriod,
+      };
+      if (expiryDate) {
+        reqUpdateData.expiryDate = expiryDate;
+      }
+      await setDoc(reqRef, reqUpdateData, { merge: true });
       console.log('[Firestore Write Success] Approved request in "subscriptionRequests":', requestId);
 
       // 3. Update merchant user profile in Firestore
       if (req.userId) {
         console.log('[Firestore Write Start] Updating merchant profile in "users" collection:', req.userId);
         const userRef = doc(db, 'users', req.userId);
-        await setDoc(
-          userRef,
-          {
-            subscriptionPlan: req.requestedPlan,
-            subscription: req.requestedPlan.toLowerCase(),
-            subscriptionStatus: 'active',
-            pendingPlan: deleteField(),
-          },
-          { merge: true }
-        );
+        const userDocUpdate: Record<string, any> = {
+          subscriptionPlan: req.requestedPlan,
+          subscription: req.requestedPlan.toLowerCase(),
+          subscriptionStatus: 'active',
+          startDate,
+          billingPeriod,
+          billingCycle: billingPeriod,
+          paymentMethod: req.paymentMethod || req.paymentProvider || 'Manual / Cash',
+          paymentProvider: req.paymentProvider || req.paymentMethod || 'Manual / Cash',
+          paymentRegion: req.paymentRegion || 'bangladesh',
+          transactionId: req.transactionId || undefined,
+          pendingPlan: deleteField(),
+        };
+        if (expiryDate) {
+          userDocUpdate.expiryDate = expiryDate;
+        } else {
+          userDocUpdate.expiryDate = deleteField();
+        }
+        await setDoc(userRef, userDocUpdate, { merge: true });
         console.log('[Firestore Write Success] Updated merchant profile in "users" collection:', req.userId);
       }
 
@@ -2363,6 +2783,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               ...u,
               subscriptionPlan: req.requestedPlan,
               subscriptionStatus: 'active',
+              startDate,
+              expiryDate,
+              billingPeriod,
+              transactionId: req.transactionId || u.transactionId,
+              paymentMethod: req.paymentMethod || req.paymentProvider || u.paymentMethod,
               pendingPlan: undefined,
             };
           }
@@ -2375,6 +2800,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ...user,
           subscriptionPlan: req.requestedPlan,
           subscriptionStatus: 'active',
+          startDate,
+          expiryDate,
+          billingPeriod,
+          transactionId: req.transactionId || user.transactionId,
+          paymentMethod: req.paymentMethod || req.paymentProvider || user.paymentMethod,
           pendingPlan: undefined,
         });
       }
@@ -3701,6 +4131,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         refreshUsers,
         subscriptionRequests,
         requestSubscription,
+        activateUserSubscription,
+        calculateSubscriptionExpiry,
         approveSubscriptionRequest,
         rejectSubscriptionRequest,
         cancelSubscriptionRequest,

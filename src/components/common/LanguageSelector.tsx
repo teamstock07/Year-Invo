@@ -74,7 +74,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
           className="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs font-bold py-1.5 px-2.5 rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-[#ff5c01] cursor-pointer"
         >
           {SUPPORTED_LANGUAGES.map((lang) => (
-            <option key={lang.code} value={lang.code}>
+            <option key={lang.code} value={lang.code} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
               {lang.flag} {lang.nativeName}
             </option>
           ))}

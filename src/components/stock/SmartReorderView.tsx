@@ -298,7 +298,7 @@ export const SmartReorderView: React.FC = () => {
                   <td className="py-3.5 px-4 text-right">
                     <button
                       onClick={() => handleQuickReorder(item)}
-                      className="px-3 py-1.5 rounded-xl bg-[#ff5c01] hover:bg-[#e05200] text-white text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 ml-auto cursor-pointer"
+                      className="px-3 py-1.5 rounded-xl bg-[#ff5c01] hover:bg-[#e05100] text-white text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 ml-auto cursor-pointer"
                     >
                       <ShoppingCart className="w-3.5 h-3.5" />
                       <span>Order Now</span>

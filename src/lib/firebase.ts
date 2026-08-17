@@ -28,22 +28,11 @@ export const db = defaultAppletConfig.firestoreDatabaseId
   ? getFirestore(app, defaultAppletConfig.firestoreDatabaseId)
   : getFirestore(app);
 
+// Verification logging
 console.log('[Firebase App initialized]:', app.name);
 console.log('[Firebase Auth Project ID]:', auth.app.options.projectId);
 console.log('[Firebase Firestore Database ID]:', defaultAppletConfig.firestoreDatabaseId || '(default)');
 console.log('[Firebase Verification] Auth and Firestore targeting Project ID:', activeConfig.projectId);
-
-// Test Firestore connection on startup
-async function testFirestoreConnection() {
-  try {
-    console.log('[Firestore] Testing connection to database...');
-    await getDocFromServer(doc(db, 'test', 'connection'));
-    console.log('[Firestore] Connection test successful.');
-  } catch (error: any) {
-    console.warn('[Firestore] Connection test message:', error?.message || error);
-  }
-}
-testFirestoreConnection();
 
 export default app;
 

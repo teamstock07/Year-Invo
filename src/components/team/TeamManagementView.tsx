@@ -342,7 +342,7 @@ export const TeamManagementView: React.FC = () => {
 
           <button
             onClick={openAddModal}
-            className="px-4 py-2.5 bg-[#ff5c01] hover:bg-[#e05200] text-white text-xs font-bold rounded-xl shadow-md shadow-[#ff5c01]/20 transition-all flex items-center gap-2 cursor-pointer self-start sm:self-auto"
+            className="px-4 py-2.5 bg-[#ff5c01] hover:bg-[#e05100] text-white text-xs font-bold rounded-xl shadow-md shadow-[#ff5c01]/20 transition-all flex items-center gap-2 cursor-pointer self-start sm:self-auto"
           >
             <UserPlus className="w-4 h-4" />
             <span>Invite Team Member</span>
@@ -734,7 +734,7 @@ export const TeamManagementView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#ff5c01] hover:bg-[#e05200] text-xs font-bold text-white shadow-md shadow-[#ff5c01]/20 transition-all cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-[#ff5c01] hover:bg-[#e05100] text-xs font-bold text-white shadow-md shadow-[#ff5c01]/20 transition-all cursor-pointer"
                 >
                   {editingMember ? 'Save Permissions' : 'Send Invite'}
                 </button>

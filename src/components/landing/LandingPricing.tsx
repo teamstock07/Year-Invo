@@ -170,7 +170,7 @@ export const LandingPricing: React.FC<LandingPricingProps> = ({ onOpenSignup }) 
           transition={{ duration: 0.5 }}
           className="text-center space-y-4 max-w-3xl mx-auto"
         >
-          <span className="px-3 py-1 rounded-full bg-purple-500/10 text-purple-700 dark:bg-purple-950/60 dark:text-[#a78bfa] text-xs font-black uppercase tracking-wider border border-purple-500/20">
+          <span className="px-3 py-1 rounded-full bg-purple-500/10 text-purple-700 dark:bg-purple-950/60 dark:text-[#ff8038] text-xs font-black uppercase tracking-wider border border-purple-500/20">
             {isBn ? 'স্বচ্ছ ও সাশ্রয়ী প্রাইসিং' : 'TRANSPARENT SUBSCRIPTION PLANS'}
           </span>
           <h2 className="text-2xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
@@ -200,7 +200,7 @@ export const LandingPricing: React.FC<LandingPricingProps> = ({ onOpenSignup }) 
               onClick={() => setBillingCycle('yearly')}
               className={`px-3.5 py-2 text-xs font-black rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
                 billingCycle === 'yearly'
-                  ? 'bg-[#7C3AED] text-white shadow-xs'
+                  ? 'bg-[#ff5c01] text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
@@ -244,13 +244,13 @@ export const LandingPricing: React.FC<LandingPricingProps> = ({ onOpenSignup }) 
                 whileHover={{ y: -8, transition: { duration: 0.2 } }}
                 className={`relative bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 flex flex-col justify-between transition-all ${
                   plan.popular
-                    ? 'border-2 border-[#7C3AED] shadow-2xl shadow-[#7C3AED]/20 transform lg:-translate-y-2'
+                    ? 'border-2 border-[#ff5c01] shadow-2xl shadow-[#ff5c01]/20 transform lg:-translate-y-2'
                     : 'border border-slate-200 dark:border-slate-800 shadow-xs hover:border-slate-300 dark:hover:border-slate-700'
                 }`}
               >
                 {/* Popular Badge */}
                 {plan.popular && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3 py-1 bg-[#7C3AED] text-white text-[10px] font-black uppercase tracking-wider rounded-full shadow-md flex items-center gap-1">
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3 py-1 bg-[#ff5c01] text-white text-[10px] font-black uppercase tracking-wider rounded-full shadow-md flex items-center gap-1">
                     <Sparkles className="w-3 h-3 text-amber-300 fill-amber-300" />
                     <span>{plan.badge}</span>
                   </div>
@@ -290,7 +290,7 @@ export const LandingPricing: React.FC<LandingPricingProps> = ({ onOpenSignup }) 
 
                     <div className="flex items-center gap-2 flex-wrap">
                       {pricingInfo.subtext && (
-                        <p className="text-[11px] font-extrabold text-[#7C3AED] dark:text-[#a78bfa]">
+                        <p className="text-[11px] font-extrabold text-[#ff5c01] dark:text-[#ff8038]">
                           {pricingInfo.subtext}
                         </p>
                       )}
@@ -339,7 +339,7 @@ export const LandingPricing: React.FC<LandingPricingProps> = ({ onOpenSignup }) 
                     onClick={onOpenSignup}
                     className={`w-full py-3.5 rounded-2xl font-black text-xs transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${
                       plan.buttonVariant === 'primary'
-                        ? 'bg-[#7C3AED] hover:bg-[#6d28d9] text-white shadow-lg shadow-[#7C3AED]/30 hover:shadow-xl hover:shadow-[#7C3AED]/40 hover:-translate-y-0.5'
+                        ? 'bg-[#ff5c01] hover:bg-[#e05100] text-white shadow-lg shadow-[#ff5c01]/30 hover:shadow-xl hover:shadow-[#ff5c01]/40 hover:-translate-y-0.5'
                         : plan.buttonVariant === 'accent'
                         ? 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-lg shadow-orange-500/25 hover:-translate-y-0.5'
                         : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-white'

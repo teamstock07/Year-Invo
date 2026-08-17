@@ -143,7 +143,7 @@ export const LandingFeatures: React.FC<LandingFeaturesProps> = ({ onOpenSignup }
           transition={{ duration: 0.5 }}
           className="text-center space-y-3 max-w-3xl mx-auto"
         >
-          <span className="px-3 py-1 rounded-full bg-purple-500/10 text-purple-700 dark:bg-purple-950/60 dark:text-[#a78bfa] text-xs font-black uppercase tracking-wider border border-purple-500/20">
+          <span className="px-3 py-1 rounded-full bg-purple-500/10 text-purple-700 dark:bg-purple-950/60 dark:text-[#ff8038] text-xs font-black uppercase tracking-wider border border-purple-500/20">
             {isBn ? 'শক্তিশালী ফিচার সমূহ' : 'POWERFUL RETAIL CAPABILITIES'}
           </span>
           <h2 className="text-2xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
@@ -187,7 +187,7 @@ export const LandingFeatures: React.FC<LandingFeaturesProps> = ({ onOpenSignup }
                 </div>
 
                 <div className="space-y-1">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-[#a78bfa] transition-colors">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-[#ff8038] transition-colors">
                     {feat.title}
                   </h3>
                   <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
@@ -220,7 +220,7 @@ export const LandingFeatures: React.FC<LandingFeaturesProps> = ({ onOpenSignup }
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={onOpenSignup}
-            className="px-6 py-3.5 bg-[#7C3AED] hover:bg-[#6d28d9] text-white font-extrabold rounded-2xl text-xs sm:text-sm transition-all shadow-lg shadow-[#7C3AED]/40 flex items-center gap-2 shrink-0 cursor-pointer z-10"
+            className="px-6 py-3.5 bg-[#ff5c01] hover:bg-[#e05100] text-white font-extrabold rounded-2xl text-xs sm:text-sm transition-all shadow-lg shadow-[#ff5c01]/40 flex items-center gap-2 shrink-0 cursor-pointer z-10"
           >
             <span>{isBn ? 'ফ্রি অ্যাকাউন্ট খুলুন' : 'Get Started Free'}</span>
             <ArrowRight className="w-4 h-4" />

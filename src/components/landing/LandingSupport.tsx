@@ -104,7 +104,7 @@ export const LandingSupport: React.FC = () => {
           transition={{ duration: 0.5 }}
           className="text-center space-y-3 max-w-3xl mx-auto"
         >
-          <span className="px-3 py-1 rounded-full bg-purple-500/10 text-purple-700 dark:bg-purple-950/60 dark:text-[#a78bfa] text-xs font-black uppercase tracking-wider border border-purple-500/20">
+          <span className="px-3 py-1 rounded-full bg-purple-500/10 text-purple-700 dark:bg-purple-950/60 dark:text-[#ff8038] text-xs font-black uppercase tracking-wider border border-purple-500/20">
             {isBn ? 'সাহায্য ও কাস্টমার সাপোর্ট' : 'HELP CENTER & SUPPORT'}
           </span>
           <h2 className="text-2xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
@@ -133,7 +133,7 @@ export const LandingSupport: React.FC = () => {
                 whileHover={{ y: -4, transition: { duration: 0.2 } }}
                 className="bg-slate-50 dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 space-y-2 hover:border-purple-500/40 transition-colors cursor-pointer"
               >
-                <div className="w-10 h-10 rounded-xl bg-[#7C3AED]/10 text-[#7C3AED] dark:text-[#a78bfa] flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-[#ff5c01]/10 text-[#ff5c01] dark:text-[#ff8038] flex items-center justify-center">
                   <Icon className="w-5 h-5" />
                 </div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">{topic.title}</h3>
@@ -251,7 +251,7 @@ export const LandingSupport: React.FC = () => {
               {/* Live Chat (Coming Soon) Badge */}
               <div className="flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-purple-950/40 via-slate-950 to-slate-950 border border-purple-800/40 text-white">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#7C3AED]/20 text-[#a78bfa] flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-[#ff5c01]/20 text-[#ff8038] flex items-center justify-center shrink-0">
                     <MessageSquare className="w-5 h-5" />
                   </div>
                   <div>
@@ -350,7 +350,7 @@ export const LandingSupport: React.FC = () => {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   type="submit"
-                  className="w-full py-3 bg-[#7C3AED] hover:bg-[#6d28d9] text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-[#7C3AED]/20"
+                  className="w-full py-3 bg-[#ff5c01] hover:bg-[#e05100] text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-[#ff5c01]/20"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>{isBn ? 'মেসেজ পাঠান' : 'Send Message'}</span>

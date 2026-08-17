@@ -13,10 +13,8 @@ import {
   Trash2,
   Tag,
   Building2,
-  DollarSign,
-  Layers,
-  Calendar,
-  FileText,
+  HardDrive,
+  Link as LinkIcon,
 } from 'lucide-react';
 
 interface ProductModalProps {
@@ -25,23 +23,24 @@ interface ProductModalProps {
   productToEdit?: Product | null;
 }
 
-const PRESET_GALLERY_IMAGES = [
-  { label: 'Honey & Organic', url: 'https://images.unsplash.com/photo-1587049352847-4a222e784d38?auto=format&fit=crop&q=80&w=400' },
-  { label: 'Mustard Oil / Oil', url: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&q=80&w=400' },
-  { label: 'Fresh Fruits', url: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&q=80&w=400' },
-  { label: 'Dairy & Milk', url: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&q=80&w=400' },
-  { label: 'Tea & Coffee', url: 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&q=80&w=400' },
-  { label: 'Electronics', url: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=400' },
-  { label: 'Fashion Clothing', url: 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=400' },
-  { label: 'Cosmetics', url: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&q=80&w=400' },
-  { label: 'Bakery & Bread', url: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&q=80&w=400' },
-  { label: 'Medicine & Healthcare', url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&q=80&w=400' },
-  { label: 'Spices & Curry Powder', url: 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&q=80&w=400' },
-  { label: 'Tools & Hardware', url: 'https://images.unsplash.com/photo-1581147036324-c17ac41dfa6c?auto=format&fit=crop&q=80&w=400' },
-];
+const USER_DRIVE_STORAGE_KEY = 'biz_user_uploaded_images';
+
+// Helper to normalize image links (e.g. Google Drive view URLs, Dropbox, direct web images)
+const normalizeImageUrl = (url: string): string => {
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+  const gDriveMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (gDriveMatch && gDriveMatch[1]) {
+    return `https://drive.google.com/uc?export=view&id=${gDriveMatch[1]}`;
+  }
+  if (trimmed.includes('dropbox.com')) {
+    return trimmed.replace(/[?&]dl=0/, '?raw=1');
+  }
+  return trimmed;
+};
 
 export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, productToEdit }) => {
-  const { addProduct, updateProduct, addCategory, addBrand, categories, brands, settings, t, products } = useApp();
+  const { addProduct, updateProduct, addCategory, addBrand, categories, brands, settings, t, products, user } = useApp();
   const symbol = settings.currency || '৳';
 
   // Controlled Form State with String Inputs for Numbers to avoid "0100" / "1000" typing bug
@@ -60,13 +59,66 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
 
+  // Image Drive & Custom Link States (NO preset gallery by default)
+  const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
+  const [isUrlInputOpen, setIsUrlInputOpen] = useState(false);
+  const [customUrlInput, setCustomUrlInput] = useState('');
+  const [userDriveImages, setUserDriveImages] = useState<string[]>([]);
+
   // Modals inside Product Form
-  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [isCreateCategoryModalOpen, setIsCreateCategoryModalOpen] = useState(false);
   const [newCategoryInput, setNewCategoryInput] = useState('');
   const [isCreateBrandModalOpen, setIsCreateBrandModalOpen] = useState(false);
   const [newBrandInput, setNewBrandInput] = useState('');
   const [formError, setFormError] = useState('');
+
+  // Load user's personal uploaded drive images
+  const loadUserDriveImages = () => {
+    try {
+      const storageKey = user?.id ? `${USER_DRIVE_STORAGE_KEY}_${user.id}` : USER_DRIVE_STORAGE_KEY;
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) setUserDriveImages(parsed);
+      } else {
+        setUserDriveImages([]);
+      }
+    } catch {
+      setUserDriveImages([]);
+    }
+  };
+
+  const saveToUserDrive = (imgData: string) => {
+    if (!imgData) return;
+    try {
+      const storageKey = user?.id ? `${USER_DRIVE_STORAGE_KEY}_${user.id}` : USER_DRIVE_STORAGE_KEY;
+      const raw = localStorage.getItem(storageKey);
+      const list: string[] = raw ? JSON.parse(raw) : [];
+      if (!list.includes(imgData)) {
+        const updated = [imgData, ...list].slice(0, 40); // store up to 40 user uploaded images
+        localStorage.setItem(storageKey, JSON.stringify(updated));
+        setUserDriveImages(updated);
+      }
+    } catch (e) {
+      console.warn('Failed to save to user image drive:', e);
+    }
+  };
+
+  const deleteFromUserDrive = (imgData: string) => {
+    try {
+      const storageKey = user?.id ? `${USER_DRIVE_STORAGE_KEY}_${user.id}` : USER_DRIVE_STORAGE_KEY;
+      const updated = userDriveImages.filter((img) => img !== imgData);
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+      setUserDriveImages(updated);
+      if (imageUrl === imgData) setImageUrl('');
+    } catch (e) {
+      console.warn('Failed to delete from user image drive:', e);
+    }
+  };
+
+  useEffect(() => {
+    loadUserDriveImages();
+  }, [user]);
 
   useEffect(() => {
     if (productToEdit) {
@@ -102,8 +154,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
       setUnit('Piece');
       setExpiryDate('');
       setDescription('');
-      setImageUrl(PRESET_GALLERY_IMAGES[0]?.url || '');
+      setImageUrl(''); // Default to empty - NO preset gallery by default
       setFormError('');
+      setIsUrlInputOpen(false);
+      setCustomUrlInput('');
     }
   }, [productToEdit, isOpen, categories, products]);
 
@@ -123,11 +177,24 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
       const reader = new FileReader();
       reader.onloadend = () => {
         if (typeof reader.result === 'string') {
-          setImageUrl(reader.result);
-          setIsGalleryOpen(false);
+          const resultStr = reader.result;
+          setImageUrl(resultStr);
+          saveToUserDrive(resultStr);
+          setIsDriveModalOpen(false);
         }
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleApplyCustomUrl = (e: React.FormEvent) => {
+    e.preventDefault();
+    const normalized = normalizeImageUrl(customUrlInput);
+    if (normalized) {
+      setImageUrl(normalized);
+      saveToUserDrive(normalized);
+      setCustomUrlInput('');
+      setIsUrlInputOpen(false);
     }
   };
 
@@ -252,7 +319,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
             </div>
           )}
 
-          {/* 1. Product Image Section */}
+          {/* 1. Product Image Section (Upload & Personal Image Drive) */}
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
@@ -285,24 +352,16 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center text-slate-400 p-2 text-center">
-                    <ImageIcon className="w-8 h-8 mb-1 opacity-50" />
-                    <span className="text-[9px] font-medium">{t('productImagePreview')}</span>
+                    <ImageIcon className="w-8 h-8 mb-1 opacity-40" />
+                    <span className="text-[9px] font-medium">{t('noImageSelected') || 'No image'}</span>
                   </div>
                 )}
               </div>
 
-              {/* Action Buttons */}
+              {/* Action Buttons: Upload from Device, Drive / Web Link, My Uploaded Files */}
               <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full">
-                <button
-                  type="button"
-                  onClick={() => setIsGalleryOpen(true)}
-                  className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs transition-all cursor-pointer"
-                >
-                  <ImageIcon className="w-4 h-4 text-[#ff5c01]" />
-                  {t('selectFromGallery')}
-                </button>
-
-                <label className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-[#ff5c01]/10 hover:bg-[#ff5c01]/20 text-[#ff5c01] text-xs font-bold rounded-xl border border-[#ff5c01]/30 shadow-xs transition-all cursor-pointer">
+                {/* 1. Upload from Device */}
+                <label className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-[#ff5c01] hover:bg-[#e05100] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer">
                   <Upload className="w-4 h-4" />
                   {t('uploadFromDevice')}
                   <input
@@ -312,8 +371,62 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
                     className="hidden"
                   />
                 </label>
+
+                {/* 2. Paste Image / Drive URL */}
+                <button
+                  type="button"
+                  onClick={() => setIsUrlInputOpen(!isUrlInputOpen)}
+                  className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs transition-all cursor-pointer"
+                >
+                  <LinkIcon className="w-4 h-4 text-indigo-500" />
+                  <span>Image / Drive Link</span>
+                </button>
+
+                {/* 3. My Uploaded Images / Drive (if any personal files exist) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    loadUserDriveImages();
+                    setIsDriveModalOpen(true);
+                  }}
+                  className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs transition-all cursor-pointer"
+                >
+                  <HardDrive className="w-4 h-4 text-[#ff5c01]" />
+                  <span>My Image Drive {userDriveImages.length > 0 ? `(${userDriveImages.length})` : ''}</span>
+                </button>
               </div>
             </div>
+
+            {/* Expandable Image / Drive URL input */}
+            {isUrlInputOpen && (
+              <div className="pt-2 border-t border-slate-200/70 dark:border-slate-700/70 animate-in fade-in duration-150">
+                <form onSubmit={handleApplyCustomUrl} className="flex gap-2">
+                  <input
+                    type="url"
+                    value={customUrlInput}
+                    onChange={(e) => setCustomUrlInput(e.target.value)}
+                    placeholder="Paste image URL or Google Drive link (e.g. https://...)"
+                    className="flex-1 px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-hidden focus:border-[#ff5c01] text-slate-800 dark:text-slate-100 font-medium"
+                  />
+                  <button
+                    type="submit"
+                    className="px-3.5 py-2 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
+                  >
+                    Apply
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomUrlInput('');
+                      setIsUrlInputOpen(false);
+                    }}
+                    className="px-2.5 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </form>
+              </div>
+            )}
           </div>
 
           {/* 2. Product Name */}
@@ -460,7 +573,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
               </div>
             </div>
 
-            {/* Price and Stock Inputs (CRITICAL: Controlled Strings to prevent typing 0100 bug) */}
+            {/* Price and Stock Inputs */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {/* Purchase Price */}
               <div>
@@ -662,60 +775,82 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
         </form>
       </div>
 
-      {/* Preset Photo Gallery Modal */}
-      {isGalleryOpen && (
+      {/* Personal User Uploaded Image Drive Modal (Contains ONLY user-uploaded images, zero preset gallery) */}
+      {isDriveModalOpen && (
         <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/70 p-4">
           <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
-                <ImageIcon className="w-5 h-5 text-[#ff5c01]" />
-                <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">
-                  {t('selectFromGallery')}
-                </h3>
+                <HardDrive className="w-5 h-5 text-[#ff5c01]" />
+                <div>
+                  <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">
+                    My Uploaded Image Drive
+                  </h3>
+                  <p className="text-[10px] text-slate-400">
+                    Your personal uploaded product images
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
-                onClick={() => setIsGalleryOpen(false)}
+                onClick={() => setIsDriveModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-80 overflow-y-auto custom-scrollbar p-1">
-              {PRESET_GALLERY_IMAGES.map((img, idx) => {
-                const isSelected = imageUrl === img.url;
-                return (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => {
-                      setImageUrl(img.url);
-                      setIsGalleryOpen(false);
-                    }}
-                    className={`relative rounded-xl overflow-hidden border-2 aspect-square group transition-all cursor-pointer ${
-                      isSelected
-                        ? 'border-[#ff5c01] ring-2 ring-[#ff5c01]/30 scale-95'
-                        : 'border-slate-200 dark:border-slate-800 hover:border-[#ff5c01]/60'
-                    }`}
-                  >
-                    <img
-                      src={img.url}
-                      alt={img.label}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                    />
-                    <div className="absolute inset-x-0 bottom-0 bg-slate-950/80 p-1 text-[9px] font-bold text-white text-center truncate">
-                      {img.label}
+            {userDriveImages.length > 0 ? (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-80 overflow-y-auto custom-scrollbar p-1">
+                {userDriveImages.map((img, idx) => {
+                  const isSelected = imageUrl === img;
+                  return (
+                    <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden border-2 border-slate-200 dark:border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setImageUrl(img);
+                          setIsDriveModalOpen(false);
+                        }}
+                        className={`w-full h-full cursor-pointer ${isSelected ? 'ring-2 ring-[#ff5c01]' : ''}`}
+                      >
+                        <img
+                          src={img}
+                          alt={`Uploaded ${idx + 1}`}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                        />
+                      </button>
+                      {isSelected && (
+                        <div className="absolute top-1 left-1 bg-[#ff5c01] text-white rounded-full p-0.5 shadow-sm pointer-events-none">
+                          <Check className="w-3 h-3" />
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteFromUserDrive(img);
+                        }}
+                        className="absolute top-1 right-1 bg-rose-600/90 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-rose-700 cursor-pointer"
+                        title="Delete from drive"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
                     </div>
-                    {isSelected && (
-                      <div className="absolute top-1 right-1 bg-[#ff5c01] text-white rounded-full p-0.5 shadow-sm">
-                        <Check className="w-3 h-3" />
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="py-8 text-center space-y-2">
+                <HardDrive className="w-10 h-10 text-slate-300 dark:text-slate-700 mx-auto" />
+                <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                  No uploaded images in your drive yet
+                </p>
+                <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
+                  When you upload product photos from your device, they will be saved here for quick reuse.
+                </p>
+              </div>
+            )}
 
             <div className="pt-2 flex justify-between items-center border-t border-slate-100 dark:border-slate-800">
               <label className="text-xs font-bold text-[#ff5c01] hover:underline cursor-pointer flex items-center gap-1">
@@ -731,7 +866,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
 
               <button
                 type="button"
-                onClick={() => setIsGalleryOpen(false)}
+                onClick={() => setIsDriveModalOpen(false)}
                 className="px-4 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl cursor-pointer"
               >
                 {t('cancel')}
