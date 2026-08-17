@@ -80,7 +80,10 @@ export const MobileDashboardView: React.FC = () => {
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const formatAmount = (amt: number) => (amt === 0 ? '0' : amt.toLocaleString());
+  const formatAmount = (amt: number | undefined | null) => {
+    if (amt === undefined || amt === null || isNaN(Number(amt))) return '0';
+    return Number(amt).toLocaleString();
+  };
 
   const rawStore = settings.brandName || user?.brandName || '';
   const storeName = getCustomerStoreName(rawStore) || rawStore || 'YearInvo Store';
@@ -281,21 +284,37 @@ export const MobileDashboardView: React.FC = () => {
             </p>
           </div>
 
-          {/* 2. Today Profit */}
+          {/* 2. Today Profit / Loss */}
           <div
             onClick={() => setActiveTab('reports')}
-            className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-100 dark:border-slate-800/80 hover:border-emerald-500/40 transition-all cursor-pointer active:scale-95"
+            className={`p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border transition-all cursor-pointer active:scale-95 ${
+              metrics.todayLoss > 0
+                ? 'border-rose-200 dark:border-rose-900/50 hover:border-rose-500/50'
+                : 'border-slate-100 dark:border-slate-800/80 hover:border-emerald-500/40'
+            }`}
           >
             <div className="flex items-center justify-between mb-1">
               <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 truncate">
-                {isBn ? 'আজকের লাভ' : "Today Profit"}
+                {metrics.todayLoss > 0
+                  ? (isBn ? 'আজকের ক্ষতি' : "Today Loss")
+                  : (isBn ? 'আজকের লাভ' : "Today Profit")}
               </span>
-              <div className="w-5 h-5 rounded-md bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
-                <TrendingUp className="w-3 h-3" />
+              <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${
+                metrics.todayLoss > 0
+                  ? 'bg-rose-500/10 text-rose-500'
+                  : 'bg-emerald-500/10 text-emerald-500'
+              }`}>
+                {metrics.todayLoss > 0 ? (
+                  <AlertTriangle className="w-3 h-3 text-rose-500" />
+                ) : (
+                  <TrendingUp className="w-3 h-3" />
+                )}
               </div>
             </div>
-            <p className="text-xs xs:text-sm font-black text-emerald-600 dark:text-emerald-400 truncate">
-              {formatCurrency(metrics.todayProfit)}
+            <p className={`text-xs xs:text-sm font-black truncate ${
+              metrics.todayLoss > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+            }`}>
+              {metrics.todayLoss > 0 ? formatCurrency(metrics.todayLoss) : formatCurrency(metrics.todayProfit)}
             </p>
           </div>
 
@@ -335,21 +354,21 @@ export const MobileDashboardView: React.FC = () => {
             </p>
           </div>
 
-          {/* 5. Customer Due */}
+          {/* 5. Customer Today Due */}
           <div
             onClick={() => setActiveTab('due')}
             className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-100 dark:border-slate-800/80 hover:border-rose-500/40 transition-all cursor-pointer active:scale-95"
           >
             <div className="flex items-center justify-between mb-1">
               <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 truncate">
-                {isBn ? 'মোট বকেয়া' : 'Customer Due'}
+                {isBn ? 'আজকের বকেয়া' : "Today's Due"}
               </span>
               <div className="w-5 h-5 rounded-md bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
                 <CreditCard className="w-3 h-3" />
               </div>
             </div>
             <p className="text-xs xs:text-sm font-black text-rose-500 truncate">
-              {formatCurrency(metrics.totalDueCustomers)}
+              {formatCurrency(metrics.todayDue)}
             </p>
           </div>
 

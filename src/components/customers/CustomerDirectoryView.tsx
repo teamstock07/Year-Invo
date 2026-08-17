@@ -106,10 +106,10 @@ export const CustomerDirectoryView: React.FC = () => {
                   <td className="p-4 text-slate-500 dark:text-slate-400 font-mono">{cust.phone || 'N/A'}</td>
                   <td className="p-4 text-slate-500 dark:text-slate-400">{cust.address || 'N/A'}</td>
                   <td className="p-4 text-right font-black text-slate-800 dark:text-slate-100">
-                    {symbol} {cust.totalSpent.toLocaleString()}
+                    {symbol} {(cust.totalSpent || 0).toLocaleString()}
                   </td>
                   <td className="p-4 text-right font-black text-rose-600 dark:text-rose-400">
-                    {symbol} {cust.dueAmount.toLocaleString()}
+                    {symbol} {(cust.dueAmount || 0).toLocaleString()}
                   </td>
                   <td className="p-4 text-center">
                     <div className="flex items-center justify-center gap-1.5">

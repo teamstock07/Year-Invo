@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Trash2,
   Tag,
+  Barcode,
   Building2,
   HardDrive,
   Link as LinkIcon,
@@ -45,6 +46,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
 
   // Controlled Form State with String Inputs for Numbers to avoid "0100" / "1000" typing bug
   const [name, setName] = useState('');
+  const [showSkuBarcode, setShowSkuBarcode] = useState(false);
   const [sku, setSku] = useState('');
   const [barcode, setBarcode] = useState('');
   const [category, setCategory] = useState('');
@@ -125,6 +127,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
       setName(productToEdit.name || '');
       setSku(productToEdit.sku || '');
       setBarcode(productToEdit.barcode || productToEdit.sku || '');
+      setShowSkuBarcode(Boolean(productToEdit.sku || productToEdit.barcode));
       setCategory(productToEdit.category || (categories[0]?.name || 'General'));
       const hasBrand = Boolean(productToEdit.brand && productToEdit.brand !== 'Generic' && productToEdit.brand.trim() !== '');
       setShowBrand(hasBrand);
@@ -657,57 +660,100 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
             </div>
           </div>
 
-          {/* 6. Product Codes (SKU, Barcode) & Unit & Expiry */}
+          {/* 6. Optional SKU & Barcode Section with ON/OFF Toggle */}
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-orange-500/10 text-[#ff5c01] flex items-center justify-center">
+                  <Barcode className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      {t('skuBarcodeToggle') || 'SKU & Barcode'}
+                    </span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-200/60 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                      Optional
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-normal">
+                    {showSkuBarcode ? 'Custom SKU code and barcode number' : 'Auto-generated in background if disabled'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Toggle Switch */}
+              <button
+                type="button"
+                onClick={() => setShowSkuBarcode(!showSkuBarcode)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                  showSkuBarcode ? 'bg-[#ff5c01]' : 'bg-slate-300 dark:bg-slate-700'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                    showSkuBarcode ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* SKU and Barcode Inputs (Shown only when toggle is ON) */}
+            {showSkuBarcode && (
+              <div className="pt-3 border-t border-slate-200/80 dark:border-slate-700/80 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* SKU Code */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      {t('skuCode')}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setSku(generateUniqueSku(products))}
+                      className="text-[10px] font-bold text-[#ff5c01] hover:underline flex items-center gap-1 cursor-pointer"
+                      title="Auto-generate SKU"
+                    >
+                      <RefreshCw className="w-3 h-3" /> {t('autoSku')}
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={sku}
+                    onChange={(e) => setSku(e.target.value)}
+                    placeholder="SKU-XXXXXX"
+                    className="w-full px-3.5 py-2 text-xs font-mono font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-hidden focus:border-[#ff5c01] text-slate-800 dark:text-slate-100"
+                  />
+                </div>
+
+                {/* Barcode Number */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      {t('barcodeCode')}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setBarcode(generateUniqueBarcode(products))}
+                      className="text-[10px] font-bold text-[#ff5c01] hover:underline flex items-center gap-1 cursor-pointer"
+                      title="Auto-generate Barcode"
+                    >
+                      <RefreshCw className="w-3 h-3" /> {t('autoBarcode')}
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={barcode}
+                    onChange={(e) => setBarcode(e.target.value)}
+                    placeholder="890123456789"
+                    className="w-full px-3.5 py-2 text-xs font-mono font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-hidden focus:border-[#ff5c01] text-slate-800 dark:text-slate-100"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 7. Unit & Expiry Date */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            
-            {/* SKU Code */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  {t('skuCode')}
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setSku(generateUniqueSku(products))}
-                  className="text-[10px] font-bold text-[#ff5c01] hover:underline flex items-center gap-1 cursor-pointer"
-                  title="Auto-generate SKU"
-                >
-                  <RefreshCw className="w-3 h-3" /> {t('autoSku')}
-                </button>
-              </div>
-              <input
-                type="text"
-                value={sku}
-                onChange={(e) => setSku(e.target.value)}
-                placeholder="SKU-XXXXXX"
-                className="w-full px-3.5 py-2 text-xs font-mono font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-hidden focus:border-[#ff5c01] text-slate-800 dark:text-slate-100"
-              />
-            </div>
-
-            {/* Barcode Number */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  {t('barcodeCode')}
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setBarcode(generateUniqueBarcode(products))}
-                  className="text-[10px] font-bold text-[#ff5c01] hover:underline flex items-center gap-1 cursor-pointer"
-                  title="Auto-generate Barcode"
-                >
-                  <RefreshCw className="w-3 h-3" /> {t('autoBarcode')}
-                </button>
-              </div>
-              <input
-                type="text"
-                value={barcode}
-                onChange={(e) => setBarcode(e.target.value)}
-                placeholder="890123456789"
-                className="w-full px-3.5 py-2 text-xs font-mono font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-hidden focus:border-[#ff5c01] text-slate-800 dark:text-slate-100"
-              />
-            </div>
-
             {/* Unit */}
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -716,7 +762,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
               <select
                 value={unit}
                 onChange={(e) => setUnit(e.target.value)}
-                className="w-full px-3.5 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 font-medium"
+                className="w-full px-3.5 py-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 font-medium"
               >
                 <option value="Piece">{t('unitPiece')}</option>
                 <option value="KG">{t('unitKg')}</option>
@@ -737,7 +783,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
                 type="date"
                 value={expiryDate}
                 onChange={(e) => setExpiryDate(e.target.value)}
-                className="w-full px-3.5 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 font-medium"
+                className="w-full px-3.5 py-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 font-medium"
               />
             </div>
           </div>

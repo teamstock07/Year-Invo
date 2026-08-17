@@ -169,80 +169,188 @@ export const BarcodeGeneratorView: React.FC = () => {
     }
   };
 
-  const handlePrint = () => {
+  const [printLayout, setPrintLayout] = useState<'a4' | 'thermal'>('a4');
+
+  const handlePrint = (layout: 'a4' | 'thermal' = printLayout) => {
     if (!generatedConfig) {
       alert('Please click Generate to prepare labels before printing.');
       return;
     }
-    window.print();
-  };
 
-  if (!isPremiumPlan) {
-    return (
-      <div className="min-h-[70vh] flex items-center justify-center p-4">
-        <div className="max-w-xl w-full p-8 rounded-3xl bg-white dark:bg-slate-900 border-2 border-[#ff5c01]/30 shadow-2xl text-center space-y-6">
-          <div className="w-16 h-16 rounded-2xl bg-[#ff5c01] text-white flex items-center justify-center mx-auto shadow-lg shadow-[#ff5c01]/20">
-            <QrCode className="w-8 h-8" />
-          </div>
+    const brandName = getDisplayBrandName(settings.brandName);
+    const isThermal = layout === 'thermal';
 
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ff5c01]/10 text-[#ff5c01] text-xs font-bold border border-[#ff5c01]/20">
-              <Lock className="w-3.5 h-3.5" />
-              <span>Barcode & QR Printing Locked</span>
-            </div>
-            <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100">
-              Barcode Printing & 2D QR Code Generation Requires Premium
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
-              You are currently on the <strong className="text-slate-800 dark:text-slate-200">{plan} Plan</strong>. 
-              Bulk Code128 thermal sticker printing, A4 sticker sheet generation, and 2D QR Code labels are exclusive features of the <strong className="text-[#ff5c01]">Premium Plan</strong>.
-            </p>
-          </div>
+    // Create an isolated printable iframe for reliable printing across all browsers and iframes
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.setAttribute('title', 'Barcode Label Print Frame');
+    document.body.appendChild(iframe);
 
-          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 text-left space-y-2 text-xs text-slate-700 dark:text-slate-300">
-            <div className="font-bold text-slate-900 dark:text-slate-100 text-center mb-2">
-              👑 Premium Plan Features:
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                <span>Bulk Printable Label Generation</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                <span>Code128 Thermal & A4 Layouts</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                <span>Dynamic 2D QR Code Printing</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                <span>Custom Copy Count & Price Tags</span>
-              </div>
-            </div>
-          </div>
+    const doc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!doc) {
+      window.print();
+      return;
+    }
 
-          <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
-            <button
-              type="button"
-              onClick={() => setActiveTab('subscription')}
-              className="px-6 py-3 rounded-xl bg-[#ff5c01] hover:bg-[#e05100] text-white font-black text-xs shadow-lg shadow-[#ff5c01]/20 cursor-pointer transition-all"
-            >
-              🚀 Upgrade to Premium Plan
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('products')}
-              className="px-5 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs cursor-pointer transition-all"
-            >
-              Back to Products
-            </button>
+    // Generate cards HTML
+    const cardsHtml = Array.from({ length: generatedConfig.copies })
+      .map(
+        (_, index) => `
+        <div class="sticker-card">
+          ${generatedConfig.showBrand ? `<div class="brand-name">${brandName || 'My Store'}</div>` : ''}
+          <div class="product-name">${generatedConfig.productName}</div>
+          ${
+            (generatedConfig.codeType === 'barcode' || generatedConfig.codeType === 'both') && generatedConfig.barcodeDataUrl
+              ? `<div class="barcode-wrap"><img src="${generatedConfig.barcodeDataUrl}" alt="Barcode" /></div>`
+              : ''
+          }
+          ${
+            (generatedConfig.codeType === 'qrcode' || generatedConfig.codeType === 'both') && generatedConfig.qrDataUrl
+              ? `<div class="qr-wrap"><img src="${generatedConfig.qrDataUrl}" alt="QR Code" /></div>`
+              : ''
+          }
+          <div class="footer-row">
+            ${generatedConfig.showSKU ? `<span class="sku-code">#${generatedConfig.sku}</span>` : ''}
+            ${generatedConfig.showPrice ? `<span class="price-tag">${symbol}${generatedConfig.sellingPrice}</span>` : ''}
           </div>
         </div>
-      </div>
-    );
-  }
+      `
+      )
+      .join('');
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Print Labels - ${generatedConfig.productName}</title>
+          <style>
+            @page {
+              ${isThermal ? 'size: 50mm 30mm; margin: 1.5mm;' : 'size: A4 portrait; margin: 8mm;'}
+            }
+            * {
+              box-sizing: border-box;
+              margin: 0;
+              padding: 0;
+            }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+              background: #fff;
+              color: #000;
+              padding: ${isThermal ? '0' : '4mm'};
+            }
+            .grid-container {
+              display: ${isThermal ? 'block' : 'grid'};
+              ${!isThermal ? 'grid-template-columns: repeat(3, 1fr); gap: 4mm;' : ''}
+            }
+            .sticker-card {
+              border: ${isThermal ? 'none' : '1px dashed #777'};
+              border-radius: 4px;
+              padding: ${isThermal ? '1.5mm' : '3mm'};
+              text-align: center;
+              background: #fff;
+              color: #000;
+              page-break-inside: avoid;
+              break-inside: avoid;
+              ${isThermal ? 'page-break-after: always; height: 27mm; display: flex; flex-direction: column; justify-content: space-between;' : ''}
+              margin-bottom: ${isThermal ? '2mm' : '0'};
+            }
+            .brand-name {
+              font-size: 8.5px;
+              font-weight: 800;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              border-bottom: 1px solid #ddd;
+              padding-bottom: 1px;
+              margin-bottom: 2px;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }
+            .product-name {
+              font-size: 10.5px;
+              font-weight: 700;
+              margin-bottom: 2px;
+              line-height: 1.2;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }
+            .barcode-wrap {
+              margin: 2px 0;
+              display: flex;
+              justify-content: center;
+            }
+            .barcode-wrap img {
+              max-height: ${isThermal ? '30px' : '42px'};
+              max-width: 96%;
+              object-fit: contain;
+            }
+            .qr-wrap {
+              margin: 2px 0;
+              display: flex;
+              justify-content: center;
+            }
+            .qr-wrap img {
+              width: ${isThermal ? '38px' : '52px'};
+              height: ${isThermal ? '38px' : '52px'};
+              object-fit: contain;
+            }
+            .footer-row {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              border-top: 1px solid #ddd;
+              padding-top: 2px;
+              margin-top: 2px;
+              font-size: 9px;
+            }
+            .sku-code {
+              font-family: monospace;
+              font-weight: 700;
+              color: #444;
+            }
+            .price-tag {
+              font-size: 11.5px;
+              font-weight: 900;
+              color: #000;
+              margin-left: auto;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="grid-container">
+            ${cardsHtml}
+          </div>
+        </body>
+      </html>
+    `;
+
+    doc.open();
+    doc.write(htmlContent);
+    doc.close();
+
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (e) {
+        console.warn('Iframe print fallback to window.print:', e);
+        window.print();
+      } finally {
+        setTimeout(() => {
+          try {
+            document.body.removeChild(iframe);
+          } catch (_) {}
+        }, 3000);
+      }
+    }, 300);
+  };
 
   return (
     <div className="space-y-6 pb-16">
@@ -308,14 +416,24 @@ export const BarcodeGeneratorView: React.FC = () => {
         </div>
 
         {generatedConfig && (
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-lg shadow-emerald-600/20 transition-all cursor-pointer"
-          >
-            <Printer className="w-4 h-4" />
-            <span>Print {generatedConfig.copies} Labels</span>
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => handlePrint('a4')}
+              className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Print A4 Sheet ({generatedConfig.copies})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePrint('thermal')}
+              className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-black text-slate-900 dark:text-white bg-amber-400 hover:bg-amber-500 rounded-xl shadow-md shadow-amber-400/20 transition-all cursor-pointer"
+            >
+              <Tag className="w-4 h-4" />
+              <span>Thermal Roll (50×30mm)</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -569,14 +687,24 @@ export const BarcodeGeneratorView: React.FC = () => {
           </button>
 
           {generatedConfig && (
-            <button
-              type="button"
-              onClick={handlePrint}
-              className="w-full sm:w-auto px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Printer className="w-4 h-4" />
-              <span>Print Generated Labels ({generatedConfig.copies})</span>
-            </button>
+            <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => handlePrint('a4')}
+                className="flex-1 sm:flex-none px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Print A4 Sheet ({generatedConfig.copies})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePrint('thermal')}
+                className="flex-1 sm:flex-none px-6 py-3 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black text-xs rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Tag className="w-4 h-4" />
+                <span>Print Thermal Labels (50×30mm)</span>
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -584,14 +712,30 @@ export const BarcodeGeneratorView: React.FC = () => {
       {/* Generated Labels Preview Grid Section */}
       {generatedConfig ? (
         <div id="printable-sticker-section" className="space-y-4">
-          <div className="flex items-center justify-between no-print px-1">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 no-print px-1">
             <h3 className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
               <Check className="w-4 h-4 text-emerald-500" />
               Previewing {generatedConfig.copies} Generated Sticker Labels
             </h3>
-            <span className="text-[11px] font-bold text-slate-400">
-              A4 Sticker Sheet / Thermal Ready
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-400">
+                Format:
+              </span>
+              <button
+                type="button"
+                onClick={() => handlePrint('a4')}
+                className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 hover:bg-emerald-200 transition-colors cursor-pointer"
+              >
+                🖨️ A4 Sheet
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePrint('thermal')}
+                className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 hover:bg-amber-200 transition-colors cursor-pointer"
+              >
+                🏷️ Thermal Roll
+              </button>
+            </div>
           </div>
 
           <div className="p-6 rounded-3xl bg-slate-100 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 shadow-inner">

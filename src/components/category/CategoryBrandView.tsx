@@ -11,6 +11,7 @@ export const CategoryBrandView: React.FC = () => {
   const [newCatName, setNewCatName] = useState('');
   const [newCatDesc, setNewCatDesc] = useState('');
   const [newBrandName, setNewBrandName] = useState('');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   // selectedCategory null means initially showing Category List Grid
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
@@ -20,18 +21,19 @@ export const CategoryBrandView: React.FC = () => {
 
   const isBn = language === 'bn';
 
-  const handleAddCat = (e: React.FormEvent) => {
+  const handleAddCat = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCatName) return;
-    addCategory(newCatName, newCatDesc);
+    if (!newCatName.trim()) return;
+    await addCategory(newCatName.trim(), newCatDesc.trim());
     setNewCatName('');
     setNewCatDesc('');
+    setIsCreateModalOpen(false);
   };
 
-  const handleAddBrand = (e: React.FormEvent) => {
+  const handleAddBrand = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newBrandName) return;
-    addBrand(newBrandName);
+    if (!newBrandName.trim()) return;
+    await addBrand(newBrandName.trim());
     setNewBrandName('');
   };
 
@@ -60,23 +62,36 @@ export const CategoryBrandView: React.FC = () => {
           </p>
         </div>
 
-        {/* Back Button or Filter Pills */}
-        {selectedCategory ? (
-          <button
-            onClick={() => setSelectedCategory(null)}
-            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>{isBn ? '← ক্যাটাগরি তালিকায় ফিরে যান' : '← Back to All Categories'}</span>
-          </button>
-        ) : (
-          <button
-            onClick={() => setSelectedCategory('all')}
-            className="px-3.5 py-2 text-xs font-bold rounded-xl bg-[#ff5c01]/10 text-[#ff5c01] border border-[#ff5c01]/20 hover:bg-[#ff5c01] hover:text-white transition-all cursor-pointer"
-          >
-            {isBn ? 'সকল প্রোডাক্ট একসাথে দেখুন' : 'View All Products'} ({products.length})
-          </button>
-        )}
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {selectedCategory ? (
+            <button
+              onClick={() => setSelectedCategory(null)}
+              className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>{isBn ? '← ক্যাটাগরি তালিকায় ফিরে যান' : '← Back to All Categories'}</span>
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="px-4 py-2 bg-[#ff5c01] hover:bg-[#e05100] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>{isBn ? 'নতুন ক্যাটাগরি তৈরি করুন' : 'Create Category'}</span>
+              </button>
+              {products.length > 0 && (
+                <button
+                  onClick={() => setSelectedCategory('all')}
+                  className="px-3.5 py-2 text-xs font-bold rounded-xl bg-[#ff5c01]/10 text-[#ff5c01] border border-[#ff5c01]/20 hover:bg-[#ff5c01] hover:text-white transition-all cursor-pointer"
+                >
+                  {isBn ? 'সকল প্রোডাক্ট দেখুন' : 'View All Products'} ({products.length})
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* STEP 1: Main View when NO category selected -> Category Cards Grid */}
@@ -85,17 +100,39 @@ export const CategoryBrandView: React.FC = () => {
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
               <Folder className="w-4 h-4 text-[#ff5c01]" />
-              <span>{isBn ? 'ক্যাটাগরি সমূহ' : 'Available Categories'} ({categories.length})</span>
+              <span>{isBn ? 'ক্যাটাগরি সমূহ' : 'Categories'} ({categories.length})</span>
             </h3>
-            <span className="text-xs text-slate-400">
-              {isBn ? 'প্রোডাক্ট দেখতে ক্যাটাগরিতে ক্লিক করুন' : 'Click a category card to see its products'}
-            </span>
+            {categories.length > 0 && (
+              <span className="text-xs text-slate-400">
+                {isBn ? 'প্রোডাক্ট দেখতে ক্যাটাগরিতে ক্লিক করুন' : 'Click a category card to see its products'}
+              </span>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {categories.length === 0 ? (
-              <div className="col-span-full p-8 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-slate-400 text-xs">
-                {isBn ? 'কোনো ক্যাটাগরি যুক্ত করা হয়নি।' : 'No categories found. Add a category below.'}
+              <div className="col-span-full p-12 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-slate-400 text-xs space-y-4">
+                <div className="w-14 h-14 mx-auto rounded-2xl bg-[#ff5c01]/10 text-[#ff5c01] flex items-center justify-center">
+                  <Folder className="w-7 h-7" />
+                </div>
+                <div className="space-y-1">
+                  <p className="font-extrabold text-sm text-slate-800 dark:text-slate-200">
+                    {isBn ? 'কোনো ক্যাটাগরি তৈরি করা হয়নি' : 'No Categories Created'}
+                  </p>
+                  <p className="text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                    {isBn
+                      ? 'আপনার স্টোরের জন্য নতুন ক্যাটাগরি তৈরি করতে "Create Category" বাটনে ক্লিক করুন।'
+                      : 'You have not created any categories yet. Create your first category using the button below.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#ff5c01] hover:bg-[#e05100] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>{isBn ? 'ক্যাটাগরি তৈরি করুন' : 'Create Category'}</span>
+                </button>
               </div>
             ) : (
               categories.map((cat) => {
@@ -368,6 +405,78 @@ export const CategoryBrandView: React.FC = () => {
         }}
         onCancel={() => setIsRemoveOutOfStockOpen(false)}
       />
+
+      {/* Create Category Modal */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-[#ff5c01]/10 text-[#ff5c01] flex items-center justify-center font-bold">
+                  <Folder className="w-4 h-4" />
+                </div>
+                <h3 className="font-extrabold text-sm text-slate-900 dark:text-slate-100">
+                  {isBn ? 'নতুন ক্যাটাগরি তৈরি করুন' : 'Create New Category'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg leading-none cursor-pointer"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleAddCat} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  {isBn ? 'ক্যাটাগরির নাম' : 'Category Name'} <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder={isBn ? 'যেমন: গ্রোসারি, ইলেকট্রনিক্স ইত্যাদি' : 'e.g. Organic Honey, Electronics, Clothing'}
+                  value={newCatName}
+                  onChange={(e) => setNewCatName(e.target.value)}
+                  autoFocus
+                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-hidden focus:border-[#ff5c01] text-slate-900 dark:text-slate-100 font-medium"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  {isBn ? 'বিবরণ (ঐচ্ছিক)' : 'Description (Optional)'}
+                </label>
+                <input
+                  type="text"
+                  placeholder={isBn ? 'সংক্ষিপ্ত বিবরণ লিখুন' : 'Short notes or category description'}
+                  value={newCatDesc}
+                  onChange={(e) => setNewCatDesc(e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-hidden focus:border-[#ff5c01] text-slate-900 dark:text-slate-100 font-medium"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-all cursor-pointer"
+                >
+                  {isBn ? 'বাতিল' : 'Cancel'}
+                </button>
+                <button
+                  type="submit"
+                  disabled={!newCatName.trim()}
+                  className="px-5 py-2 text-xs font-bold text-white bg-[#ff5c01] hover:bg-[#e05100] disabled:opacity-50 rounded-xl shadow-xs transition-all cursor-pointer"
+                >
+                  {isBn ? 'ক্যাটাগরি সেভ করুন' : 'Save Category'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

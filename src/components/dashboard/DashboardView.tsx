@@ -89,16 +89,19 @@ export const DashboardView: React.FC = () => {
     },
     {
       id: 'profit',
-      label: t('todayProfit'),
-      value: formatCurrency(metrics.todayProfit),
-      icon: TrendingUp,
-      color: 'text-indigo-500',
-      bg: 'bg-indigo-500/10',
+      label: metrics.todayLoss > 0
+        ? (language === 'bn' ? 'আজকের ক্ষতি (Loss)' : "Today's Loss")
+        : (t('todayProfit') || (language === 'bn' ? 'আজকের লাভ (Profit)' : "Today's Profit")),
+      value: metrics.todayLoss > 0 ? formatCurrency(metrics.todayLoss) : formatCurrency(metrics.todayProfit),
+      icon: metrics.todayLoss > 0 ? AlertTriangle : TrendingUp,
+      color: metrics.todayLoss > 0 ? 'text-rose-600' : 'text-indigo-500',
+      bg: metrics.todayLoss > 0 ? 'bg-rose-500/10' : 'bg-indigo-500/10',
+      tab: 'reports',
     },
     {
       id: 'due',
-      label: t('totalDueCustomers'),
-      value: formatCurrency(metrics.totalDueCustomers),
+      label: t('todayDue') || (language === 'bn' ? 'আজকের বকেয়া' : "Today's Due"),
+      value: formatCurrency(metrics.todayDue),
       icon: CreditCard,
       color: 'text-amber-500',
       bg: 'bg-amber-500/10',
@@ -171,10 +174,17 @@ export const DashboardView: React.FC = () => {
         }] : []),
         ...(isProductsOn && dashboardPreferences?.stockManagement !== false ? [{
           id: 'stock',
-          title: language === 'bn' ? '🏪 স্টক ম্যানেজমেন্ট' : 'Stock Audit & Alert',
-          desc: language === 'bn' ? 'স্টক কাউন্ট ও লো-স্টক এলার্ট' : 'Monitor stock levels & reorder alerts',
+          title: language === 'bn' ? '🏪 স্টক ম্যানেজমেন্ট' : 'Stock Management',
+          desc: language === 'bn' ? 'স্টক অডিট, সমন্বয় ও মুভমেন্ট লগ' : 'Real-time stock, adjustments & movement ledger',
           icon: Boxes,
-          color: 'from-violet-500 to-pink-600',
+          color: 'from-amber-500 to-orange-600',
+        }] : []),
+        ...(isProductsOn && dashboardPreferences?.purchases !== false ? [{
+          id: 'purchases',
+          title: language === 'bn' ? '🛍️ সাপ্লায়ার পারচেজ' : 'Purchases & Invoices',
+          desc: language === 'bn' ? 'ক্রয় চালান, ইনভয়েস ও সাপ্লায়ার বাকি' : 'Supplier purchases, invoices & vendor dues',
+          icon: ShoppingBag,
+          color: 'from-blue-600 to-indigo-700',
         }] : []),
         ...(isProductsOn && dashboardPreferences?.smartReorder !== false ? [{
           id: 'smart-reorder',
@@ -473,7 +483,7 @@ export const DashboardView: React.FC = () => {
           <div className="p-3.5 rounded-2xl bg-[#ff5c01]/10 border border-[#ff5c01]/20">
             <p className="text-[10px] font-bold text-[#ff5c01] uppercase tracking-wider">Total Stock Valuation</p>
             <p className="text-lg font-black text-slate-900 dark:text-white">
-              {symbol} {metrics.totalInventoryCostValue === 0 ? '0' : metrics.totalInventoryCostValue.toLocaleString()}
+              {symbol} {(metrics?.totalInventoryCostValue || 0).toLocaleString()}
             </p>
           </div>
         </div>

@@ -376,7 +376,7 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
                     {/* 3. Price & Available Stock Info */}
                     <div className="mt-2 pt-2 border-t border-slate-200/70 dark:border-slate-700/70 flex items-center justify-between w-full">
                       <span className="font-black text-xs sm:text-sm text-[#ff5c01]">
-                        {symbol} {prod.sellingPrice.toLocaleString()}
+                        {symbol} {(prod.sellingPrice || 0).toLocaleString()}
                       </span>
                       <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">
                         {t('stock')}: {prod.currentStock} {prod.unit || ''}
@@ -512,7 +512,7 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
                           <p className="text-[10px] text-slate-400">
                             {symbol}{item.product.sellingPrice} × {item.quantity} ={' '}
                             <strong className="text-slate-700 dark:text-slate-200">
-                              {symbol}{(item.product.sellingPrice * item.quantity).toLocaleString()}
+                              {symbol}{((item.product.sellingPrice || 0) * item.quantity).toLocaleString()}
                             </strong>
                           </p>
                         </div>
@@ -606,7 +606,7 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
 
                 {calculatedDiscount > 0 && (
                   <div className="flex justify-end text-[11px] font-black text-emerald-600 dark:text-emerald-400">
-                    - {symbol}{calculatedDiscount.toLocaleString()}
+                    - {symbol}{(calculatedDiscount || 0).toLocaleString()}
                   </div>
                 )}
               </div>
@@ -644,7 +644,7 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
                         : 'text-emerald-600 dark:text-emerald-400'
                     }`}
                   >
-                    {symbol}{remainingDue.toLocaleString()}
+                    {symbol}{(remainingDue || 0).toLocaleString()}
                   </span>
                 </div>
 
@@ -723,7 +723,7 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
                     {t('totalAmount') || 'TOTAL AMOUNT'}
                   </span>
                   <span className="text-xl font-black text-[#ff5c01]">
-                    {symbol}{grandTotal.toLocaleString()}
+                    {symbol}{(grandTotal || 0).toLocaleString()}
                   </span>
                 </div>
                 
@@ -732,7 +732,7 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
                     <div className="text-right">
                       <span className="text-[10px] text-slate-400 block">{t('discount') || 'Discount'}</span>
                       <span className="text-xs font-bold text-emerald-400">
-                        - {symbol}{calculatedDiscount.toLocaleString()}
+                        - {symbol}{(calculatedDiscount || 0).toLocaleString()}
                       </span>
                     </div>
                   )}
@@ -803,7 +803,7 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
 
                 <div className="space-y-1 text-xs">
                   <p className="font-bold text-white">
-                    Scan to pay: <span className="text-[#ff5c01] text-base font-black">{symbol}{grandTotal.toLocaleString()}</span>
+                    Scan to pay: <span className="text-[#ff5c01] text-base font-black">{symbol}{(grandTotal || 0).toLocaleString()}</span>
                   </p>
                   <p className="text-xs text-slate-300 font-semibold">
                     Provider: <span className="text-[#ff5c01]">{settings.paymentSettings?.qrProvider || 'bKash'}</span>

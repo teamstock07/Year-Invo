@@ -147,10 +147,10 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, isOpen, onClos
                         </td>
                         <td className="p-3 text-center font-extrabold">{item.quantity}</td>
                         <td className="p-3 text-right text-slate-600 dark:text-slate-400">
-                          {symbol}{item.sellingPrice.toLocaleString()}
+                          {symbol}{(item.sellingPrice || 0).toLocaleString()}
                         </td>
                         <td className="p-3 text-right font-black text-slate-900 dark:text-white">
-                          {symbol}{item.total.toLocaleString()}
+                          {symbol}{(item.total || 0).toLocaleString()}
                         </td>
                       </tr>
                     ))}
@@ -163,52 +163,52 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, isOpen, onClos
             <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-2 text-xs">
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>Subtotal</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200">{symbol} {sale.subtotal.toLocaleString()}</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{symbol} {(sale.subtotal || 0).toLocaleString()}</span>
               </div>
 
-              {sale.discount > 0 && (
+              {(sale.discount || 0) > 0 && (
                 <div className="flex justify-between text-rose-600 dark:text-rose-400 font-semibold">
                   <span>Discount</span>
-                  <span>-{symbol} {sale.discount.toLocaleString()}</span>
+                  <span>-{symbol} {(sale.discount || 0).toLocaleString()}</span>
                 </div>
               )}
 
-              {sale.tax > 0 && (
+              {(sale.tax || 0) > 0 && (
                 <div className="flex justify-between text-slate-600 dark:text-slate-400 font-semibold">
                   <span>Tax</span>
-                  <span>+{symbol} {sale.tax.toLocaleString()}</span>
+                  <span>+{symbol} {(sale.tax || 0).toLocaleString()}</span>
                 </div>
               )}
 
               <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center text-base sm:text-lg font-black text-slate-900 dark:text-white">
                 <span>Grand Total</span>
-                <span className="text-[#ff5c01]">{symbol} {sale.total.toLocaleString()}</span>
+                <span className="text-[#ff5c01]">{symbol} {(sale.total || 0).toLocaleString()}</span>
               </div>
 
               <div className="pt-2 border-t border-slate-200 dark:border-slate-700 grid grid-cols-2 gap-2 text-xs pt-2">
                 <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 font-extrabold flex justify-between items-center">
                   <span>Paid Amount</span>
-                  <span>{symbol} {sale.paidAmount.toLocaleString()}</span>
+                  <span>{symbol} {(sale.paidAmount || 0).toLocaleString()}</span>
                 </div>
 
                 <div className={`p-2 rounded-xl border font-extrabold flex justify-between items-center ${
-                  sale.dueAmount > 0
+                  (sale.dueAmount || 0) > 0
                     ? 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400'
                     : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
                 }`}>
                   <span>Due Amount</span>
-                  <span>{symbol} {sale.dueAmount.toLocaleString()}</span>
+                  <span>{symbol} {(sale.dueAmount || 0).toLocaleString()}</span>
                 </div>
               </div>
 
               <div className="flex items-center justify-between pt-1">
                 <span className="text-[11px] text-slate-500">Payment Status:</span>
                 <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black ${
-                  sale.dueAmount > 0
+                  (sale.dueAmount || 0) > 0
                     ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20'
                     : 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
                 }`}>
-                  {sale.dueAmount > 0 ? 'PARTIALLY PAID' : 'PAID IN FULL'}
+                  {(sale.dueAmount || 0) > 0 ? 'PARTIALLY PAID' : 'PAID IN FULL'}
                 </span>
               </div>
             </div>

@@ -269,6 +269,7 @@ interface AppContextType {
   updateCustomer: (id: string, cust: Partial<Customer>) => Promise<void>;
   deleteCustomer: (id: string) => Promise<void>;
   addSupplier: (supp: Omit<Supplier, 'id' | 'createdAt' | 'dueAmount' | 'totalPurchasesCount'>) => Promise<Supplier>;
+  updateSupplier: (id: string, supp: Partial<Supplier>) => Promise<void>;
   deleteSupplier: (id: string) => Promise<void>;
   resetAllDataToZero: () => Promise<void>;
   loadSampleDemoData: () => Promise<void>;
@@ -308,7 +309,11 @@ interface AppContextType {
     todaySales: number;
     todayExpense: number;
     todayBuyingCost: number;
+    todayGrossProfit: number;
     todayProfit: number;
+    todayLoss: number;
+    todayDue: number;
+    todayDueSuppliers: number;
     totalBalance: number;
     totalStockQty: number;
     totalInventoryCostValue: number;
@@ -317,7 +322,10 @@ interface AppContextType {
     totalDueSuppliers: number;
     monthlySales: number;
     monthlyExpense: number;
+    monthBuyingCost: number;
+    monthGrossProfit: number;
     monthlyProfit: number;
+    monthlyLoss: number;
     lowStockCount: number;
     expiredCount: number;
   };
@@ -958,8 +966,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const [products, setProducts] = useState<Product[]>(() => getStoredData('biz_products', []));
-  const [categories, setCategories] = useState<Category[]>(() => getStoredData('biz_categories', initialCategories));
-  const [brands, setBrands] = useState<Brand[]>(() => getStoredData('biz_brands', initialBrands));
+  const [categories, setCategories] = useState<Category[]>(() => getStoredData('biz_categories', []));
+  const [brands, setBrands] = useState<Brand[]>(() => getStoredData('biz_brands', []));
   const [customers, setCustomers] = useState<Customer[]>(() => getStoredData('biz_customers', []));
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => getStoredData('biz_suppliers', []));
   const [expenses, setExpenses] = useState<Expense[]>(() => getStoredData('biz_expenses', []));
@@ -1077,8 +1085,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!currentUserId) {
       setIsCloudSynced(false);
       setProducts([]);
-      setCategories(initialCategories);
-      setBrands(initialBrands);
+      setCategories([]);
+      setBrands([]);
       setCustomers([]);
       setSuppliers([]);
       setExpenses([]);
@@ -1129,15 +1137,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } else {
           try {
             const localSaved = localStorage.getItem(`biz_categories_${currentUserId}`);
-            const localItems: Category[] = localSaved ? JSON.parse(localSaved) : initialCategories;
+            const localItems: Category[] = localSaved ? JSON.parse(localSaved) : [];
             if (localItems.length > 0) {
               setCategories(localItems);
               saveUserCloudCollection(currentUserId, 'categories', { items: localItems });
             } else {
-              setCategories(initialCategories);
+              setCategories([]);
             }
           } catch (e) {
-            setCategories(initialCategories);
+            setCategories([]);
           }
         }
       },
@@ -1152,15 +1160,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } else {
           try {
             const localSaved = localStorage.getItem(`biz_brands_${currentUserId}`);
-            const localItems: Brand[] = localSaved ? JSON.parse(localSaved) : initialBrands;
+            const localItems: Brand[] = localSaved ? JSON.parse(localSaved) : [];
             if (localItems.length > 0) {
               setBrands(localItems);
               saveUserCloudCollection(currentUserId, 'brands', { items: localItems });
             } else {
-              setBrands(initialBrands);
+              setBrands([]);
             }
           } catch (e) {
-            setBrands(initialBrands);
+            setBrands([]);
           }
         }
       },
@@ -3739,6 +3747,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newSupp;
   };
 
+  const updateSupplier = async (id: string, suppData: Partial<Supplier>): Promise<void> => {
+    const nextSuppliers = suppliers.map((s) => (s.id === id ? { ...s, ...suppData } : s));
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      await saveUserCloudCollection(uid, 'suppliers', { items: nextSuppliers });
+    }
+
+    setSuppliers(nextSuppliers);
+    try {
+      localStorage.setItem('biz_suppliers', JSON.stringify(nextSuppliers));
+      if (uid) localStorage.setItem(`biz_suppliers_${uid}`, JSON.stringify(nextSuppliers));
+    } catch (e) {}
+
+    logActivity('Updated Supplier', 'সরবরাহকারী তথ্য আপডেট করা হয়েছে', `ID: ${id}`);
+  };
+
   const deleteSupplier = async (id: string): Promise<void> => {
     const nextSuppliers = suppliers.filter((s) => s.id !== id);
     const uid = user?.id || auth.currentUser?.uid;
@@ -4074,16 +4098,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const todaySalesArr = sales.filter((s) => s.date.startsWith(todayStr));
   const todaySales = todaySalesArr.reduce((acc, s) => acc + s.total, 0);
 
+  // ONLY new due created today from today's sales (previous dues and paid dues excluded)
+  const todayDue = todaySalesArr.reduce((acc, s) => acc + (Number(s.dueAmount) || 0), 0);
+
+  const todayPurchasesArr = purchases.filter((p) => p.date.startsWith(todayStr));
+  const todayDueSuppliers = todayPurchasesArr.reduce((acc, p) => acc + (Number(p.dueAmount) || 0), 0);
+
   const todayBuyingCost = todaySalesArr.reduce((acc, s) => {
     const itemsBuyingTotal = s.items.reduce((sum, item) => sum + item.buyingPrice * item.quantity, 0);
     return acc + itemsBuyingTotal;
   }, 0);
 
+  const todayGrossProfit = todaySales - todayBuyingCost;
+
   const todayExpense = expenses
     .filter((e) => e.date.startsWith(todayStr))
     .reduce((acc, e) => acc + e.amount, 0);
 
-  const todayProfit = Math.max(0, todaySales - todayBuyingCost - todayExpense);
+  const todayNetResult = todayGrossProfit - todayExpense;
+  const todayProfit = todayNetResult > 0 ? todayNetResult : 0;
+  const todayLoss = todayNetResult < 0 ? Math.abs(todayNetResult) : 0;
 
   const totalStockQty = products.reduce((acc, p) => acc + p.currentStock, 0);
   const totalInventoryCostValue = products.reduce((acc, p) => acc + p.buyingPrice * p.currentStock, 0);
@@ -4103,7 +4137,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return acc + s.items.reduce((sum, i) => sum + i.buyingPrice * i.quantity, 0);
   }, 0);
 
-  const monthlyProfit = Math.max(0, monthlySales - monthBuyingCost - monthlyExpense);
+  const monthGrossProfit = monthlySales - monthBuyingCost;
+  const monthNetResult = monthGrossProfit - monthlyExpense;
+  const monthlyProfit = monthNetResult > 0 ? monthNetResult : 0;
+  const monthlyLoss = monthNetResult < 0 ? Math.abs(monthNetResult) : 0;
 
   const totalRevenueAllTime = sales.reduce((acc, s) => acc + s.total, 0);
   const totalExpenseAllTime = expenses.reduce((acc, e) => acc + e.amount, 0);
@@ -4227,6 +4264,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateCustomer,
         deleteCustomer,
         addSupplier,
+        updateSupplier,
         deleteSupplier,
         resetAllDataToZero,
         loadSampleDemoData,
@@ -4254,7 +4292,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           todaySales,
           todayExpense,
           todayBuyingCost,
+          todayGrossProfit,
           todayProfit,
+          todayLoss,
+          todayDue,
+          todayDueSuppliers,
           totalBalance,
           totalStockQty,
           totalInventoryCostValue,
@@ -4263,7 +4305,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           totalDueSuppliers,
           monthlySales,
           monthlyExpense,
+          monthBuyingCost,
+          monthGrossProfit,
           monthlyProfit,
+          monthlyLoss,
           lowStockCount,
           expiredCount,
         },

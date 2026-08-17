@@ -51,6 +51,7 @@ export const PosSystem: React.FC = () => {
     checkoutPOS,
     addCustomer,
     settings,
+    language,
     t,
   } = useApp();
 
@@ -148,7 +149,7 @@ export const PosSystem: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [products, addToCart]);
+  }, [products, addToCart, user]);
 
   // Filter and sort Products (Valid products first, expired products last)
   const todayStr = new Date().toISOString().split('T')[0];
@@ -264,7 +265,7 @@ export const PosSystem: React.FC = () => {
     }
 
     if (remainingDue > 0 && !selectedCustomerId) {
-      alert('A remaining due balance of ' + symbol + remainingDue.toLocaleString() + ' requires choosing a registered customer! Please select or add a customer.');
+      alert('A remaining due balance of ' + symbol + (remainingDue || 0).toLocaleString() + ' requires choosing a registered customer! Please select or add a customer.');
       return;
     }
 
@@ -797,7 +798,7 @@ export const PosSystem: React.FC = () => {
             <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-200/60 dark:border-slate-700/60">
               <span className="font-semibold text-slate-600 dark:text-slate-400">Remaining Due (Credit):</span>
               <span className={`font-black text-xs ${remainingDue > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                {symbol} {remainingDue.toLocaleString()}
+                {symbol} {(remainingDue || 0).toLocaleString()}
               </span>
             </div>
 
@@ -815,7 +816,7 @@ export const PosSystem: React.FC = () => {
             {changeReturn > 0 && (
               <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
                 <span className="font-medium text-slate-500">Change Return:</span>
-                <span className="font-black text-amber-500">{symbol} {changeReturn.toLocaleString()}</span>
+                <span className="font-black text-amber-500">{symbol} {(changeReturn || 0).toLocaleString()}</span>
               </div>
             )}
           </div>
@@ -861,13 +862,13 @@ export const PosSystem: React.FC = () => {
             <div>
               <span className="text-[10px] uppercase text-slate-400 font-bold block">{t('grandTotal')}</span>
               <span className="text-xl font-black text-[#ff5c01]">
-                {symbol} {grandTotal.toLocaleString()}
+                {symbol} {(grandTotal || 0).toLocaleString()}
               </span>
             </div>
             <div className="text-right">
               <span className="text-[10px] text-slate-400 block font-semibold">Net Received</span>
               <span className="text-xs font-bold text-emerald-400">
-                {symbol} {numericPaid.toLocaleString()}
+                {symbol} {(numericPaid || 0).toLocaleString()}
               </span>
             </div>
           </div>
@@ -889,6 +890,7 @@ export const PosSystem: React.FC = () => {
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
         products={products}
+        language={language}
         onProductScanned={(scannedProduct) => {
           addToCart(scannedProduct);
         }}
@@ -934,7 +936,7 @@ export const PosSystem: React.FC = () => {
 
                 <div className="space-y-1 text-xs">
                   <p className="font-bold text-white">
-                    Scan to pay: <span className="text-[#ff5c01] text-base font-black">{symbol}{grandTotal.toLocaleString()}</span>
+                    Scan to pay: <span className="text-[#ff5c01] text-base font-black">{symbol}{(grandTotal || 0).toLocaleString()}</span>
                   </p>
                   <p className="text-xs text-slate-300 font-semibold">
                     Provider: <span className="text-[#ff5c01]">{settings.paymentSettings?.qrProvider || 'bKash'}</span>

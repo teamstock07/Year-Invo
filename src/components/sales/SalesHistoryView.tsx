@@ -110,7 +110,7 @@ export const SalesHistoryView: React.FC = () => {
                 : (isBn ? 'গত ৩ মাসের মোট বিক্রি' : 'Selected 3 Months Sales Revenue')}
             </span>
             <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">
-              {symbol} {totalPeriodSales.toLocaleString()}
+              {symbol} {(totalPeriodSales || 0).toLocaleString()}
             </h3>
             <p className="text-[10px] text-slate-400 mt-0.5">
               {rangeFilteredSales.length} {isBn ? 'টি ট্রানজ্যাকশন সম্পন্ন' : 'transactions recorded'}
@@ -130,7 +130,7 @@ export const SalesHistoryView: React.FC = () => {
                 : (isBn ? 'গত ৩ মাসের নিট লাভ/ক্ষতি' : 'Selected 3 Months Profit / Loss')}
             </span>
             <h3 className={`text-2xl font-black mt-1 ${totalPeriodProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-              {symbol} {Math.abs(totalPeriodProfit).toLocaleString()} {totalPeriodProfit < 0 ? '(Loss)' : ''}
+              {symbol} {Math.abs(totalPeriodProfit || 0).toLocaleString()} {totalPeriodProfit < 0 ? '(Loss)' : ''}
             </h3>
             <p className="text-[10px] text-slate-400 mt-0.5">
               {isBn ? 'কেনা দাম ও বিক্রি দামের সমন্বিত হিসাব' : 'Calculated based on item buying vs selling prices'}
@@ -172,7 +172,7 @@ export const SalesHistoryView: React.FC = () => {
                 <tr key={sale.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
                   <td className="p-4 font-mono font-bold text-slate-800 dark:text-slate-100">{sale.invoiceNo}</td>
                   <td className="p-4 text-slate-500 font-mono text-[11px]">
-                    {new Date(sale.date).toLocaleString()}
+                    {sale.date ? new Date(sale.date).toLocaleString() : 'N/A'}
                   </td>
                   <td className="p-4 font-bold text-slate-800 dark:text-slate-200">{sale.customerName}</td>
                   <td className="p-4">
@@ -182,7 +182,7 @@ export const SalesHistoryView: React.FC = () => {
                   </td>
                   <td className="p-4 text-right font-bold">{sale.items.length} items</td>
                   <td className="p-4 text-right font-black text-emerald-600 dark:text-emerald-400">
-                    {symbol} {sale.total.toLocaleString()}
+                    {symbol} {(sale.total || 0).toLocaleString()}
                   </td>
                   <td className="p-4 text-center">
                     <button

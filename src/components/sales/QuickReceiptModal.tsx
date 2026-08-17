@@ -35,12 +35,12 @@ Date: ${new Date(sale.date).toLocaleDateString()} ${new Date(sale.date).toLocale
 Customer: ${sale.customerName || 'Valued Customer'}
 
 ITEMS:
-${sale.items.map((item) => `- ${item.productName} x${item.quantity} = ${symbol}${item.total.toLocaleString()}`).join('\n')}
+${sale.items.map((item) => `- ${item.productName} x${item.quantity} = ${symbol}${(item.total || 0).toLocaleString()}`).join('\n')}
 
-Subtotal: ${symbol}${sale.subtotal.toLocaleString()}
-${sale.discount > 0 ? `Discount: -${symbol}${sale.discount.toLocaleString()}\n` : ''}${sale.tax > 0 ? `Tax: +${symbol}${sale.tax.toLocaleString()}\n` : ''}GRAND TOTAL: ${symbol}${sale.total.toLocaleString()}
-Paid Amount: ${symbol}${sale.paidAmount.toLocaleString()}
-${sale.dueAmount > 0 ? `DUE AMOUNT: ${symbol}${sale.dueAmount.toLocaleString()} (Partially Paid)\n` : 'STATUS: Fully Paid\n'}Payment Method: ${sale.paymentMethod}
+Subtotal: ${symbol}${(sale.subtotal || 0).toLocaleString()}
+${(sale.discount || 0) > 0 ? `Discount: -${symbol}${(sale.discount || 0).toLocaleString()}\n` : ''}${(sale.tax || 0) > 0 ? `Tax: +${symbol}${(sale.tax || 0).toLocaleString()}\n` : ''}GRAND TOTAL: ${symbol}${(sale.total || 0).toLocaleString()}
+Paid Amount: ${symbol}${(sale.paidAmount || 0).toLocaleString()}
+${(sale.dueAmount || 0) > 0 ? `DUE AMOUNT: ${symbol}${(sale.dueAmount || 0).toLocaleString()} (Partially Paid)\n` : 'STATUS: Fully Paid\n'}Payment Method: ${sale.paymentMethod}
 ${storePhone ? `Contact: ${storePhone}\n` : ''}Thank you for your business!
 `.trim();
 
@@ -97,19 +97,19 @@ ${storePhone ? `Contact: ${storePhone}\n` : ''}Thank you for your business!
               <div className="flex justify-between items-center pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
                 <span className="text-slate-500 font-medium">Total Amount:</span>
                 <span className="font-black text-slate-900 dark:text-white text-base">
-                  {symbol} {sale.total.toLocaleString()}
+                  {symbol} {(sale.total || 0).toLocaleString()}
                 </span>
               </div>
 
               <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400 font-bold">
                 <span>Paid Amount:</span>
-                <span>{symbol} {sale.paidAmount.toLocaleString()}</span>
+                <span>{symbol} {(sale.paidAmount || 0).toLocaleString()}</span>
               </div>
 
-              {sale.dueAmount > 0 && (
+              {(sale.dueAmount || 0) > 0 && (
                 <div className="flex justify-between items-center text-rose-600 dark:text-rose-400 font-bold">
                   <span>Due Amount:</span>
-                  <span>{symbol} {sale.dueAmount.toLocaleString()}</span>
+                  <span>{symbol} {(sale.dueAmount || 0).toLocaleString()}</span>
                 </div>
               )}
 

@@ -9,6 +9,7 @@ import { PosSystem } from './components/pos/PosSystem';
 import { ProductList } from './components/products/ProductList';
 import { CategoryBrandView } from './components/category/CategoryBrandView';
 import { StockManagement } from './components/stock/StockManagement';
+import { PurchasesView } from './components/purchases/PurchasesView';
 import { ExpiredProductsView } from './components/stock/ExpiredProductsView';
 import { SalesModule } from './components/sales/SalesModule';
 import { SalesHistoryView } from './components/sales/SalesHistoryView';
@@ -40,7 +41,7 @@ import { BusinessTypeSetupModal } from './components/common/BusinessTypeSetupMod
 import { getDisplayBrandName } from './utils/brand';
 
 const MainLayout: React.FC = () => {
-  const { user, activeTab, theme, settings } = useApp();
+  const { user, activeTab, setActiveTab, theme, settings } = useApp();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showFirstTimeBizModal, setShowFirstTimeBizModal] = useState(() => {
     if (!user) return false;
@@ -102,14 +103,14 @@ const MainLayout: React.FC = () => {
       case 'salesCalendar':
         return <SalesCalendarView />;
       case 'purchases':
-        return <StockManagement />;
+        return <PurchasesView />;
       case 'customers':
         return <CustomerDirectoryView />;
       case 'loyalty':
       case 'customerLoyalty':
         return <CustomerLoyaltyView />;
       case 'suppliers':
-        return <SupplierDirectoryView />;
+        return <SupplierDirectoryView onNavigateToPurchases={() => setActiveTab('purchases')} />;
       case 'due':
         return <DueManagement />;
       case 'expenses':
