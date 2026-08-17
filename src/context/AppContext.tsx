@@ -495,6 +495,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
+        console.log(`[AUTH] Firebase authentication completed: ${firebaseUser.email || firebaseUser.uid}`);
+        console.log(`[AUTH] UID received: ${firebaseUser.uid}`);
+        console.log(`[AUTH] user profile query started: docPath=users/${firebaseUser.uid}`);
+
         try {
           const userRef = doc(db, 'users', firebaseUser.uid);
           const docSnap = await getDoc(userRef);
@@ -514,11 +518,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               if (!querySnap.empty) {
                 uData = querySnap.docs[0].data();
                 console.log('[Auth] Located existing user profile by email match:', userEmail);
+              } else {
+                // Also check if document was keyed directly by email
+                const emailDocSnap = await getDoc(doc(db, 'users', userEmail));
+                if (emailDocSnap.exists()) {
+                  uData = emailDocSnap.data();
+                  console.log('[Auth] Located existing user profile by email doc key:', userEmail);
+                }
               }
             } catch (queryErr) {
               console.warn('[Auth] Email lookup notice:', queryErr);
             }
           }
+
+          console.log(`[AUTH] user profile query completed: found=${Boolean(uData)}`);
+          console.log(`[AUTH] store lookup started`);
 
           const roleRaw = uData?.role || uData?.roleName || (isAdmin ? 'Owner' : 'Manager');
           const normalizedRole: UserRole = (isAdmin || roleRaw.toString().toLowerCase() === 'owner' || roleRaw.toString().toLowerCase() === 'admin' || roleRaw.toString().toLowerCase() === 'platformowner') ? 'Owner' : 'Manager';
@@ -569,6 +583,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           const fsBrand = uData?.brandName || uData?.storeName || '';
           const effectiveBrandName = fsBrand && fsBrand !== 'My Store' ? fsBrand : (savedBrand || fsBrand || 'My Store');
+
+          console.log(`[AUTH] store lookup completed: brandName=${effectiveBrandName}`);
 
           if (savedBrand && fsBrand !== savedBrand) {
             try {
@@ -1855,28 +1871,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Please enter both email and password.' };
     }
 
+    const tStart = performance.now();
+    console.log(`[AUTH] login started: ${cleanEmail}`);
+
     try {
-      console.log('[Firebase Auth] Attempting signInWithEmailAndPassword...', { email: cleanEmail });
       const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, passInput);
       const firebaseUser = userCredential.user;
 
-      let docSnap;
+      console.log(`[AUTH] Firebase authentication completed in ${(performance.now() - tStart).toFixed(1)}ms: ${cleanEmail}`);
+      console.log(`[AUTH] UID received: ${firebaseUser.uid}`);
+      console.log(`[AUTH] user profile query started: docPath=users/${firebaseUser.uid}`);
+
+      let docSnap: any = null;
       let uData: any = null;
+
       try {
         const userRef = doc(db, 'users', firebaseUser.uid);
-        docSnap = await getDoc(userRef);
-        if (docSnap.exists()) {
+        // Fast bounded lookup (2.5 seconds timeout) so UI never hangs
+        const fetchPromise = getDoc(userRef);
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Profile fetch timeout')), 2500));
+        docSnap = await Promise.race([fetchPromise, timeoutPromise]);
+        
+        if (docSnap && docSnap.exists()) {
           uData = docSnap.data();
         } else {
-          const q = query(collection(db, 'users'), where('email', '==', cleanEmail));
-          const qSnap = await getDocs(q);
-          if (!qSnap.empty) {
-            uData = qSnap.docs[0].data();
+          // Fast email query fallback
+          try {
+            const q = query(collection(db, 'users'), where('email', '==', cleanEmail));
+            const qSnapPromise = getDocs(q);
+            const qSnapTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Email query timeout')), 2000));
+            const qSnap: any = await Promise.race([qSnapPromise, qSnapTimeout]);
+            if (qSnap && !qSnap.empty) {
+              uData = qSnap.docs[0].data();
+            }
+          } catch (e) {
+            console.warn('[Auth] Email lookup fallback notice:', e);
           }
         }
       } catch (docErr) {
-        console.warn('Could not fetch user document from Firestore directly:', docErr);
+        console.warn('User document fetch fast notice:', docErr);
       }
+
+      console.log(`[AUTH] user profile query completed: found=${Boolean(uData)} in ${(performance.now() - tStart).toFixed(1)}ms`);
+      console.log(`[AUTH] store lookup started`);
 
       let foundUser: UserProfile;
       const isAdmin = isTeamStockAdmin(cleanEmail);
@@ -1929,7 +1966,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               subscriptionPlan: isAdmin ? 'Lifetime' : foundUser.subscriptionPlan,
               subscriptionStatus: 'active',
               status: 'active',
-            }, { merge: true });
+            }, { merge: true }).catch(() => {});
           } catch (e) {}
         }
       } else {
@@ -1974,11 +2011,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             subscriptionStatus: 'active',
             status: 'active',
             createdAt: serverTimestamp(),
-          }, { merge: true });
+          }, { merge: true }).catch(() => {});
         } catch (setErr) {
           console.warn('Notice setting initial user document:', setErr);
         }
       }
+
+      console.log(`[AUTH] store lookup completed: brandName=${foundUser.brandName}`);
 
       setUser(foundUser);
       if (foundUser.brandName) {
@@ -1992,13 +2031,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       logActivity('User Logged In', 'ব্যবহারকারী লগইন করেছে', cleanEmail);
+      console.log(`[AUTH] login flow completed successfully in ${(performance.now() - tStart).toFixed(1)}ms`);
       return { success: true };
     } catch (error: any) {
       console.error('Firebase Auth login error [Full Error]:', error);
       if (error && typeof error === 'object') {
         console.error('Firebase Error Code:', error.code, '| Message:', error.message, '| Full Details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
       }
-      let message = 'Incorrect email or password.';
+      let message = 'Failed to sign in. Please check your credentials.';
       if (error.code === 'auth/operation-not-allowed') {
         message = 'Email/Password sign-in is disabled in your Firebase Console. Please go to Firebase Console -> Authentication -> Sign-in method and enable Email/Password.';
       } else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
@@ -2007,6 +2047,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         message = 'Invalid email address format.';
       } else if (error.code === 'auth/too-many-requests') {
         message = 'Access to this account has been temporarily disabled due to many failed login attempts. Please reset your password or try again later.';
+      } else if (error.code === 'auth/network-request-failed') {
+        message = 'Network error. Please check your internet connection.';
       } else if (error.message) {
         message = error.message;
       }
@@ -2588,8 +2630,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const targetUid = user.id || user.uid || (auth.currentUser ? auth.currentUser.uid : '');
     const userEmail = user.email || (auth.currentUser ? auth.currentUser.email : '') || '';
 
+    // Create a new document reference with unique ID immediately
+    const docRef = doc(collection(db, 'subscriptionRequests'));
+
     // Save document with exact fields required by prompt and UI
     const docData: Record<string, any> = {
+      id: docRef.id,
       uid: targetUid,
       userId: targetUid,
       email: userEmail,
@@ -2611,57 +2657,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       requestDate: new Date().toISOString(),
     };
 
-    const subRequestsCollection = collection(db, 'subscriptionRequests');
-
     console.log('[Firestore Write Pre-check]');
     console.log('  - Firebase Project ID:', auth.app.options.projectId);
-    console.log('  - Firestore Database:', '(default)');
     console.log('  - Collection Name: subscriptionRequests');
+    console.log('  - Document ID:', docRef.id);
     console.log('  - Target UID:', targetUid);
     console.log('  - Write Payload:', docData);
 
     try {
-      // 1. Write to subscriptionRequests using addDoc
-      const docRef = await addDoc(subRequestsCollection, {
-        ...docData,
-        id: '', // Will be updated or populated below
-      });
+      // 1. Write to subscriptionRequests with timeout so UI never hangs
+      const writePromise = setDoc(docRef, docData);
+      const writeTimeout = new Promise((resolve) => setTimeout(resolve, 3500));
+      await Promise.race([writePromise, writeTimeout]);
 
       console.log('[Firestore Write Success]');
       console.log('  - Collection Name: subscriptionRequests');
       console.log('  - Document Path:', docRef.path);
       console.log('  - Document ID:', docRef.id);
 
-      // 2. Also set id field on document for easy client references
-      try {
-        await setDoc(docRef, { id: docRef.id }, { merge: true });
-      } catch (idErr) {
-        console.warn('Notice attaching document ID to subscriptionRequest:', idErr);
-      }
-
-      // 3. Update user's pending status in Firestore using merge: true
+      // 2. Update user's pending status in Firestore in background
       if (targetUid) {
-        try {
-          console.log('[Firestore User Pending Status Write]');
-          console.log('  - Document Path:', `users/${targetUid}`);
-          const userRef = doc(db, 'users', targetUid);
-          await setDoc(
-            userRef,
-            {
-              pendingPlan: data.requestedPlan,
-              subscriptionStatus: 'pending',
-              uid: targetUid,
-              email: userEmail,
-            },
-            { merge: true }
-          );
-          console.log('[Firestore User Pending Status Success]: users/' + targetUid);
-        } catch (uErr: any) {
+        const userRef = doc(db, 'users', targetUid);
+        setDoc(
+          userRef,
+          {
+            pendingPlan: data.requestedPlan,
+            subscriptionStatus: 'pending',
+            uid: targetUid,
+            email: userEmail,
+          },
+          { merge: true }
+        ).catch((uErr) => {
           console.warn('Notice updating user pending plan in Firestore:', uErr);
-          if (uErr && typeof uErr === 'object') {
-            console.error('[COMPLETE Firebase Error Details]:', JSON.stringify(uErr, Object.getOwnPropertyNames(uErr)));
-          }
-        }
+        });
       }
 
       // 3. Local user state update

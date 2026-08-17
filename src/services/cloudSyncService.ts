@@ -129,6 +129,15 @@ export async function saveUserCloudCollectionsBatch(
   }
 }
 
+function extractItems<T = any>(data: any, fieldName: string): T[] {
+  if (!data) return [];
+  if (Array.isArray(data.items)) return data.items;
+  if (Array.isArray(data[fieldName])) return data[fieldName];
+  if (Array.isArray(data.list)) return data.list;
+  if (Array.isArray(data.data)) return data.data;
+  return [];
+}
+
 /**
  * Subscribes to real-time updates for all store business collections under users/{userId}/businessData/*
  */
@@ -137,6 +146,8 @@ export function subscribeToUserBusinessData(
   callbacks: CloudBusinessDataCallbacks
 ): () => void {
   if (!userId || !userId.trim()) return () => {};
+
+  console.log(`[AUTH] dashboard data loading started: userId=${userId}`);
 
   const unsubscribers: Unsubscribe[] = [];
 
@@ -170,8 +181,12 @@ export function subscribeToUserBusinessData(
 
   // 1. Products
   attachListener('products', (data, exists) => {
-    if (exists && data && Array.isArray(data.items)) {
-      callbacks.onProductsLoaded?.(data.items, true);
+    const items = extractItems(data, 'products');
+    if (exists && items.length > 0) {
+      console.log(`[AUTH] dashboard data loading completed: products=${items.length}`);
+      callbacks.onProductsLoaded?.(items, true);
+    } else if (exists && data) {
+      callbacks.onProductsLoaded?.(items, true);
     } else {
       callbacks.onProductsLoaded?.([], false);
     }
@@ -179,8 +194,11 @@ export function subscribeToUserBusinessData(
 
   // 2. Categories
   attachListener('categories', (data, exists) => {
-    if (exists && data && Array.isArray(data.items)) {
-      callbacks.onCategoriesLoaded?.(data.items, true);
+    const items = extractItems(data, 'categories');
+    if (exists && items.length > 0) {
+      callbacks.onCategoriesLoaded?.(items, true);
+    } else if (exists && data) {
+      callbacks.onCategoriesLoaded?.(items, true);
     } else {
       callbacks.onCategoriesLoaded?.([], false);
     }
@@ -188,8 +206,11 @@ export function subscribeToUserBusinessData(
 
   // 3. Brands
   attachListener('brands', (data, exists) => {
-    if (exists && data && Array.isArray(data.items)) {
-      callbacks.onBrandsLoaded?.(data.items, true);
+    const items = extractItems(data, 'brands');
+    if (exists && items.length > 0) {
+      callbacks.onBrandsLoaded?.(items, true);
+    } else if (exists && data) {
+      callbacks.onBrandsLoaded?.(items, true);
     } else {
       callbacks.onBrandsLoaded?.([], false);
     }
@@ -197,8 +218,11 @@ export function subscribeToUserBusinessData(
 
   // 4. Customers
   attachListener('customers', (data, exists) => {
-    if (exists && data && Array.isArray(data.items)) {
-      callbacks.onCustomersLoaded?.(data.items, true);
+    const items = extractItems(data, 'customers');
+    if (exists && items.length > 0) {
+      callbacks.onCustomersLoaded?.(items, true);
+    } else if (exists && data) {
+      callbacks.onCustomersLoaded?.(items, true);
     } else {
       callbacks.onCustomersLoaded?.([], false);
     }
@@ -206,8 +230,11 @@ export function subscribeToUserBusinessData(
 
   // 5. Suppliers
   attachListener('suppliers', (data, exists) => {
-    if (exists && data && Array.isArray(data.items)) {
-      callbacks.onSuppliersLoaded?.(data.items, true);
+    const items = extractItems(data, 'suppliers');
+    if (exists && items.length > 0) {
+      callbacks.onSuppliersLoaded?.(items, true);
+    } else if (exists && data) {
+      callbacks.onSuppliersLoaded?.(items, true);
     } else {
       callbacks.onSuppliersLoaded?.([], false);
     }
@@ -215,8 +242,11 @@ export function subscribeToUserBusinessData(
 
   // 6. Expenses
   attachListener('expenses', (data, exists) => {
-    if (exists && data && Array.isArray(data.items)) {
-      callbacks.onExpensesLoaded?.(data.items, true);
+    const items = extractItems(data, 'expenses');
+    if (exists && items.length > 0) {
+      callbacks.onExpensesLoaded?.(items, true);
+    } else if (exists && data) {
+      callbacks.onExpensesLoaded?.(items, true);
     } else {
       callbacks.onExpensesLoaded?.([], false);
     }
@@ -224,8 +254,11 @@ export function subscribeToUserBusinessData(
 
   // 7. Sales
   attachListener('sales', (data, exists) => {
-    if (exists && data && Array.isArray(data.items)) {
-      callbacks.onSalesLoaded?.(data.items, true);
+    const items = extractItems(data, 'sales');
+    if (exists && items.length > 0) {
+      callbacks.onSalesLoaded?.(items, true);
+    } else if (exists && data) {
+      callbacks.onSalesLoaded?.(items, true);
     } else {
       callbacks.onSalesLoaded?.([], false);
     }
@@ -233,8 +266,11 @@ export function subscribeToUserBusinessData(
 
   // 8. Purchases
   attachListener('purchases', (data, exists) => {
-    if (exists && data && Array.isArray(data.items)) {
-      callbacks.onPurchasesLoaded?.(data.items, true);
+    const items = extractItems(data, 'purchases');
+    if (exists && items.length > 0) {
+      callbacks.onPurchasesLoaded?.(items, true);
+    } else if (exists && data) {
+      callbacks.onPurchasesLoaded?.(items, true);
     } else {
       callbacks.onPurchasesLoaded?.([], false);
     }
@@ -242,8 +278,11 @@ export function subscribeToUserBusinessData(
 
   // 9. Stock Adjustments
   attachListener('adjustments', (data, exists) => {
-    if (exists && data && Array.isArray(data.items)) {
-      callbacks.onAdjustmentsLoaded?.(data.items, true);
+    const items = extractItems(data, 'adjustments');
+    if (exists && items.length > 0) {
+      callbacks.onAdjustmentsLoaded?.(items, true);
+    } else if (exists && data) {
+      callbacks.onAdjustmentsLoaded?.(items, true);
     } else {
       callbacks.onAdjustmentsLoaded?.([], false);
     }
@@ -251,8 +290,11 @@ export function subscribeToUserBusinessData(
 
   // 10. Due Collections
   attachListener('dueCollections', (data, exists) => {
-    if (exists && data && Array.isArray(data.items)) {
-      callbacks.onDueCollectionsLoaded?.(data.items, true);
+    const items = extractItems(data, 'dueCollections');
+    if (exists && items.length > 0) {
+      callbacks.onDueCollectionsLoaded?.(items, true);
+    } else if (exists && data) {
+      callbacks.onDueCollectionsLoaded?.(items, true);
     } else {
       callbacks.onDueCollectionsLoaded?.([], false);
     }
@@ -260,8 +302,11 @@ export function subscribeToUserBusinessData(
 
   // 11. Team Members
   attachListener('team', (data, exists) => {
-    if (exists && data && Array.isArray(data.items)) {
-      callbacks.onTeamLoaded?.(data.items, true);
+    const items = extractItems(data, 'team');
+    if (exists && items.length > 0) {
+      callbacks.onTeamLoaded?.(items, true);
+    } else if (exists && data) {
+      callbacks.onTeamLoaded?.(items, true);
     } else {
       callbacks.onTeamLoaded?.([], false);
     }
@@ -285,8 +330,11 @@ export function subscribeToUserBusinessData(
 
   // 13. Audit Logs
   attachListener('auditLogs', (data, exists) => {
-    if (exists && data && Array.isArray(data.items)) {
-      callbacks.onAuditLogsLoaded?.(data.items, true);
+    const items = extractItems(data, 'auditLogs');
+    if (exists && items.length > 0) {
+      callbacks.onAuditLogsLoaded?.(items, true);
+    } else if (exists && data) {
+      callbacks.onAuditLogsLoaded?.(items, true);
     } else {
       callbacks.onAuditLogsLoaded?.([], false);
     }
@@ -294,8 +342,9 @@ export function subscribeToUserBusinessData(
 
   // 14. Loyalty
   attachListener('loyalty', (data, exists) => {
-    if (exists && data && data.settings) {
-      callbacks.onLoyaltyLoaded?.(data.settings, true);
+    if (exists && data && (data.settings || data.enabled !== undefined)) {
+      const settingsObj = data.settings || data;
+      callbacks.onLoyaltyLoaded?.(settingsObj, true);
     } else {
       callbacks.onLoyaltyLoaded?.(
         {
@@ -337,7 +386,7 @@ export function subscribeToUserBusinessData(
     if (exists && data) {
       callbacks.onNotificationsLoaded?.(
         {
-          manual: Array.isArray(data.manual) ? data.manual : [],
+          manual: Array.isArray(data.manual) ? data.manual : (Array.isArray(data.items) ? data.items : []),
           readMap: (data.readMap && typeof data.readMap === 'object') ? data.readMap : {},
         },
         true
