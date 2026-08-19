@@ -88,7 +88,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold py-1.5 px-3 rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none transition-colors cursor-pointer shadow-2xs"
+        className="flex items-center gap-2 bg-[#121829] hover:bg-[#182035] text-white text-xs font-bold py-1.5 px-3 rounded-xl border border-white/15 focus:outline-none transition-colors cursor-pointer shadow-xs"
         title="Select Language"
       >
         <Globe className="w-4 h-4 text-[#ff5c01]" />
@@ -98,13 +98,13 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 rtl:right-auto rtl:left-0 mt-2 w-48 bg-white dark:bg-[#0c0c0e] rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
-          <div className="px-3 py-1.5 border-b border-slate-100 dark:border-slate-800/80 mb-1">
+        <div className="absolute right-0 rtl:right-auto rtl:left-0 mt-2 w-48 bg-[#0c101c] rounded-2xl shadow-2xl border border-white/15 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+          <div className="px-3 py-1.5 border-b border-white/10 mb-1">
             <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
               Select Language / ভাষা নির্বাচন
             </p>
           </div>
-          <div className="max-h-60 overflow-y-auto py-0.5">
+          <div className="max-h-60 overflow-y-auto py-0.5 custom-scrollbar">
             {SUPPORTED_LANGUAGES.map((lang) => {
               const isSelected = language === lang.code;
               return (
@@ -112,10 +112,10 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
                   key={lang.code}
                   type="button"
                   onClick={() => handleSelectLanguage(lang.code)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer ${
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium transition-colors hover:bg-white/10 cursor-pointer ${
                     isSelected
-                      ? 'text-[#ff5c01] font-bold bg-[#ff5c01]/5'
-                      : 'text-slate-700 dark:text-slate-300'
+                      ? 'text-[#ff5c01] font-bold bg-[#ff5c01]/10'
+                      : 'text-slate-200'
                   }`}
                 >
                   <span className="text-base leading-none">{lang.flag}</span>

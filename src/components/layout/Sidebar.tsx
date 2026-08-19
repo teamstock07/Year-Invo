@@ -29,6 +29,7 @@ import {
   Award,
   ShieldCheck,
   Banknote,
+  Coins,
   Activity,
   ChevronDown,
   ChevronRight,
@@ -123,11 +124,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     ...(user?.role === 'Owner' || user?.role === 'PlatformOwner'
       ? [{ id: 'owner', label: t('navOwnerPanel') || 'Owner Panel', icon: Crown, highlight: true }]
       : []),
-    { id: 'dashboard', label: t('navDashboard') || 'Dashboard', icon: LayoutDashboard },
+    ...(dashboardPreferences?.dashboard !== false ? [{ id: 'dashboard', label: t('navDashboard') || 'Dashboard', icon: LayoutDashboard }] : []),
     ...(dashboardPreferences?.quickSale !== false && canAccessSales ? [{ id: 'quicksale', label: t('navQuickSale') || 'Quick Sale', icon: Zap, highlight: true }] : []),
     ...(dashboardPreferences?.pos !== false && canAccessSales ? [{ 
       id: 'pos', 
-      label: t('navPos') || 'POS System', 
+      label: t('navPos') || 'POS & Sell', 
       icon: ShoppingCart, 
       locked: isPosLocked,
       badge: isPosLocked ? 'PRO' : undefined 
@@ -144,6 +145,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     ...(dashboardPreferences?.suppliers !== false && canAccessInventory ? [{ id: 'suppliers', label: t('navSuppliers') || 'Suppliers', icon: Truck }] : []),
     ...(dashboardPreferences?.dueManagement !== false && (canAccessSales || canAccessFinance) ? [{ id: 'due', label: t('navDue') || 'Due Management', icon: CreditCard }] : []),
     ...(dashboardPreferences?.expenses !== false && canAccessFinance ? [{ id: 'expenses', label: t('navExpenses') || 'Expenses', icon: Receipt }] : []),
+    ...(dashboardPreferences?.capitalInvestment !== false && canAccessFinance ? [{ id: 'capital-investment', label: t('navCapitalInvestment') || 'Capital & Investment', icon: Coins }] : []),
   ];
 
   // Secondary menu items after the Team & Payroll group
@@ -152,8 +154,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     ...(dashboardPreferences?.expiryManagement !== false && canAccessInventory ? [{ id: 'expired', label: t('navExpired') || 'Expired Products', icon: AlertTriangle }] : []),
     ...(dashboardPreferences?.barcode !== false && canAccessInventory ? [{ id: 'barcode', label: t('navBarcode') || 'Barcode & QR Code', icon: QrCode }] : []),
     ...(dashboardPreferences?.aiAssistant !== false ? [{ id: 'ai', label: t('navAiInsights') || 'AI Business Assistant', icon: Sparkles }] : []),
-    ...(canAccessSettings ? [{ id: 'branding', label: t('branding') || 'Store Branding', icon: Store }] : []),
-    ...(canAccessSettings ? [{ id: 'settings', label: t('navSettings') || t('settings') || 'Settings', icon: Settings }] : []),
+    ...(canAccessSettings && dashboardPreferences?.storeSettings !== false ? [{ id: 'branding', label: t('branding') || 'Store Branding', icon: Store }] : []),
+    ...(canAccessSettings && dashboardPreferences?.storeSettings !== false ? [{ id: 'settings', label: t('navSettings') || t('settings') || 'Settings', icon: Settings }] : []),
     ...(dashboardPreferences?.support !== false ? [{ id: 'help', label: t('navHelp') || 'Help & Support', icon: HelpCircle }] : []),
     { id: 'about', label: t('navAbout') || 'About', icon: Info },
   ];
@@ -179,14 +181,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed lg:static top-0 left-0 z-50 h-full w-60 bg-[#0c0c0e] border-r border-slate-800 text-slate-300 flex flex-col transform transition-transform duration-200 ease-in-out ${
+        className={`fixed lg:static top-0 left-0 z-50 h-full w-60 bg-[#0a0e1a] backdrop-blur-xl border-r border-white/10 text-slate-200 flex flex-col transform transition-transform duration-200 ease-in-out shadow-xl shadow-black/20 ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
         {/* Mobile Logo Drawer Header (Hidden on Desktop) */}
-        <div className="p-4 lg:hidden flex items-center justify-between border-b border-slate-800">
+        <div className="p-4 lg:hidden flex items-center justify-between border-b border-white/10 bg-[#0a0e1a]">
           <div className="flex items-center gap-2.5">
-            <div className="p-0.5 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-center shadow-xs">
+            <div className="p-0.5 bg-slate-900/90 rounded-xl border border-white/15 flex items-center justify-center shadow-xs">
               <MainWebsiteLogo
                 size={32}
                 customUrl={settings.logoUrl}
@@ -202,7 +204,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -224,14 +226,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 }}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer group ${
                   isActive
-                    ? 'bg-[#ff5c01] text-white shadow-md shadow-[#ff5c01]/30 font-bold'
+                    ? 'bg-gradient-to-r from-[#ff5c01] to-amber-500 text-white shadow-md shadow-[#ff5c01]/25 font-bold'
                     : item.highlight
-                    ? 'bg-[#ff5c01]/15 text-[#ff5c01] hover:bg-[#ff5c01]/25 font-bold'
-                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                    ? 'bg-[#ff5c01]/15 text-[#ff7a2e] hover:bg-[#ff5c01]/25 font-bold'
+                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <Icon className={`w-4 h-4 transition-colors ${isActive ? 'text-white' : item.highlight ? 'text-[#ff5c01]' : 'text-slate-400 group-hover:text-slate-200'}`} />
+                  <Icon className={`w-4 h-4 transition-colors ${isActive ? 'text-white' : item.highlight ? 'text-[#ff7a2e]' : 'text-slate-400 group-hover:text-white'}`} />
                   <span>{item.label}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -258,12 +260,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 onClick={() => setIsTeamExpanded((prev) => !prev)}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer group ${
                   isTeamActive
-                    ? 'bg-slate-800/90 text-white font-bold border border-slate-700/60'
-                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                    ? 'bg-white/10 text-white font-bold border border-white/15'
+                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <Users className={`w-4 h-4 shrink-0 transition-colors ${isTeamActive ? 'text-[#ff5c01]' : 'text-slate-400 group-hover:text-slate-200'}`} />
+                  <Users className={`w-4 h-4 shrink-0 transition-colors ${isTeamActive ? 'text-[#ff5c01]' : 'text-slate-400 group-hover:text-white'}`} />
                   <span className="truncate">{t('navTeamAndPayroll') || 'Team Management & Payroll'}</span>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0 pl-1">
@@ -277,7 +279,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
               {/* Indented Child Items */}
               {isTeamExpanded && (
-                <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-slate-800 ml-4 my-1">
+                <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-white/15 ml-4 my-1">
                   {teamChildren.map((child) => {
                     const ChildIcon = child.icon;
                     const isChildActive = activeTab === child.id;
@@ -291,11 +293,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                         }}
                         className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer group ${
                           isChildActive
-                            ? 'bg-[#ff5c01] text-white shadow-sm shadow-[#ff5c01]/25 font-bold'
-                            : 'text-slate-400 hover:bg-slate-800/70 hover:text-slate-100'
+                            ? 'bg-gradient-to-r from-[#ff5c01] to-amber-500 text-white shadow-sm shadow-[#ff5c01]/25 font-bold'
+                            : 'text-slate-400 hover:bg-white/10 hover:text-white'
                         }`}
                       >
-                        <ChildIcon className={`w-3.5 h-3.5 shrink-0 ${isChildActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`} />
+                        <ChildIcon className={`w-3.5 h-3.5 shrink-0 ${isChildActive ? 'text-white' : 'text-slate-400 group-hover:text-white'}`} />
                         <span className="truncate">{child.label}</span>
                       </button>
                     );
@@ -319,12 +321,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 }}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer group ${
                   isActive
-                    ? 'bg-[#ff5c01] text-white shadow-md shadow-[#ff5c01]/30 font-bold'
-                    : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                    ? 'bg-gradient-to-r from-[#ff5c01] to-amber-500 text-white shadow-md shadow-[#ff5c01]/25 font-bold'
+                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <Icon className={`w-4 h-4 transition-colors ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`} />
+                  <Icon className={`w-4 h-4 transition-colors ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'}`} />
                   <span>{item.label}</span>
                 </div>
               </button>
@@ -333,19 +335,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         </nav>
 
         {/* Subscription Footer Card */}
-        <div className="p-3 border-t border-slate-800">
+        <div className="p-3 border-t border-white/10 bg-[#0a0e1a]">
           <button
             type="button"
             onClick={() => setActiveTab('subscription')}
-            className={`w-full text-left bg-slate-900/90 hover:bg-slate-800 border transition-all rounded-xl p-2.5 cursor-pointer ${
-              activeTab === 'subscription' ? 'border-[#ff5c01] ring-1 ring-[#ff5c01]' : 'border-slate-800'
+            className={`w-full text-left bg-[#0e1424] hover:bg-[#131b30] border transition-all rounded-xl p-2.5 cursor-pointer ${
+              activeTab === 'subscription' ? 'border-[#ff5c01] ring-1 ring-[#ff5c01]' : 'border-white/10'
             }`}
           >
             <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5 flex items-center justify-between">
               <span>{t('subscription') || 'Subscription'}</span>
               <Crown className="w-3 h-3 text-[#ff5c01]" />
             </p>
-            <p className="text-xs font-semibold text-slate-100">
+            <p className="text-xs font-semibold text-white">
               {user?.subscriptionPlan || 'Free Plan'}
             </p>
           </button>

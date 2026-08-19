@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { getUserDisplayName } from '../../utils/user';
+import { compressImage } from '../../utils/imageCompressor';
 import {
   User,
   Mail,
@@ -17,10 +18,13 @@ import {
   CreditCard,
   Building2,
   SlidersHorizontal,
+  Camera,
+  Trash2,
+  Upload,
 } from 'lucide-react';
 
 export const ProfileView: React.FC = () => {
-  const { user, updateUser, t, language, setActiveTab } = useApp();
+  const { user, updateUser, uploadProfilePhoto, removeProfilePhoto, t, language, setActiveTab } = useApp();
 
   const [formData, setFormData] = useState({
     ownerName: user?.ownerName || (user as any)?.fullName || '',
@@ -34,6 +38,73 @@ export const ProfileView: React.FC = () => {
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const currentPhoto = user?.photoUrl || user?.avatarUrl || user?.profilePhotoUrl;
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate size (accept up to 10MB input file, compress to ~25KB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert(language === 'bn' ? 'ছবির সাইজ ১০ মেগাবাইটের কম হতে হবে।' : 'Photo must be less than 10MB.');
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    try {
+      // Compress client-side to standard crisp 300x300 avatar (~20KB)
+      const compressedDataUrl = await compressImage(file, {
+        maxWidth: 320,
+        maxHeight: 320,
+        quality: 0.82,
+        outputFormat: 'image/jpeg',
+      });
+
+      if (uploadProfilePhoto) {
+        await uploadProfilePhoto(compressedDataUrl);
+      } else {
+        await updateUser({
+          photoUrl: compressedDataUrl,
+          profilePhotoUrl: compressedDataUrl,
+          avatarUrl: compressedDataUrl,
+        });
+      }
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2500);
+    } catch (err) {
+      console.error('Error uploading photo:', err);
+      alert(language === 'bn' ? 'ছবি আপলোড করতে সমস্যা হয়েছে।' : 'Error uploading photo. Please try again.');
+    } finally {
+      setIsUploadingPhoto(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    if (window.confirm(language === 'bn' ? 'আপনি কি প্রোফাইল ছবি মুছে ফেলতে চান?' : 'Are you sure you want to remove your profile photo?')) {
+      setIsUploadingPhoto(true);
+      try {
+        if (removeProfilePhoto) {
+          await removeProfilePhoto();
+        } else {
+          await updateUser({
+            photoUrl: '',
+            profilePhotoUrl: '',
+            avatarUrl: '',
+          });
+        }
+      } catch (err) {
+        console.error('Error removing photo:', err);
+      } finally {
+        setIsUploadingPhoto(false);
+      }
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -76,13 +147,43 @@ export const ProfileView: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-16">
+      {/* Hidden File Input for Avatar */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="image/*"
+        onChange={handlePhotoUpload}
+        className="hidden"
+      />
+
       {/* Profile Header Card */}
-      <div className="p-6 sm:p-8 bg-white dark:bg-[#0c0c0e] rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+      <div className="p-6 sm:p-8 glass-card rounded-3xl relative overflow-hidden">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
           <div className="flex items-center gap-4">
-            {/* Generic Account Icon */}
-            <div className="w-16 h-16 rounded-3xl bg-[#ff5c01] text-white flex items-center justify-center shadow-lg shadow-[#ff5c01]/25 border border-white/20 shrink-0">
-              <User className="w-8 h-8 text-white" />
+            {/* Profile Photo Avatar with Edit Overlay */}
+            <div className="relative group">
+              {currentPhoto ? (
+                <img
+                  src={currentPhoto}
+                  alt={displayName}
+                  className="w-20 h-20 rounded-3xl object-cover shadow-lg border-2 border-white/60 dark:border-white/20 shrink-0"
+                />
+              ) : (
+                <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-[#ff5c01] to-amber-500 text-white flex items-center justify-center shadow-lg shadow-[#ff5c01]/25 border-2 border-white/40 shrink-0">
+                  <User className="w-10 h-10 text-white" />
+                </div>
+              )}
+
+              {/* Quick Upload Button Badge */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingPhoto}
+                className="absolute -bottom-1 -right-1 p-2 rounded-xl bg-slate-900/90 text-white hover:bg-[#ff5c01] transition-all shadow-md cursor-pointer border border-white/20"
+                title="Change Photo"
+              >
+                <Camera className="w-3.5 h-3.5" />
+              </button>
             </div>
 
             <div className="space-y-1">
@@ -102,13 +203,40 @@ export const ProfileView: React.FC = () => {
                   Store: {user.brandName}
                 </p>
               )}
+
+              {/* Photo Actions Row */}
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingPhoto}
+                  className="text-[11px] font-bold text-[#ff5c01] hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Upload className="w-3 h-3" />
+                  <span>{currentPhoto ? (language === 'bn' ? 'ছবি পরিবর্তন করুন' : 'Change Photo') : (language === 'bn' ? 'ছবি যুক্ত করুন' : 'Upload Photo')}</span>
+                </button>
+                {currentPhoto && (
+                  <>
+                    <span className="text-slate-300 dark:text-slate-700">•</span>
+                    <button
+                      type="button"
+                      onClick={handleRemovePhoto}
+                      disabled={isUploadingPhoto}
+                      className="text-[11px] font-bold text-rose-500 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>{language === 'bn' ? 'ছবি মুছুন' : 'Remove'}</span>
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setActiveTab('branding')}
-              className="px-4 py-2 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+              className="px-4 py-2 rounded-2xl bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer backdrop-blur-xs"
             >
               <Store className="w-4 h-4 text-[#ff5c01]" />
               <span>{t('storeBranding') || 'Store Branding'}</span>
@@ -125,7 +253,7 @@ export const ProfileView: React.FC = () => {
       </div>
 
       {/* Profile Form */}
-      <form onSubmit={handleSubmit} className="p-6 sm:p-8 bg-white dark:bg-[#0c0c0e] rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-6">
+      <form onSubmit={handleSubmit} className="p-6 sm:p-8 glass-card rounded-3xl space-y-6">
         <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
           <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
             {language === 'bn' ? 'ব্যক্তিগত ও ব্যবসায়িক প্রোফাইল' : 'Profile & Account Details'}

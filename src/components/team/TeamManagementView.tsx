@@ -56,6 +56,7 @@ const PERMISSION_GROUPS: {
       customers: '',
       customerDue: '',
       expenses: '',
+      capitalInvestment: '',
       profitLoss: '',
       reports: '',
       notifications: '',
@@ -90,6 +91,7 @@ const PERMISSION_GROUPS: {
       customers: '',
       customerDue: '',
       expenses: '',
+      capitalInvestment: '',
       profitLoss: '',
       reports: '',
       notifications: '',
@@ -104,11 +106,12 @@ const PERMISSION_GROUPS: {
   },
   {
     name: 'Customers & Financials',
-    keys: ['customers', 'customerDue', 'expenses', 'profitLoss', 'reports', 'payroll'],
+    keys: ['customers', 'customerDue', 'expenses', 'capitalInvestment', 'profitLoss', 'reports', 'payroll'],
     descriptions: {
       customers: 'Customer directory and transaction histories',
       customerDue: 'Collect customer due balances and send payment reminders',
       expenses: 'Record operational expenses (Rent, Electricity, Utilities)',
+      capitalInvestment: 'Track business owner capital investments & withdrawals',
       profitLoss: 'View real-time Net Profit, COGS and revenue analytics',
       reports: 'Generate and export detailed sales & tax reports',
       payroll: 'Access Employee Salary & Payroll management module',
@@ -165,6 +168,7 @@ const PERMISSION_GROUPS: {
       customers: '',
       customerDue: '',
       expenses: '',
+      capitalInvestment: '',
       profitLoss: '',
       reports: '',
       payroll: '',
@@ -323,26 +327,26 @@ export const TeamManagementView: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm">
+      <div className="glass-card rounded-3xl p-6 sm:p-8 relative overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#ff5c01] bg-[#ff5c01]/10 px-2 py-0.5 rounded-full">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#ff5c01] bg-[#ff5c01]/10 px-2.5 py-0.5 rounded-full border border-[#ff5c01]/20">
                 Workforce & Access Control
               </span>
             </div>
-            <h1 className="text-2xl font-black text-white flex items-center gap-2.5">
+            <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2.5">
               <Users className="w-6 h-6 text-[#ff5c01]" />
               <span>Team Management</span>
             </h1>
-            <p className="text-xs text-slate-400 mt-1 max-w-xl">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xl">
               Invite cashiers, managers, and accountants. Configure granular role permissions to keep your store data secure.
             </p>
           </div>
 
           <button
             onClick={openAddModal}
-            className="px-4 py-2.5 bg-[#ff5c01] hover:bg-[#e05100] text-white text-xs font-bold rounded-xl shadow-md shadow-[#ff5c01]/20 transition-all flex items-center gap-2 cursor-pointer self-start sm:self-auto"
+            className="px-4 py-2.5 bg-gradient-to-r from-[#ff5c01] to-amber-500 hover:from-[#e05100] hover:to-amber-600 text-white text-xs font-bold rounded-xl shadow-md shadow-[#ff5c01]/20 transition-all flex items-center gap-2 cursor-pointer self-start sm:self-auto"
           >
             <UserPlus className="w-4 h-4" />
             <span>Invite Team Member</span>
@@ -350,28 +354,28 @@ export const TeamManagementView: React.FC = () => {
         </div>
 
         {/* Quick Metric Badges */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-slate-800/80">
-          <div className="bg-slate-850/60 border border-slate-800 rounded-xl p-3">
-            <p className="text-[11px] font-semibold text-slate-400">Total Staff</p>
-            <p className="text-xl font-bold text-white mt-0.5">{teamMembers.length}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-slate-200/80 dark:border-slate-800/80">
+          <div className="glass-panel rounded-2xl p-3.5">
+            <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Total Staff</p>
+            <p className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">{teamMembers.length}</p>
           </div>
-          <div className="bg-slate-850/60 border border-slate-800 rounded-xl p-3">
-            <p className="text-[11px] font-semibold text-emerald-400">Active Members</p>
-            <p className="text-xl font-bold text-emerald-400 mt-0.5">{activeCount}</p>
+          <div className="glass-panel rounded-2xl p-3.5">
+            <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">Active Members</p>
+            <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{activeCount}</p>
           </div>
-          <div className="bg-slate-850/60 border border-slate-800 rounded-xl p-3">
-            <p className="text-[11px] font-semibold text-amber-400">Invited / Pending</p>
-            <p className="text-xl font-bold text-amber-400 mt-0.5">{invitedCount}</p>
+          <div className="glass-panel rounded-2xl p-3.5">
+            <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">Invited / Pending</p>
+            <p className="text-xl font-bold text-amber-600 dark:text-amber-400 mt-0.5">{invitedCount}</p>
           </div>
-          <div className="bg-slate-850/60 border border-slate-800 rounded-xl p-3">
-            <p className="text-[11px] font-semibold text-rose-400">Disabled Accounts</p>
-            <p className="text-xl font-bold text-rose-400 mt-0.5">{disabledCount}</p>
+          <div className="glass-panel rounded-2xl p-3.5">
+            <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400">Disabled Accounts</p>
+            <p className="text-xl font-bold text-rose-600 dark:text-rose-400 mt-0.5">{disabledCount}</p>
           </div>
         </div>
       </div>
 
       {/* Filter & Search Bar */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-3 justify-between">
+      <div className="glass-card rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-3 justify-between">
         <div className="relative w-full sm:w-80">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -379,7 +383,7 @@ export const TeamManagementView: React.FC = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by name, email or phone..."
-            className="w-full bg-slate-800 border border-slate-700/80 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-[#ff5c01]"
+            className="w-full bg-slate-100/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#ff5c01]"
           />
         </div>
 
@@ -387,7 +391,7 @@ export const TeamManagementView: React.FC = () => {
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
-            className="bg-slate-800 border border-slate-700/80 text-xs text-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-[#ff5c01] cursor-pointer"
+            className="bg-slate-100/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-xs text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-[#ff5c01] cursor-pointer"
           >
             <option value="all">All Roles</option>
             <option value="Owner">Owner</option>
@@ -401,7 +405,7 @@ export const TeamManagementView: React.FC = () => {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-slate-800 border border-slate-700/80 text-xs text-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-[#ff5c01] cursor-pointer"
+            className="bg-slate-100/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-xs text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-[#ff5c01] cursor-pointer"
           >
             <option value="all">All Status</option>
             <option value="Active">Active</option>
@@ -418,10 +422,10 @@ export const TeamManagementView: React.FC = () => {
           return (
             <div
               key={member.id}
-              className={`bg-slate-900 border rounded-2xl p-5 flex flex-col justify-between transition-all relative ${
+              className={`glass-card glass-hover rounded-2xl p-5 flex flex-col justify-between transition-all relative ${
                 member.status === 'Disabled'
                   ? 'border-rose-900/40 opacity-70'
-                  : 'border-slate-800 hover:border-slate-700 shadow-sm'
+                  : ''
               }`}
             >
               <div>
@@ -432,11 +436,11 @@ export const TeamManagementView: React.FC = () => {
                       {member.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                         <span>{member.name}</span>
                         {isOwner && <ShieldCheck className="w-4 h-4 text-[#ff5c01]" />}
                       </h3>
-                      <span className="text-[11px] font-semibold text-slate-400 block mt-0.5">
+                      <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block mt-0.5">
                         {member.role}
                       </span>
                     </div>

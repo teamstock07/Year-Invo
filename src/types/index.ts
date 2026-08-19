@@ -17,6 +17,7 @@ export type BusinessType =
   | 'Other';
 
 export interface DashboardPreferences {
+  dashboard?: boolean;
   quickSale: boolean;
   pos: boolean;
   products: boolean;
@@ -29,21 +30,25 @@ export interface DashboardPreferences {
   customers: boolean;
   suppliers: boolean;
   dueManagement: boolean;
+  customerLoyalty: boolean;
   expenses: boolean;
+  capitalInvestment?: boolean;
+  reports: boolean;
   expiryManagement: boolean;
   barcode: boolean;
   notifications: boolean;
   smartReorder: boolean;
-  customerLoyalty: boolean;
   aiAssistant: boolean;
   teamManagement: boolean;
   payroll: boolean;
   auditLog: boolean;
-  reports: boolean;
+  storeSettings?: boolean;
+  dashboardCustomization?: boolean;
   support: boolean;
 }
 
 export const defaultDashboardPreferences: DashboardPreferences = {
+  dashboard: true,
   quickSale: true,
   pos: true,
   products: true,
@@ -56,17 +61,20 @@ export const defaultDashboardPreferences: DashboardPreferences = {
   customers: true,
   suppliers: true,
   dueManagement: true,
+  customerLoyalty: true,
   expenses: true,
+  capitalInvestment: true,
+  reports: true,
   expiryManagement: true,
   barcode: true,
   notifications: true,
   smartReorder: true,
-  customerLoyalty: true,
   aiAssistant: true,
   teamManagement: true,
   payroll: true,
   auditLog: true,
-  reports: true,
+  storeSettings: true,
+  dashboardCustomization: true,
   support: true,
 };
 
@@ -233,6 +241,7 @@ export interface TeamPermissions {
   customers: boolean;
   customerDue: boolean;
   expenses: boolean;
+  capitalInvestment: boolean;
   profitLoss: boolean;
   reports: boolean;
   notifications: boolean;
@@ -265,6 +274,7 @@ export const roleDefaultPermissions: Record<TeamRole, TeamPermissions> = {
     customers: true,
     customerDue: true,
     expenses: true,
+    capitalInvestment: true,
     profitLoss: true,
     reports: true,
     notifications: true,
@@ -295,6 +305,7 @@ export const roleDefaultPermissions: Record<TeamRole, TeamPermissions> = {
     customers: true,
     customerDue: true,
     expenses: true,
+    capitalInvestment: true,
     profitLoss: true,
     reports: true,
     notifications: true,
@@ -325,6 +336,7 @@ export const roleDefaultPermissions: Record<TeamRole, TeamPermissions> = {
     customers: true,
     customerDue: true,
     expenses: false,
+    capitalInvestment: false,
     profitLoss: false,
     reports: false,
     notifications: true,
@@ -355,6 +367,7 @@ export const roleDefaultPermissions: Record<TeamRole, TeamPermissions> = {
     customers: false,
     customerDue: false,
     expenses: false,
+    capitalInvestment: false,
     profitLoss: false,
     reports: false,
     notifications: true,
@@ -385,6 +398,7 @@ export const roleDefaultPermissions: Record<TeamRole, TeamPermissions> = {
     customers: true,
     customerDue: true,
     expenses: true,
+    capitalInvestment: true,
     profitLoss: true,
     reports: true,
     notifications: true,
@@ -415,6 +429,7 @@ export const roleDefaultPermissions: Record<TeamRole, TeamPermissions> = {
     customers: true,
     customerDue: false,
     expenses: false,
+    capitalInvestment: false,
     profitLoss: false,
     reports: false,
     notifications: true,
@@ -440,6 +455,39 @@ export interface TeamMember {
   lastActive?: string;
   invitedBy?: string;
   customPermissions?: Partial<TeamPermissions>;
+}
+
+// Secure Employee Device Access Types
+export type DeviceApprovalStatus = 'approved' | 'pending' | 'revoked' | 'Approved' | 'Pending' | 'Revoked';
+
+export interface EmployeeDevice {
+  id: string;
+  storeId?: string;
+  userId?: string;
+  userEmail?: string;
+  userName?: string;
+  userRole?: TeamRole | string;
+  deviceId?: string;
+  deviceName: string;
+  deviceFingerprint?: string;
+  employeeId?: string;
+  employeeName?: string;
+  employeeEmail?: string;
+  employeeRole?: string;
+  browser?: string;
+  os?: string;
+  screenResolution?: string;
+  deviceType?: 'Desktop' | 'Mobile' | 'Tablet' | string;
+  status: DeviceApprovalStatus;
+  requestedAt: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  revokedAt?: string;
+  revokedBy?: string;
+  rejectionReason?: string;
+  revocationReason?: string;
+  lastActiveAt?: string;
+  notes?: string;
 }
 
 // Employee Salary & Payroll Models (SEPARATE from Team Management)
@@ -543,9 +591,13 @@ export interface SmartReorderItem {
 export interface AuditLogEntry {
   id: string;
   action: string;
-  category: 'payroll' | 'team' | 'sales' | 'inventory' | 'customer' | 'settings' | 'expense';
+  actionBn?: string;
+  category: 'payroll' | 'team' | 'sales' | 'inventory' | 'customer' | 'settings' | 'expense' | 'device' | 'security';
   performedBy: string;
   performedByEmail?: string;
+  userRole?: string;
+  userName?: string;
+  userEmail?: string;
   details: string;
   timestamp: string;
   meta?: any;
@@ -577,6 +629,8 @@ export interface UserProfile {
   affiliateCode?: string;
   affiliateProgram?: string;
   avatarUrl?: string;
+  photoUrl?: string;
+  profilePhotoUrl?: string;
   logoUrl?: string;
   verifiedEmail: boolean;
   verifiedPhone: boolean;
@@ -796,6 +850,33 @@ export interface Income {
   amount: number;
   date: string;
   note?: string;
+}
+
+export interface Investment {
+  id: string;
+  amount: number;
+  date: string;
+  investorName: string;
+  investor?: string; // alias for investorName
+  paymentMethod: 'Cash' | 'Bank Transfer' | 'bKash' | 'Nagad' | 'Rocket' | 'Cheque' | 'Other' | string;
+  note?: string;
+  referenceNo?: string;
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CapitalWithdrawal {
+  id: string;
+  amount: number;
+  date: string;
+  withdrawnBy: string;
+  reason?: string;
+  paymentMethod?: 'Cash' | 'Bank Transfer' | 'bKash' | 'Nagad' | 'Rocket' | 'Cheque' | 'Other' | string;
+  note?: string;
+  referenceNo?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface DueCollection {

@@ -27,6 +27,7 @@ import {
   ChevronDown,
   ChevronUp,
   DollarSign,
+  Coins,
   ShieldCheck,
   RefreshCw,
   Plus,
@@ -264,22 +265,22 @@ export const MobileDashboardView: React.FC = () => {
           </span>
         </div>
 
-        {/* 7 Compact KPI Items in Grid */}
+        {/* 7 Compact KPI Items in Grid - Colorful Glassmorphism */}
         <div className="grid grid-cols-2 xs:grid-cols-3 gap-2">
           {/* 1. Today Sales */}
           <div
             onClick={() => setActiveTab('quicksale')}
-            className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-100 dark:border-slate-800/80 hover:border-[#ff5c01]/40 transition-all cursor-pointer active:scale-95"
+            className="relative overflow-hidden p-2.5 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-cyan-500/10 dark:from-emerald-500/15 dark:via-teal-900/20 dark:to-cyan-900/15 backdrop-blur-xl border border-emerald-500/25 hover:border-emerald-400/60 transition-all cursor-pointer active:scale-95 shadow-2xs"
           >
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 truncate">
                 {isBn ? 'আজকের বিক্রয়' : "Today's Sales"}
               </span>
-              <div className="w-5 h-5 rounded-md bg-[#ff5c01]/10 text-[#ff5c01] flex items-center justify-center shrink-0">
+              <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
                 <ShoppingCart className="w-3 h-3" />
               </div>
             </div>
-            <p className="text-xs xs:text-sm font-black text-slate-900 dark:text-white truncate">
+            <p className="text-xs xs:text-sm font-black text-emerald-600 dark:text-emerald-400 truncate">
               {formatCurrency(metrics.todaySales)}
             </p>
           </div>
@@ -287,32 +288,32 @@ export const MobileDashboardView: React.FC = () => {
           {/* 2. Today Profit / Loss */}
           <div
             onClick={() => setActiveTab('reports')}
-            className={`p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border transition-all cursor-pointer active:scale-95 ${
+            className={`relative overflow-hidden p-2.5 rounded-2xl backdrop-blur-xl border transition-all cursor-pointer active:scale-95 shadow-2xs ${
               metrics.todayLoss > 0
-                ? 'border-rose-200 dark:border-rose-900/50 hover:border-rose-500/50'
-                : 'border-slate-100 dark:border-slate-800/80 hover:border-emerald-500/40'
+                ? 'bg-gradient-to-br from-rose-500/10 via-amber-500/5 to-rose-500/10 dark:from-rose-500/15 dark:via-amber-900/20 dark:to-rose-900/15 border-rose-500/25 hover:border-rose-400/60'
+                : 'bg-gradient-to-br from-teal-500/10 via-emerald-500/5 to-cyan-500/10 dark:from-teal-500/15 dark:via-emerald-900/20 dark:to-cyan-900/15 border-teal-500/25 hover:border-teal-400/60'
             }`}
           >
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 truncate">
                 {metrics.todayLoss > 0
                   ? (isBn ? 'আজকের ক্ষতি' : "Today Loss")
                   : (isBn ? 'আজকের লাভ' : "Today Profit")}
               </span>
-              <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${
+              <div className={`w-5 h-5 rounded-lg flex items-center justify-center shrink-0 shadow-2xs text-white ${
                 metrics.todayLoss > 0
-                  ? 'bg-rose-500/10 text-rose-500'
-                  : 'bg-emerald-500/10 text-emerald-500'
+                  ? 'bg-gradient-to-br from-rose-500 to-amber-600'
+                  : 'bg-gradient-to-br from-teal-500 to-emerald-600'
               }`}>
                 {metrics.todayLoss > 0 ? (
-                  <AlertTriangle className="w-3 h-3 text-rose-500" />
+                  <AlertTriangle className="w-3 h-3" />
                 ) : (
                   <TrendingUp className="w-3 h-3" />
                 )}
               </div>
             </div>
             <p className={`text-xs xs:text-sm font-black truncate ${
-              metrics.todayLoss > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+              metrics.todayLoss > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-teal-600 dark:text-teal-400'
             }`}>
               {metrics.todayLoss > 0 ? formatCurrency(metrics.todayLoss) : formatCurrency(metrics.todayProfit)}
             </p>
@@ -321,13 +322,13 @@ export const MobileDashboardView: React.FC = () => {
           {/* 3. Today Orders */}
           <div
             onClick={() => setActiveTab('saleshistory')}
-            className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-100 dark:border-slate-800/80 hover:border-sky-500/40 transition-all cursor-pointer active:scale-95"
+            className="relative overflow-hidden p-2.5 rounded-2xl bg-gradient-to-br from-sky-500/10 via-blue-500/5 to-indigo-500/10 dark:from-sky-500/15 dark:via-blue-900/20 dark:to-indigo-900/15 backdrop-blur-xl border border-sky-500/25 hover:border-sky-400/60 transition-all cursor-pointer active:scale-95 shadow-2xs"
           >
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 truncate">
                 {isBn ? 'আজকের অর্ডার' : "Orders"}
               </span>
-              <div className="w-5 h-5 rounded-md bg-sky-500/10 text-sky-500 flex items-center justify-center shrink-0">
+              <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-sky-500 to-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
                 <ShoppingBag className="w-3 h-3" />
               </div>
             </div>
@@ -339,17 +340,17 @@ export const MobileDashboardView: React.FC = () => {
           {/* 4. Total Products */}
           <div
             onClick={() => setActiveTab('products')}
-            className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-100 dark:border-slate-800/80 hover:border-indigo-500/40 transition-all cursor-pointer active:scale-95"
+            className="relative overflow-hidden p-2.5 rounded-2xl bg-gradient-to-br from-purple-500/10 via-indigo-500/5 to-violet-500/10 dark:from-purple-500/15 dark:via-indigo-900/20 dark:to-violet-900/15 backdrop-blur-xl border border-purple-500/25 hover:border-purple-400/60 transition-all cursor-pointer active:scale-95 shadow-2xs"
           >
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 truncate">
                 {isBn ? 'প্রোডাক্টস' : 'Products'}
               </span>
-              <div className="w-5 h-5 rounded-md bg-indigo-500/10 text-indigo-500 flex items-center justify-center shrink-0">
+              <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
                 <Package className="w-3 h-3" />
               </div>
             </div>
-            <p className="text-xs xs:text-sm font-black text-slate-900 dark:text-white truncate">
+            <p className="text-xs xs:text-sm font-black text-purple-600 dark:text-purple-400 truncate">
               {formatNumber(products.length)} {isBn ? 'টি' : 'items'}
             </p>
           </div>
@@ -357,17 +358,17 @@ export const MobileDashboardView: React.FC = () => {
           {/* 5. Customer Today Due */}
           <div
             onClick={() => setActiveTab('due')}
-            className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-100 dark:border-slate-800/80 hover:border-rose-500/40 transition-all cursor-pointer active:scale-95"
+            className="relative overflow-hidden p-2.5 rounded-2xl bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-yellow-500/10 dark:from-amber-500/15 dark:via-orange-900/20 dark:to-yellow-900/15 backdrop-blur-xl border border-amber-500/25 hover:border-amber-400/60 transition-all cursor-pointer active:scale-95 shadow-2xs"
           >
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 truncate">
                 {isBn ? 'আজকের বকেয়া' : "Today's Due"}
               </span>
-              <div className="w-5 h-5 rounded-md bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
+              <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
                 <CreditCard className="w-3 h-3" />
               </div>
             </div>
-            <p className="text-xs xs:text-sm font-black text-rose-500 truncate">
+            <p className="text-xs xs:text-sm font-black text-amber-600 dark:text-amber-400 truncate">
               {formatCurrency(metrics.todayDue)}
             </p>
           </div>
@@ -375,17 +376,17 @@ export const MobileDashboardView: React.FC = () => {
           {/* 6. Stock Alert */}
           <div
             onClick={() => setActiveTab('stock')}
-            className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-100 dark:border-slate-800/80 hover:border-amber-500/40 transition-all cursor-pointer active:scale-95"
+            className="relative overflow-hidden p-2.5 rounded-2xl bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-rose-500/10 dark:from-amber-500/15 dark:via-orange-900/20 dark:to-rose-900/15 backdrop-blur-xl border border-amber-500/25 hover:border-amber-400/60 transition-all cursor-pointer active:scale-95 shadow-2xs"
           >
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 truncate">
                 {isBn ? 'স্টক অ্যালার্ট' : 'Stock Alert'}
               </span>
-              <div className="w-5 h-5 rounded-md bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+              <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-amber-500 to-rose-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
                 <AlertTriangle className="w-3 h-3" />
               </div>
             </div>
-            <p className={`text-xs xs:text-sm font-black truncate ${metrics.lowStockCount > 0 ? 'text-amber-500' : 'text-slate-900 dark:text-white'}`}>
+            <p className={`text-xs xs:text-sm font-black truncate ${metrics.lowStockCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'}`}>
               {formatNumber(metrics.lowStockCount)} {isBn ? 'টি কম' : 'low'}
             </p>
           </div>
@@ -409,6 +410,34 @@ export const MobileDashboardView: React.FC = () => {
           </div>
           <ChevronRight className="w-4 h-4 text-purple-500 shrink-0" />
         </div>
+
+        {/* Capital & Investment Strip */}
+        {dashboardPreferences?.capitalInvestment !== false && (
+          <div
+            onClick={() => setActiveTab('capital-investment')}
+            className="p-2.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-600/10 dark:from-amber-950/30 dark:to-slate-950/50 border border-amber-500/25 flex items-center justify-between cursor-pointer active:scale-98 transition-transform"
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center shrink-0">
+                <Coins className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-tight">
+                  {isBn ? 'বর্তমান মূলধন:' : 'Current Capital:'}{' '}
+                  <span className="text-amber-600 dark:text-amber-400 font-extrabold">
+                    {formatCurrency(metrics.currentCapital || 0)}
+                  </span>
+                </p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                  {isBn
+                    ? `মোট বিনিয়োগ: ${formatCurrency(metrics.totalInvestedCapital || 0)} | উত্তোলন: ${formatCurrency(metrics.totalWithdrawnCapital || 0)}`
+                    : `Invested: ${formatCurrency(metrics.totalInvestedCapital || 0)} | Withdrawn: ${formatCurrency(metrics.totalWithdrawnCapital || 0)}`}
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-amber-500 shrink-0" />
+          </div>
+        )}
       </div>
 
       {/* ========================================================= */}

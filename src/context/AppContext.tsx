@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { generateUniqueSku, generateUniqueBarcode } from '../utils/scanner';
+import { compressImage } from '../utils/imageCompressor';
 import { auth, db } from '../lib/firebase';
 import {
   sendPasswordResetEmail,
@@ -54,7 +55,15 @@ import {
   SalaryAdjustment,
   AuditLogEntry,
   CustomerLoyaltySettings,
+  EmployeeDevice,
+  Investment,
+  CapitalWithdrawal,
 } from '../types';
+import {
+  getCurrentDeviceInfo,
+  getOrCreateDeviceId,
+  setLocalDeviceName,
+} from '../utils/deviceSecurity';
 import {
   saveUserCloudCollection,
   saveUserCloudCollectionsBatch,
@@ -71,6 +80,8 @@ import {
   initialPurchases,
   initialNotifications,
   initialActivityLogs,
+  initialInvestments,
+  initialCapitalWithdrawals,
 } from '../data/mockData';
 import { translations } from '../i18n/translations';
 import { isRtlLanguage, getDefaultLanguageForCountry, SUPPORTED_LANGUAGES } from '../i18n/languages';
@@ -126,6 +137,8 @@ interface AppContextType {
   logout: () => Promise<void>;
   updateProfile: (data: Partial<UserProfile>) => void;
   updateUser: (data: Partial<UserProfile>) => void;
+  uploadProfilePhoto: (photoDataUrl: string) => Promise<void>;
+  removeProfilePhoto: () => Promise<void>;
 
   // Platform Owner & User Management
   allUsers: UserProfile[];
@@ -278,6 +291,16 @@ interface AppContextType {
   addExpense: (exp: Omit<Expense, 'id'>) => Promise<Expense>;
   addPurchase: (purchase: Omit<Purchase, 'id' | 'purchaseNo'>) => Promise<Purchase>;
 
+  // Capital & Investment
+  investments: Investment[];
+  capitalWithdrawals: CapitalWithdrawal[];
+  addInvestment: (inv: Omit<Investment, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Investment>;
+  updateInvestment: (id: string, inv: Partial<Investment>) => Promise<void>;
+  deleteInvestment: (id: string) => Promise<void>;
+  addCapitalWithdrawal: (w: Omit<CapitalWithdrawal, 'id' | 'createdAt' | 'updatedAt'>) => Promise<CapitalWithdrawal>;
+  updateCapitalWithdrawal: (id: string, w: Partial<CapitalWithdrawal>) => Promise<void>;
+  deleteCapitalWithdrawal: (id: string) => Promise<void>;
+
   // Due Collection
   collectDue: (data: { type: 'customer' | 'supplier'; entityId: string; amountPaid: number; paymentMethod: string; note?: string }) => Promise<DueCollection | undefined>;
 
@@ -292,6 +315,16 @@ interface AppContextType {
   // Team, Payroll, Audit & Loyalty
   teamMembers: TeamMember[];
   saveTeamMembers: (updated: TeamMember[]) => void;
+  devices: EmployeeDevice[];
+  saveDevices: (updated: EmployeeDevice[]) => void;
+  requestDeviceAuthorization: (params?: { deviceName?: string; notes?: string }) => Promise<EmployeeDevice>;
+  approveDevice: (deviceId: string) => Promise<void>;
+  revokeDevice: (deviceId: string, reason?: string) => Promise<void>;
+  deleteDevice: (deviceId: string) => Promise<void>;
+  renameDevice: (deviceId: string, newName: string) => Promise<void>;
+  currentDeviceId: string;
+  currentDevice: EmployeeDevice | null;
+  isCurrentDeviceAuthorized: boolean;
   employees: Employee[];
   saveEmployees: (updated: Employee[]) => void;
   payrollPayments: PayrollPayment[];
@@ -328,6 +361,11 @@ interface AppContextType {
     monthlyLoss: number;
     lowStockCount: number;
     expiredCount: number;
+    totalInvestedCapital: number;
+    totalWithdrawnCapital: number;
+    currentCapital: number;
+    investmentCount: number;
+    withdrawalCount: number;
   };
 }
 
@@ -486,10 +524,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   useEffect(() => {
-    if (user) {
-      localStorage.setItem('biz_user', JSON.stringify(user));
-    } else {
-      localStorage.setItem('biz_user', 'null');
+    try {
+      if (user) {
+        localStorage.setItem('biz_user', JSON.stringify(user));
+        if (user.id) {
+          localStorage.setItem(`biz_user_${user.id}`, JSON.stringify(user));
+        }
+      } else {
+        localStorage.setItem('biz_user', 'null');
+      }
+    } catch (e) {
+      console.warn('Notice persisting user to storage:', e);
     }
   }, [user]);
 
@@ -634,6 +679,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             storeAddress: uData?.storeAddress || uData?.address || '',
             affiliateCode: uData?.affiliateCode || '',
             affiliateProgram: uData?.affiliateProgram || '',
+            photoUrl: uData?.photoUrl || uData?.avatarUrl || uData?.profilePhotoUrl || firebaseUser.photoURL || undefined,
+            avatarUrl: uData?.avatarUrl || uData?.photoUrl || uData?.profilePhotoUrl || firebaseUser.photoURL || undefined,
+            profilePhotoUrl: uData?.profilePhotoUrl || uData?.photoUrl || uData?.avatarUrl || firebaseUser.photoURL || undefined,
             verifiedEmail: true,
             verifiedPhone: true,
             createdAt: uData?.createdAt ? (typeof uData.createdAt === 'string' ? uData.createdAt : new Date().toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
@@ -809,6 +857,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             createdAt: createdDateStr,
             lastLogin: lastLoginStr,
             notes: uData.notes || '',
+            dashboardPreferences: uData.dashboardPreferences ? { ...defaultDashboardPreferences, ...uData.dashboardPreferences } : defaultDashboardPreferences,
           });
         });
         setAllUsers(list);
@@ -1007,11 +1056,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(initialActivityLogs);
   const [adjustments, setAdjustments] = useState<StockAdjustment[]>([]);
   const [dueCollections, setDueCollections] = useState<DueCollection[]>([]);
+  const [investments, setInvestments] = useState<Investment[]>(() => getStoredData('biz_investments', []));
+  const [capitalWithdrawals, setCapitalWithdrawals] = useState<CapitalWithdrawal[]>(() => getStoredData('biz_capital_withdrawals', []));
 
   // Cloud Synchronized State Repositories
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => {
     try {
       const saved = localStorage.getItem(`biz_team_members_${user?.id || 'default'}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [devices, setDevices] = useState<EmployeeDevice[]>(() => {
+    try {
+      const saved = localStorage.getItem(`biz_devices_${user?.id || 'default'}`);
       return saved ? JSON.parse(saved) : [];
     } catch (e) {
       return [];
@@ -1095,6 +1155,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setAdjustments([]);
       setDueCollections([]);
       setTeamMembers([]);
+      setDevices([]);
       setEmployees([]);
       setPayrollPayments([]);
       setSalaryAdjustments([]);
@@ -1300,6 +1361,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       },
 
+      onInvestmentsLoaded: (cloudInvestments, fromCloud) => {
+        if (fromCloud) {
+          setInvestments(cloudInvestments);
+          try {
+            localStorage.setItem('biz_investments', JSON.stringify(cloudInvestments));
+            localStorage.setItem(`biz_investments_${currentUserId}`, JSON.stringify(cloudInvestments));
+          } catch (e) {}
+        } else {
+          try {
+            const localSaved = localStorage.getItem(`biz_investments_${currentUserId}`);
+            const localItems: Investment[] = localSaved ? JSON.parse(localSaved) : [];
+            if (localItems.length > 0) {
+              setInvestments(localItems);
+              saveUserCloudCollection(currentUserId, 'investments', { items: localItems });
+            } else {
+              setInvestments([]);
+            }
+          } catch (e) {
+            setInvestments([]);
+          }
+        }
+      },
+
+      onCapitalWithdrawalsLoaded: (cloudWithdrawals, fromCloud) => {
+        if (fromCloud) {
+          setCapitalWithdrawals(cloudWithdrawals);
+          try {
+            localStorage.setItem('biz_capital_withdrawals', JSON.stringify(cloudWithdrawals));
+            localStorage.setItem(`biz_capital_withdrawals_${currentUserId}`, JSON.stringify(cloudWithdrawals));
+          } catch (e) {}
+        } else {
+          try {
+            const localSaved = localStorage.getItem(`biz_capital_withdrawals_${currentUserId}`);
+            const localItems: CapitalWithdrawal[] = localSaved ? JSON.parse(localSaved) : [];
+            if (localItems.length > 0) {
+              setCapitalWithdrawals(localItems);
+              saveUserCloudCollection(currentUserId, 'capitalWithdrawals', { items: localItems });
+            } else {
+              setCapitalWithdrawals([]);
+            }
+          } catch (e) {
+            setCapitalWithdrawals([]);
+          }
+        }
+      },
+
       onTeamLoaded: (cloudTeam, fromCloud) => {
         if (fromCloud) {
           setTeamMembers(cloudTeam);
@@ -1313,6 +1420,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const localItems = JSON.parse(localSaved);
               if (Array.isArray(localItems) && localItems.length > 0) {
                 saveUserCloudCollection(currentUserId, 'team', { items: localItems });
+              }
+            }
+          } catch (e) {}
+        }
+      },
+
+      onDevicesLoaded: (cloudDevices, fromCloud) => {
+        if (fromCloud) {
+          setDevices(cloudDevices);
+          try {
+            localStorage.setItem(`biz_devices_${currentUserId}`, JSON.stringify(cloudDevices));
+          } catch (e) {}
+        } else {
+          try {
+            const localSaved = localStorage.getItem(`biz_devices_${currentUserId}`);
+            if (localSaved) {
+              const localItems = JSON.parse(localSaved);
+              if (Array.isArray(localItems) && localItems.length > 0) {
+                saveUserCloudCollection(currentUserId, 'devices', { items: localItems });
               }
             }
           } catch (e) {}
@@ -2366,6 +2492,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       if (data.status !== undefined) { fsData.status = data.status; }
       if (data.notes !== undefined) { fsData.notes = data.notes; }
+      if (data.dashboardPreferences !== undefined) {
+        fsData.dashboardPreferences = data.dashboardPreferences;
+        if (user && (user.id === userId || user.email === data.email)) {
+          setDashboardPreferences(data.dashboardPreferences);
+          localStorage.setItem('biz_dashboard_preferences', JSON.stringify(data.dashboardPreferences));
+          localStorage.setItem(`biz_dashboard_preferences_${userId}`, JSON.stringify(data.dashboardPreferences));
+        }
+      }
       await setDoc(userRef, fsData, { merge: true });
     } catch (e) {
       console.warn('Firestore updateUserData notice:', e);
@@ -2417,6 +2551,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           createdAt: uData.createdAt ? (typeof uData.createdAt === 'string' ? uData.createdAt : (uData.createdAt?.toDate ? uData.createdAt.toDate().toISOString().split('T')[0] : new Date().toISOString().split('T')[0])) : new Date().toISOString().split('T')[0],
           lastLogin: uData.lastLogin ? (typeof uData.lastLogin === 'string' ? uData.lastLogin : (uData.lastLogin?.toDate ? uData.lastLogin.toDate().toLocaleString() : '')) : '',
           notes: uData.notes || '',
+          dashboardPreferences: uData.dashboardPreferences ? { ...defaultDashboardPreferences, ...uData.dashboardPreferences } : defaultDashboardPreferences,
         });
       });
       setAllUsers(list);
@@ -3132,20 +3267,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const updateProfile = (data: Partial<UserProfile>) => {
+  const updateProfile = async (data: Partial<UserProfile>) => {
     if (!user) return;
-    const updated = { ...user, ...data };
+    let processedData = { ...data };
+    if (data.photoUrl && data.photoUrl.startsWith('data:image') && data.photoUrl.length > 50000) {
+      try {
+        const compressed = await compressImage(data.photoUrl, { maxWidth: 320, maxHeight: 320, quality: 0.82 });
+        processedData.photoUrl = compressed;
+        processedData.profilePhotoUrl = compressed;
+        processedData.avatarUrl = compressed;
+      } catch (e) {}
+    }
+    const updated = { ...user, ...processedData };
     setUser(updated);
-    localStorage.setItem('biz_user', JSON.stringify(updated));
+    try {
+      localStorage.setItem('biz_user', JSON.stringify(updated));
+    } catch (e) {
+      console.warn('Storage quota notice in updateProfile:', e);
+    }
     if (data.brandName) {
       setSettings((prev) => {
         const next = { ...prev, brandName: data.brandName! };
-        localStorage.setItem('biz_settings', JSON.stringify(next));
+        try {
+          localStorage.setItem('biz_settings', JSON.stringify(next));
+        } catch (e) {}
         return next;
       });
     }
     if (auth.currentUser) {
-      const fsPayload: Record<string, any> = { ...data };
+      const fsPayload: Record<string, any> = { ...processedData };
       if (data.brandName) fsPayload.storeName = data.brandName;
       updateDoc(doc(db, 'users', auth.currentUser.uid), fsPayload)
         .catch((err) => console.warn('Sync profile error:', err));
@@ -3153,24 +3303,107 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logActivity('Updated Profile', 'প্রোফাইল আপডেট করা হয়েছে');
   };
 
-  const updateUser = (data: Partial<UserProfile>) => {
+  const updateUser = async (data: Partial<UserProfile>) => {
     if (!user) return;
-    const updated = { ...user, ...data };
+    let processedData = { ...data };
+    if (data.photoUrl && data.photoUrl.startsWith('data:image') && data.photoUrl.length > 50000) {
+      try {
+        const compressed = await compressImage(data.photoUrl, { maxWidth: 320, maxHeight: 320, quality: 0.82 });
+        processedData.photoUrl = compressed;
+        processedData.profilePhotoUrl = compressed;
+        processedData.avatarUrl = compressed;
+      } catch (e) {}
+    }
+    const updated = { ...user, ...processedData };
     setUser(updated);
-    localStorage.setItem('biz_user', JSON.stringify(updated));
+    try {
+      localStorage.setItem('biz_user', JSON.stringify(updated));
+    } catch (e) {
+      console.warn('Storage quota notice in updateUser:', e);
+    }
     if (data.brandName) {
       setSettings((prev) => {
         const next = { ...prev, brandName: data.brandName! };
-        localStorage.setItem('biz_settings', JSON.stringify(next));
+        try {
+          localStorage.setItem('biz_settings', JSON.stringify(next));
+        } catch (e) {}
         return next;
       });
     }
     if (auth.currentUser) {
-      const fsPayload: Record<string, any> = { ...data };
+      const fsPayload: Record<string, any> = { ...processedData };
       if (data.brandName) fsPayload.storeName = data.brandName;
       updateDoc(doc(db, 'users', auth.currentUser.uid), fsPayload)
         .catch((err) => console.warn('Sync user error:', err));
     }
+  };
+
+  const uploadProfilePhoto = async (photoInput: string | File | Blob): Promise<void> => {
+    if (!user) return;
+    try {
+      const compressedPhoto = await compressImage(photoInput, {
+        maxWidth: 320,
+        maxHeight: 320,
+        quality: 0.82,
+        outputFormat: 'image/jpeg',
+      });
+
+      const updated = {
+        ...user,
+        photoUrl: compressedPhoto,
+        profilePhotoUrl: compressedPhoto,
+        avatarUrl: compressedPhoto,
+      };
+      setUser(updated);
+      try {
+        localStorage.setItem('biz_user', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Storage quota notice in uploadProfilePhoto:', e);
+      }
+      if (auth.currentUser) {
+        try {
+          await updateDoc(doc(db, 'users', auth.currentUser.uid), {
+            photoUrl: compressedPhoto,
+            profilePhotoUrl: compressedPhoto,
+            avatarUrl: compressedPhoto,
+          });
+        } catch (err) {
+          console.warn('Sync profile photo error:', err);
+        }
+      }
+      logActivity('Uploaded Profile Photo', 'প্রোফাইল ছবি পরিবর্তন করা হয়েছে');
+    } catch (err) {
+      console.error('Error in uploadProfilePhoto:', err);
+      throw err;
+    }
+  };
+
+  const removeProfilePhoto = async (): Promise<void> => {
+    if (!user) return;
+    const updated = {
+      ...user,
+      photoUrl: '',
+      profilePhotoUrl: '',
+      avatarUrl: '',
+    };
+    setUser(updated);
+    try {
+      localStorage.setItem('biz_user', JSON.stringify(updated));
+    } catch (e) {
+      console.warn('Storage quota notice in removeProfilePhoto:', e);
+    }
+    if (auth.currentUser) {
+      try {
+        await updateDoc(doc(db, 'users', auth.currentUser.uid), {
+          photoUrl: deleteField(),
+          profilePhotoUrl: deleteField(),
+          avatarUrl: deleteField(),
+        });
+      } catch (err) {
+        console.warn('Remove profile photo error:', err);
+      }
+    }
+    logActivity('Removed Profile Photo', 'প্রোফাইল ছবি মুছে ফেলা হয়েছে');
   };
 
   const updateSettings = (newSettings: Partial<BusinessSettings>) => {
@@ -3788,6 +4021,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPurchases([]);
     setCart([]);
     setDueCollections([]);
+    setInvestments([]);
+    setCapitalWithdrawals([]);
     setAdjustments([]);
     setTeamMembers([]);
     setEmployees([]);
@@ -3801,6 +4036,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('biz_sales', JSON.stringify([]));
     localStorage.setItem('biz_expenses', JSON.stringify([]));
     localStorage.setItem('biz_purchases', JSON.stringify([]));
+    localStorage.setItem('biz_investments', JSON.stringify([]));
+    localStorage.setItem('biz_capital_withdrawals', JSON.stringify([]));
     const uid = user?.id || auth.currentUser?.uid;
     if (uid) {
       await saveUserCloudCollection(uid, 'products', { items: [] });
@@ -3809,6 +4046,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await saveUserCloudCollection(uid, 'suppliers', { items: [] });
       await saveUserCloudCollection(uid, 'expenses', { items: [] });
       await saveUserCloudCollection(uid, 'purchases', { items: [] });
+      await saveUserCloudCollection(uid, 'investments', { items: [] });
+      await saveUserCloudCollection(uid, 'capitalWithdrawals', { items: [] });
       await saveUserCloudCollection(uid, 'adjustments', { items: [] });
       await saveUserCloudCollection(uid, 'dueCollections', { items: [] });
       await saveUserCloudCollection(uid, 'team', { items: [] });
@@ -4020,6 +4259,123 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // Capital & Investment Management
+  const addInvestment = async (invData: Omit<Investment, 'id' | 'createdAt' | 'updatedAt'>): Promise<Investment> => {
+    const newInv: Investment = {
+      ...invData,
+      id: `inv-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const next = [newInv, ...investments];
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      await saveUserCloudCollection(uid, 'investments', { items: next });
+    }
+
+    setInvestments(next);
+    try {
+      localStorage.setItem('biz_investments', JSON.stringify(next));
+      if (uid) localStorage.setItem(`biz_investments_${uid}`, JSON.stringify(next));
+    } catch (e) {}
+
+    logActivity('Added Investment', 'নতুন বিনিয়োগ যোগ করা হয়েছে', `${invData.investorName}: ৳${invData.amount}`);
+    return newInv;
+  };
+
+  const updateInvestment = async (id: string, invData: Partial<Investment>): Promise<void> => {
+    const next = investments.map((item) =>
+      item.id === id ? { ...item, ...invData, updatedAt: new Date().toISOString() } : item
+    );
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      await saveUserCloudCollection(uid, 'investments', { items: next });
+    }
+
+    setInvestments(next);
+    try {
+      localStorage.setItem('biz_investments', JSON.stringify(next));
+      if (uid) localStorage.setItem(`biz_investments_${uid}`, JSON.stringify(next));
+    } catch (e) {}
+
+    logActivity('Updated Investment', 'বিনিয়োগ তথ্য আপডেট করা হয়েছে', `ID: ${id}`);
+  };
+
+  const deleteInvestment = async (id: string): Promise<void> => {
+    const next = investments.filter((item) => item.id !== id);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      await saveUserCloudCollection(uid, 'investments', { items: next });
+    }
+
+    setInvestments(next);
+    try {
+      localStorage.setItem('biz_investments', JSON.stringify(next));
+      if (uid) localStorage.setItem(`biz_investments_${uid}`, JSON.stringify(next));
+    } catch (e) {}
+
+    logActivity('Deleted Investment', 'বিনিয়োগ রেকর্ড মুছে ফেলা হয়েছে', `ID: ${id}`);
+  };
+
+  const addCapitalWithdrawal = async (
+    wData: Omit<CapitalWithdrawal, 'id' | 'createdAt' | 'updatedAt'>
+  ): Promise<CapitalWithdrawal> => {
+    const newWithdrawal: CapitalWithdrawal = {
+      ...wData,
+      id: `cap-wth-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const next = [newWithdrawal, ...capitalWithdrawals];
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      await saveUserCloudCollection(uid, 'capitalWithdrawals', { items: next });
+    }
+
+    setCapitalWithdrawals(next);
+    try {
+      localStorage.setItem('biz_capital_withdrawals', JSON.stringify(next));
+      if (uid) localStorage.setItem(`biz_capital_withdrawals_${uid}`, JSON.stringify(next));
+    } catch (e) {}
+
+    logActivity('Withdrew Capital', 'মূলধন উত্তোলন রেকর্ড করা হয়েছে', `৳${wData.amount} - ${wData.reason}`);
+    return newWithdrawal;
+  };
+
+  const updateCapitalWithdrawal = async (id: string, wData: Partial<CapitalWithdrawal>): Promise<void> => {
+    const next = capitalWithdrawals.map((item) =>
+      item.id === id ? { ...item, ...wData, updatedAt: new Date().toISOString() } : item
+    );
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      await saveUserCloudCollection(uid, 'capitalWithdrawals', { items: next });
+    }
+
+    setCapitalWithdrawals(next);
+    try {
+      localStorage.setItem('biz_capital_withdrawals', JSON.stringify(next));
+      if (uid) localStorage.setItem(`biz_capital_withdrawals_${uid}`, JSON.stringify(next));
+    } catch (e) {}
+
+    logActivity('Updated Capital Withdrawal', 'মূলধন উত্তোলন তথ্য আপডেট করা হয়েছে', `ID: ${id}`);
+  };
+
+  const deleteCapitalWithdrawal = async (id: string): Promise<void> => {
+    const next = capitalWithdrawals.filter((item) => item.id !== id);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      await saveUserCloudCollection(uid, 'capitalWithdrawals', { items: next });
+    }
+
+    setCapitalWithdrawals(next);
+    try {
+      localStorage.setItem('biz_capital_withdrawals', JSON.stringify(next));
+      if (uid) localStorage.setItem(`biz_capital_withdrawals_${uid}`, JSON.stringify(next));
+    } catch (e) {}
+
+    logActivity('Deleted Capital Withdrawal', 'মূলধন উত্তোলন রেকর্ড মুছে ফেলা হয়েছে', `ID: ${id}`);
+  };
+
   // Notifications
   const markNotificationRead = (id: string) => {
     setReadNotificationIds((prev) => {
@@ -4071,6 +4427,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       sales,
       purchases,
       dueCollections,
+      investments,
+      capitalWithdrawals,
     };
     return JSON.stringify(backupObj, null, 2);
   };
@@ -4084,11 +4442,140 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (parsed.expenses && Array.isArray(parsed.expenses)) setExpenses(parsed.expenses);
       if (parsed.sales && Array.isArray(parsed.sales)) setSales(parsed.sales);
       if (parsed.purchases && Array.isArray(parsed.purchases)) setPurchases(parsed.purchases);
+      if (parsed.investments && Array.isArray(parsed.investments)) setInvestments(parsed.investments);
+      if (parsed.capitalWithdrawals && Array.isArray(parsed.capitalWithdrawals)) setCapitalWithdrawals(parsed.capitalWithdrawals);
       logActivity('Imported Database Backup', 'ডাটাবেজ ব্যাকআপ ইমপোর্ট করা হয়েছে');
       return true;
     } catch (e) {
       console.error(e);
       return false;
+    }
+  };
+
+  const saveDevices = async (updated: EmployeeDevice[]) => {
+    setDevices(updated);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      localStorage.setItem(`biz_devices_${uid}`, JSON.stringify(updated));
+      await saveUserCloudCollection(uid, 'devices', { items: updated });
+    }
+  };
+
+  const currentDeviceId = getOrCreateDeviceId();
+  const currentDevice = devices.find((d) => d.deviceId === currentDeviceId) || null;
+
+  const isCurrentDeviceAuthorized =
+    user?.role === 'Owner' ||
+    user?.role === 'owner' ||
+    (currentDevice ? currentDevice.status === 'Approved' : false);
+
+  const requestDeviceAuthorization = async (params?: { deviceName?: string; notes?: string }): Promise<EmployeeDevice> => {
+    const devInfo = getCurrentDeviceInfo();
+    const customName = params?.deviceName || devInfo.deviceName;
+    if (params?.deviceName) {
+      setLocalDeviceName(params.deviceName);
+    }
+    const existingIndex = devices.findIndex((d) => d.deviceId === devInfo.deviceId);
+    const isOwner = user?.role === 'Owner' || user?.role === 'owner';
+    const newDevice: EmployeeDevice = {
+      id: existingIndex >= 0 ? devices[existingIndex].id : `dev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      deviceId: devInfo.deviceId,
+      deviceName: customName,
+      employeeId: user?.id || 'unknown',
+      employeeName: user?.ownerName || user?.fullName || user?.email || 'Employee',
+      employeeEmail: user?.email || '',
+      employeeRole: user?.role || 'Staff',
+      deviceType: devInfo.deviceType,
+      browser: devInfo.browser,
+      os: devInfo.os,
+      screenResolution: devInfo.screenResolution,
+      status: isOwner ? 'Approved' : 'Pending',
+      requestedAt: existingIndex >= 0 ? devices[existingIndex].requestedAt : new Date().toISOString(),
+      approvedAt: isOwner ? new Date().toISOString() : (existingIndex >= 0 ? devices[existingIndex].approvedAt : undefined),
+      approvedBy: isOwner ? (user?.ownerName || 'Owner') : undefined,
+      lastActiveAt: new Date().toISOString(),
+      notes: params?.notes || (existingIndex >= 0 ? devices[existingIndex].notes : ''),
+    };
+
+    const nextDevices = existingIndex >= 0
+      ? devices.map((d, i) => i === existingIndex ? newDevice : d)
+      : [newDevice, ...devices];
+
+    setDevices(nextDevices);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      localStorage.setItem(`biz_devices_${uid}`, JSON.stringify(nextDevices));
+      await saveUserCloudCollection(uid, 'devices', { items: nextDevices });
+    }
+    return newDevice;
+  };
+
+  const approveDevice = async (deviceIdToApprove: string): Promise<void> => {
+    const approver = user?.ownerName || user?.fullName || user?.email || 'Owner';
+    const nextDevices = devices.map((d) =>
+      d.deviceId === deviceIdToApprove || d.id === deviceIdToApprove
+        ? {
+            ...d,
+            status: 'Approved' as const,
+            approvedAt: new Date().toISOString(),
+            approvedBy: approver,
+            rejectionReason: undefined,
+          }
+        : d
+    );
+    setDevices(nextDevices);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      localStorage.setItem(`biz_devices_${uid}`, JSON.stringify(nextDevices));
+      await saveUserCloudCollection(uid, 'devices', { items: nextDevices });
+    }
+    logActivity('Approved Device Access', 'ডিভাইস অ্যাক্সেস অনুমোদন করা হয়েছে', deviceIdToApprove);
+  };
+
+  const revokeDevice = async (deviceIdToRevoke: string, reason?: string): Promise<void> => {
+    const nextDevices = devices.map((d) =>
+      d.deviceId === deviceIdToRevoke || d.id === deviceIdToRevoke
+        ? {
+            ...d,
+            status: 'Revoked' as const,
+            rejectionReason: reason || 'Access revoked by store owner',
+          }
+        : d
+    );
+    setDevices(nextDevices);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      localStorage.setItem(`biz_devices_${uid}`, JSON.stringify(nextDevices));
+      await saveUserCloudCollection(uid, 'devices', { items: nextDevices });
+    }
+    logActivity('Revoked Device Access', 'ডিভাইস অ্যাক্সেস বাতিল করা হয়েছে', deviceIdToRevoke);
+  };
+
+  const deleteDevice = async (deviceIdToDelete: string): Promise<void> => {
+    const nextDevices = devices.filter((d) => d.deviceId !== deviceIdToDelete && d.id !== deviceIdToDelete);
+    setDevices(nextDevices);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      localStorage.setItem(`biz_devices_${uid}`, JSON.stringify(nextDevices));
+      await saveUserCloudCollection(uid, 'devices', { items: nextDevices });
+    }
+    logActivity('Deleted Device Record', 'ডিভাইস রেকর্ড মুছে ফেলা হয়েছে', deviceIdToDelete);
+  };
+
+  const renameDevice = async (deviceIdToRename: string, newName: string): Promise<void> => {
+    const nextDevices = devices.map((d) =>
+      d.deviceId === deviceIdToRename || d.id === deviceIdToRename
+        ? { ...d, deviceName: newName.trim() }
+        : d
+    );
+    setDevices(nextDevices);
+    const uid = user?.id || auth.currentUser?.uid;
+    if (uid) {
+      localStorage.setItem(`biz_devices_${uid}`, JSON.stringify(nextDevices));
+      await saveUserCloudCollection(uid, 'devices', { items: nextDevices });
+    }
+    if (deviceIdToRename === currentDeviceId) {
+      setLocalDeviceName(newName.trim());
     }
   };
 
@@ -4153,6 +4640,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return new Date(p.expiryDate) < new Date();
   }).length;
 
+  // Capital & Investment calculations (kept strictly isolated from sales, expenses, and profit/loss)
+  const totalInvestedCapital = investments.reduce((acc, inv) => acc + (Number(inv.amount) || 0), 0);
+  const totalWithdrawnCapital = capitalWithdrawals.reduce((acc, w) => acc + (Number(w.amount) || 0), 0);
+  const currentCapital = totalInvestedCapital - totalWithdrawnCapital;
+  const investmentCount = investments.length;
+  const withdrawalCount = capitalWithdrawals.length;
+
   // Update Dashboard Customization Preferences
   const updateDashboardPreferences = async (newPrefs: Partial<DashboardPreferences>) => {
     const updated: DashboardPreferences = {
@@ -4181,7 +4675,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         signup,
         logout,
         updateProfile,
-        updateUser: updateProfile,
+        updateUser,
+        uploadProfilePhoto,
+        removeProfilePhoto,
         allUsers,
         updateUserRole,
         sendFirebasePasswordReset,
@@ -4270,6 +4766,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         loadSampleDemoData,
         addExpense,
         addPurchase,
+        investments,
+        capitalWithdrawals,
+        addInvestment,
+        updateInvestment,
+        deleteInvestment,
+        addCapitalWithdrawal,
+        updateCapitalWithdrawal,
+        deleteCapitalWithdrawal,
         collectDue,
         markNotificationRead,
         markAllNotificationsRead,
@@ -4277,6 +4781,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         importDataJSON,
         teamMembers,
         saveTeamMembers,
+        devices,
+        saveDevices,
+        requestDeviceAuthorization,
+        approveDevice,
+        revokeDevice,
+        deleteDevice,
+        renameDevice,
+        currentDeviceId,
+        currentDevice,
+        isCurrentDeviceAuthorized,
         employees,
         saveEmployees,
         payrollPayments,
@@ -4311,6 +4825,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           monthlyLoss,
           lowStockCount,
           expiredCount,
+          totalInvestedCapital,
+          totalWithdrawnCapital,
+          currentCapital,
+          investmentCount,
+          withdrawalCount,
         },
       }}
     >

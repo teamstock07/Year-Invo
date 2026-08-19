@@ -260,8 +260,8 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                 {isBn
-                  ? 'ক্যামেরার সামনে বারকোড ধরুন, স্ক্যানার চালু থাকবে।'
-                  : 'Point camera at barcode or QR code. Scanner stays active.'}
+                  ? 'ক্যামেরার সামনে বারকোড বা QR কোড ধরুন, স্ক্যানার চালু থাকবে।'
+                  : 'Point camera at any Barcode or QR Code. Scanner detects automatically.'}
               </p>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { MainWebsiteLogo } from '../common/MainWebsiteLogo';
+import { compressImage } from '../../utils/imageCompressor';
 import {
   Image,
   Upload,
@@ -56,35 +57,47 @@ export const BrandingView: React.FC = () => {
   const isBn = language === 'bn';
 
   // Handle Logo Upload
-  const handleLogoUpload = (file?: File) => {
+  const handleLogoUpload = async (file?: File) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       alert(isBn ? 'অনুগ্রহ করে কেবল ইমেজ ফাইল নির্বাচন করুন (PNG, JPG, SVG, WEBP)' : 'Please select an image file (PNG, JPG, SVG, WEBP)');
       return;
     }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === 'string') {
-        setLogoUrl(reader.result);
+    try {
+      const compressed = await compressImage(file, {
+        maxWidth: 400,
+        maxHeight: 400,
+        quality: 0.85,
+        outputFormat: 'image/png',
+      });
+      if (compressed) {
+        setLogoUrl(compressed);
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.warn('Logo compression error:', err);
+    }
   };
 
   // Handle QR Code Image Upload
-  const handleQrUpload = (file?: File) => {
+  const handleQrUpload = async (file?: File) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       alert(isBn ? 'অনুগ্রহ করে কেবল ইমেজ ফাইল নির্বাচন করুন (PNG, JPG, SVG, WEBP)' : 'Please select an image file (PNG, JPG, SVG, WEBP)');
       return;
     }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === 'string') {
-        setQrImageUrl(reader.result);
+    try {
+      const compressed = await compressImage(file, {
+        maxWidth: 450,
+        maxHeight: 450,
+        quality: 0.85,
+        outputFormat: 'image/jpeg',
+      });
+      if (compressed) {
+        setQrImageUrl(compressed);
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.warn('QR compression error:', err);
+    }
   };
 
   const handleRemoveLogo = () => {

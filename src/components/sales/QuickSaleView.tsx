@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { Sale, Product } from '../../types';
 import { QuickReceiptModal } from './QuickReceiptModal';
 import { CustomerSelector } from '../common/CustomerSelector';
+import { DeviceAuthorizationGuard } from '../common/DeviceAuthorizationGuard';
 import { findProductWithStoreCheck } from '../../utils/scanner';
 import { playSuccessSound, playBeepSound } from '../../utils/audio';
 import {
@@ -206,32 +207,33 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
   };
 
   return (
-    <div className="space-y-4">
-      {/* Top Clean Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#ff5c01]/10 text-[#ff5c01] flex items-center justify-center shrink-0">
-            <Zap className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className="text-base sm:text-lg font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
-              {t('quickSaleTitle') || 'Quick Sale'}
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-normal">
-                ({filteredProducts.length} {t('itemsAvailable') || 'items available'})
-              </span>
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {t('quickSaleSubtitle') || 'Fast checkout for counter sales and walk-in customers.'}
-            </p>
+    <DeviceAuthorizationGuard moduleName="Quick Counter Sale">
+      <div className="space-y-4">
+        {/* Top Clean Header Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 glass-card border border-white/20 dark:border-white/10 rounded-2xl p-4 shadow-xl">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#ff5c01]/10 text-[#ff5c01] flex items-center justify-center shrink-0">
+              <Zap className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base sm:text-lg font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                {t('quickSaleTitle') || 'Quick Sale'}
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-normal">
+                  ({filteredProducts.length} {t('itemsAvailable') || 'items available'})
+                </span>
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {t('quickSaleSubtitle') || 'Fast checkout for counter sales and walk-in customers.'}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Main Grid: Products (Left) + Cart & Checkout (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        
-        {/* Left Column: Product Grid */}
-        <div className="lg:col-span-7 xl:col-span-8 flex flex-col bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xs space-y-4">
+        {/* Main Grid: Products (Left) + Cart & Checkout (Right) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          
+          {/* Left Column: Product Grid */}
+          <div className="lg:col-span-7 xl:col-span-8 flex flex-col bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-sm space-y-4">
           
           {/* Search Bar */}
           <div className="relative">
@@ -911,5 +913,6 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
         }}
       />
     </div>
+    </DeviceAuthorizationGuard>
   );
 };

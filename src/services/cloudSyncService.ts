@@ -11,8 +11,11 @@ import {
   Purchase,
   StockAdjustment,
   DueCollection,
+  Investment,
+  CapitalWithdrawal,
   TeamMember,
   Employee,
+  EmployeeDevice,
   PayrollPayment,
   SalaryAdjustment,
   AuditLogEntry,
@@ -32,7 +35,10 @@ export interface CloudBusinessDataCallbacks {
   onPurchasesLoaded?: (purchases: Purchase[], fromCloud: boolean) => void;
   onAdjustmentsLoaded?: (adjustments: StockAdjustment[], fromCloud: boolean) => void;
   onDueCollectionsLoaded?: (dueCollections: DueCollection[], fromCloud: boolean) => void;
+  onInvestmentsLoaded?: (investments: Investment[], fromCloud: boolean) => void;
+  onCapitalWithdrawalsLoaded?: (withdrawals: CapitalWithdrawal[], fromCloud: boolean) => void;
   onTeamLoaded?: (team: TeamMember[], fromCloud: boolean) => void;
+  onDevicesLoaded?: (devices: EmployeeDevice[], fromCloud: boolean) => void;
   onPayrollLoaded?: (payroll: { employees: Employee[]; payments: PayrollPayment[]; adjustments: SalaryAdjustment[] }, fromCloud: boolean) => void;
   onAuditLogsLoaded?: (logs: AuditLogEntry[], fromCloud: boolean) => void;
   onLoyaltyLoaded?: (loyalty: CustomerLoyaltySettings, fromCloud: boolean) => void;
@@ -300,6 +306,30 @@ export function subscribeToUserBusinessData(
     }
   });
 
+  // 10b. Investments (Capital & Investment)
+  attachListener('investments', (data, exists) => {
+    const items = extractItems<Investment>(data, 'investments');
+    if (exists && items.length > 0) {
+      callbacks.onInvestmentsLoaded?.(items, true);
+    } else if (exists && data) {
+      callbacks.onInvestmentsLoaded?.(items, true);
+    } else {
+      callbacks.onInvestmentsLoaded?.([], false);
+    }
+  });
+
+  // 10c. Capital Withdrawals
+  attachListener('capitalWithdrawals', (data, exists) => {
+    const items = extractItems<CapitalWithdrawal>(data, 'capitalWithdrawals');
+    if (exists && items.length > 0) {
+      callbacks.onCapitalWithdrawalsLoaded?.(items, true);
+    } else if (exists && data) {
+      callbacks.onCapitalWithdrawalsLoaded?.(items, true);
+    } else {
+      callbacks.onCapitalWithdrawalsLoaded?.([], false);
+    }
+  });
+
   // 11. Team Members
   attachListener('team', (data, exists) => {
     const items = extractItems(data, 'team');
@@ -309,6 +339,18 @@ export function subscribeToUserBusinessData(
       callbacks.onTeamLoaded?.(items, true);
     } else {
       callbacks.onTeamLoaded?.([], false);
+    }
+  });
+
+  // 11b. Employee Registered Devices
+  attachListener('devices', (data, exists) => {
+    const items = extractItems<EmployeeDevice>(data, 'devices');
+    if (exists && items.length > 0) {
+      callbacks.onDevicesLoaded?.(items, true);
+    } else if (exists && data) {
+      callbacks.onDevicesLoaded?.(items, true);
+    } else {
+      callbacks.onDevicesLoaded?.([], false);
     }
   });
 

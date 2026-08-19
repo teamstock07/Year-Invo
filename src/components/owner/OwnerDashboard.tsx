@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { SubscriptionPlan, UserProfile, UserRole, SubscriptionRequest } from '../../types';
+import { AccountFeatureControl } from './AccountFeatureControl';
 import {
   ShieldCheck,
   Users,
@@ -105,7 +106,8 @@ export const OwnerDashboard: React.FC = () => {
   } = useApp();
 
   // Tab State
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'subscriptions' | 'announcements' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'subscriptions' | 'features' | 'announcements' | 'settings'>('overview');
+  const [selectedFeatureUserId, setSelectedFeatureUserId] = useState<string | null>(null);
 
   // Search & Filter States
   const [searchQuery, setSearchQuery] = useState('');
@@ -743,6 +745,7 @@ export const OwnerDashboard: React.FC = () => {
           { id: 'overview', label: 'Dashboard & Analytics', icon: BarChart3 },
           { id: 'users', label: `Users & Stores (${totalUsers})`, icon: Users, badge: todayRegistrations > 0 ? `+${todayRegistrations} today` : undefined },
           { id: 'subscriptions', label: `Subscriptions (${pendingRequests.length})`, icon: Award, badge: pendingRequests.length > 0 ? `${pendingRequests.length}` : undefined },
+          { id: 'features', label: 'Account Feature Control', icon: SlidersHorizontal },
           { id: 'announcements', label: 'Broadcast Message', icon: Bell },
           { id: 'settings', label: 'Platform Branding', icon: SettingsIcon },
         ].map((tab) => {
@@ -1329,6 +1332,17 @@ export const OwnerDashboard: React.FC = () => {
                                 </button>
 
                                 <button
+                                  onClick={() => {
+                                    setSelectedFeatureUserId(u.id);
+                                    setActiveTab('features');
+                                  }}
+                                  className="p-1.5 bg-purple-900/60 hover:bg-purple-800 text-purple-200 rounded-lg text-xs font-bold transition-all cursor-pointer border border-purple-700/60"
+                                  title="Manage Account Feature Control"
+                                >
+                                  <SlidersHorizontal className="w-3.5 h-3.5 text-purple-300" />
+                                </button>
+
+                                <button
                                   onClick={() => setResetModalUser(u)}
                                   className="p-1.5 bg-indigo-950 hover:bg-indigo-900 text-indigo-300 rounded-lg text-xs font-bold transition-all cursor-pointer border border-indigo-800/60"
                                   title="Reset Password"
@@ -1483,6 +1497,17 @@ export const OwnerDashboard: React.FC = () => {
                           title="Edit"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setSelectedFeatureUserId(u.id);
+                            setActiveTab('features');
+                          }}
+                          className="p-1.5 bg-purple-900/60 hover:bg-purple-800 text-purple-200 rounded-lg text-xs font-bold transition-all cursor-pointer border border-purple-700/60"
+                          title="Feature Access Control"
+                        >
+                          <SlidersHorizontal className="w-3.5 h-3.5 text-purple-300" />
                         </button>
 
                         <button
@@ -2286,6 +2311,16 @@ export const OwnerDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* TAB 4: ACCOUNT FEATURE CONTROL */}
+      {activeTab === 'features' && (
+        <AccountFeatureControl
+          selectedUserFromParent={
+            selectedFeatureUserId ? allUsers.find((u) => u.id === selectedFeatureUserId) || null : null
+          }
+          onSelectUserFromParent={(u) => setSelectedFeatureUserId(u ? u.id : null)}
+        />
+      )}
+
       {/* MODAL 1: VIEW FULL USER DETAILS */}
       {detailUser && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -2345,6 +2380,18 @@ export const OwnerDashboard: React.FC = () => {
             )}
 
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                onClick={() => {
+                  const u = detailUser;
+                  setDetailUser(null);
+                  setSelectedFeatureUserId(u.id);
+                  setActiveTab('features');
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl cursor-pointer flex items-center gap-1.5"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <span>Manage Features</span>
+              </button>
               <button
                 onClick={() => {
                   const u = detailUser;

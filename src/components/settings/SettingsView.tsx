@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { getDisplayBrandName } from '../../utils/brand';
 import { MainWebsiteLogo } from '../common/MainWebsiteLogo';
+import { compressImage } from '../../utils/imageCompressor';
 import { Settings, Save, Shield, Download, Upload, Store, DollarSign, Receipt, Users, Camera, Trash2, Image, User, SlidersHorizontal } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
@@ -12,29 +13,41 @@ export const SettingsView: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const siteFileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setFormData({ ...formData, logoUrl: reader.result });
+      try {
+        const compressed = await compressImage(file, {
+          maxWidth: 400,
+          maxHeight: 400,
+          quality: 0.85,
+          outputFormat: 'image/png',
+        });
+        if (compressed) {
+          setFormData((prev) => ({ ...prev, logoUrl: compressed }));
         }
-      };
-      reader.readAsDataURL(file);
+      } catch (err) {
+        console.warn('Logo upload error:', err);
+      }
     }
   };
 
-  const handleSiteLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSiteLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setFormData({ ...formData, siteLogoUrl: reader.result });
+      try {
+        const compressed = await compressImage(file, {
+          maxWidth: 400,
+          maxHeight: 400,
+          quality: 0.85,
+          outputFormat: 'image/png',
+        });
+        if (compressed) {
+          setFormData((prev) => ({ ...prev, siteLogoUrl: compressed }));
         }
-      };
-      reader.readAsDataURL(file);
+      } catch (err) {
+        console.warn('Site logo upload error:', err);
+      }
     }
   };
 

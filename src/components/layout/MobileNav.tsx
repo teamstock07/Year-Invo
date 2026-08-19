@@ -29,6 +29,7 @@ import {
   Award,
   ShieldCheck,
   Banknote,
+  Coins,
   Activity,
   ChevronDown,
   ChevronRight,
@@ -147,7 +148,7 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
           ? [
               {
                 id: 'pos',
-                name: t('navPos') || 'POS System',
+                name: t('navPos') || 'POS & Sell',
                 icon: ShoppingCart,
                 color: 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400',
                 badge: user?.subscriptionPlan === 'Free' ? 'PRO' : undefined,
@@ -309,6 +310,16 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
               },
             ]
           : []),
+        ...(dashboardPreferences?.capitalInvestment !== false && canAccessFinance
+          ? [
+              {
+                id: 'capital-investment',
+                name: t('navCapitalInvestment') || 'Capital & Investment',
+                icon: Coins,
+                color: 'bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400',
+              },
+            ]
+          : []),
         ...(dashboardPreferences?.reports !== false && canAccessFinance
           ? [
               {
@@ -334,7 +345,7 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
     {
       title: t('storeManagement') || 'Management & Store',
       items: [
-        ...(canAccessSettings
+        ...(canAccessSettings && dashboardPreferences?.storeSettings !== false
           ? [
               {
                 id: 'branding',

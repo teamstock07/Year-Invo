@@ -15,6 +15,8 @@ import {
   SalaryAdjustment,
   CustomerLoyaltySettings,
   AuditLogEntry,
+  Investment,
+  CapitalWithdrawal,
 } from '../types';
 
 export const initialCategories: Category[] = [];
@@ -53,4 +55,8 @@ export const defaultLoyaltySettings: CustomerLoyaltySettings = {
 };
 
 export const initialAuditLogs: AuditLogEntry[] = [];
+
+export const initialInvestments: Investment[] = [];
+
+export const initialCapitalWithdrawals: CapitalWithdrawal[] = [];
 

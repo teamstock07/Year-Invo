@@ -36,6 +36,7 @@ import { SmartReorderView } from './components/stock/SmartReorderView';
 import { CustomerLoyaltyView } from './components/customers/CustomerLoyaltyView';
 import { SalesCalendarView } from './components/sales/SalesCalendarView';
 import { AuditLogView } from './components/audit/AuditLogView';
+import { CapitalInvestmentView } from './components/capital/CapitalInvestmentView';
 import { BusinessTypeSetupModal } from './components/common/BusinessTypeSetupModal';
 
 import { getDisplayBrandName } from './utils/brand';
@@ -115,6 +116,11 @@ const MainLayout: React.FC = () => {
         return <DueManagement />;
       case 'expenses':
         return <ExpenseList />;
+      case 'capital-investment':
+      case 'capitalInvestment':
+      case 'capital':
+      case 'investment':
+        return <CapitalInvestmentView />;
       case 'team':
       case 'teamManagement':
         return <TeamManagementView />;
@@ -156,12 +162,15 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className={`h-screen overflow-hidden font-sans ${theme === 'dark' ? 'dark bg-[#09090b] text-slate-200' : 'bg-[#F5F7FA] text-slate-900'} antialiased flex flex-col`}>
+    <div className={`h-screen overflow-hidden font-sans ${theme === 'dark' ? 'dark bg-[#0b0f19] text-slate-200' : 'bg-[#f1f5f9] text-slate-900'} bg-grid-pattern antialiased flex flex-col relative`}>
+      {/* Subtle Ambient Radial Highlights */}
+      <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[900px] h-[350px] bg-gradient-to-b from-orange-500/5 via-amber-500/3 to-transparent blur-3xl rounded-full" />
+
       {/* Top Header Navigation */}
       <Header onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
 
       {/* Main Body Workspace */}
-      <div className="flex-1 flex overflow-hidden relative">
+      <div className="flex-1 flex overflow-hidden relative z-10">
         {/* Responsive Locked Left Sidebar */}
         <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Product } from '../../types';
 import { isSkuUnique, generateUniqueSku, generateUniqueBarcode } from '../../utils/scanner';
+import { compressImage } from '../../utils/imageCompressor';
 import {
   X,
   Upload,
@@ -174,19 +175,24 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
   const totalSales = numericStock * numericSellingPrice;
   const expectedProfit = totalSales - totalCost;
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          const resultStr = reader.result;
-          setImageUrl(resultStr);
-          saveToUserDrive(resultStr);
+      try {
+        const compressed = await compressImage(file, {
+          maxWidth: 600,
+          maxHeight: 600,
+          quality: 0.82,
+          outputFormat: 'image/jpeg',
+        });
+        if (compressed) {
+          setImageUrl(compressed);
+          saveToUserDrive(compressed);
           setIsDriveModalOpen(false);
         }
-      };
-      reader.readAsDataURL(file);
+      } catch (err) {
+        console.warn('Product image upload error:', err);
+      }
     }
   };
 
