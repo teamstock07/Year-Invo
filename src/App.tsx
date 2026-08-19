@@ -38,11 +38,12 @@ import { SalesCalendarView } from './components/sales/SalesCalendarView';
 import { AuditLogView } from './components/audit/AuditLogView';
 import { CapitalInvestmentView } from './components/capital/CapitalInvestmentView';
 import { BusinessTypeSetupModal } from './components/common/BusinessTypeSetupModal';
+import { EmailVerificationPrompt } from './components/auth/EmailVerificationPrompt';
 
 import { getDisplayBrandName } from './utils/brand';
 
 const MainLayout: React.FC = () => {
-  const { user, activeTab, setActiveTab, theme, settings } = useApp();
+  const { user, isEmailVerified, activeTab, setActiveTab, theme, settings } = useApp();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showFirstTimeBizModal, setShowFirstTimeBizModal] = useState(() => {
     if (!user) return false;
@@ -78,6 +79,12 @@ const MainLayout: React.FC = () => {
 
   if (!user) {
     return <LoginView />;
+  }
+
+  // Enforce Email Verification: Show EmailVerificationPrompt screen until email is verified
+  const isAdminUser = user.email?.trim().toLowerCase() === 'teamstock07@gmail.com';
+  if (!isAdminUser && !isEmailVerified && !user.verifiedEmail) {
+    return <EmailVerificationPrompt />;
   }
 
   const renderActiveView = () => {

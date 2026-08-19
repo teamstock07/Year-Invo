@@ -4,6 +4,7 @@ import { compressImage } from '../utils/imageCompressor';
 import { auth, db } from '../lib/firebase';
 import {
   sendPasswordResetEmail,
+  sendEmailVerification,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
@@ -132,8 +133,11 @@ export const calculateSubscriptionExpiry = (startDate: Date | string, billingPer
 interface AppContextType {
   // Auth & Profile
   user: UserProfile | null;
-  login: (email: string, pass: string) => Promise<{ success: boolean; message?: string }>;
-  signup: (data: Partial<UserProfile> & { password?: string }) => Promise<{ success: boolean; message?: string }>;
+  isEmailVerified: boolean;
+  login: (email: string, pass: string) => Promise<{ success: boolean; message?: string; requiresEmailVerification?: boolean }>;
+  signup: (data: Partial<UserProfile> & { password?: string }) => Promise<{ success: boolean; message?: string; requiresEmailVerification?: boolean }>;
+  resendEmailVerification: () => Promise<{ success: boolean; message: string; cooldownRemaining?: number }>;
+  checkEmailVerification: () => Promise<boolean>;
   logout: () => Promise<void>;
   updateProfile: (data: Partial<UserProfile>) => void;
   updateUser: (data: Partial<UserProfile>) => void;
@@ -523,6 +527,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
+  // Track Firebase Auth emailVerified status
+  const [isEmailVerified, setIsEmailVerified] = useState<boolean>(() => {
+    return Boolean(auth.currentUser?.emailVerified);
+  });
+
   useEffect(() => {
     try {
       if (user) {
@@ -682,11 +691,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             photoUrl: uData?.photoUrl || uData?.avatarUrl || uData?.profilePhotoUrl || firebaseUser.photoURL || undefined,
             avatarUrl: uData?.avatarUrl || uData?.photoUrl || uData?.profilePhotoUrl || firebaseUser.photoURL || undefined,
             profilePhotoUrl: uData?.profilePhotoUrl || uData?.photoUrl || uData?.avatarUrl || firebaseUser.photoURL || undefined,
-            verifiedEmail: true,
+            verifiedEmail: isAdmin || Boolean(firebaseUser.emailVerified),
             verifiedPhone: true,
             createdAt: uData?.createdAt ? (typeof uData.createdAt === 'string' ? uData.createdAt : new Date().toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
             dashboardPreferences: uData?.dashboardPreferences ? { ...defaultDashboardPreferences, ...uData.dashboardPreferences } : defaultDashboardPreferences,
           };
+
+          setIsEmailVerified(isAdmin || Boolean(firebaseUser.emailVerified));
 
           // If document didn't exist in Firestore, save it now with merge
           if (!docSnap.exists()) {
@@ -1999,7 +2010,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Auth methods using Firebase Auth & Cloud Firestore
-  const login = async (emailInput: string, passInput: string): Promise<{ success: boolean; message?: string }> => {
+  const login = async (emailInput: string, passInput: string): Promise<{ success: boolean; message?: string; requiresEmailVerification?: boolean }> => {
     const cleanEmail = emailInput.trim().toLowerCase();
     if (!cleanEmail || !passInput) {
       return { success: false, message: 'Please enter both email and password.' };
@@ -2014,7 +2025,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       console.log(`[AUTH] Firebase authentication completed in ${(performance.now() - tStart).toFixed(1)}ms: ${cleanEmail}`);
       console.log(`[AUTH] UID received: ${firebaseUser.uid}`);
+      console.log(`[AUTH] emailVerified: ${firebaseUser.emailVerified}`);
       console.log(`[AUTH] user profile query started: docPath=users/${firebaseUser.uid}`);
+
+      const isAdmin = isTeamStockAdmin(cleanEmail);
+      const verified = isAdmin || Boolean(firebaseUser.emailVerified);
+      setIsEmailVerified(verified);
 
       let docSnap: any = null;
       let uData: any = null;
@@ -2050,7 +2066,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.log(`[AUTH] store lookup started`);
 
       let foundUser: UserProfile;
-      const isAdmin = isTeamStockAdmin(cleanEmail);
 
       if (uData) {
         const roleRaw = uData.role || uData.roleName || 'Manager';
@@ -2084,7 +2099,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           storeAddress: uData.storeAddress || uData.address || '',
           affiliateCode: uData.affiliateCode || '',
           affiliateProgram: uData.affiliateProgram || '',
-          verifiedEmail: true,
+          verifiedEmail: verified,
           verifiedPhone: true,
           createdAt: uData.createdAt ? (typeof uData.createdAt === 'string' ? uData.createdAt : new Date().toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
         };
@@ -2120,7 +2135,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           subscriptionPlan: isAdmin ? 'Lifetime' : 'Free',
           subscriptionStatus: 'active',
           status: 'active',
-          verifiedEmail: true,
+          verifiedEmail: verified,
           verifiedPhone: true,
           createdAt: new Date().toISOString().split('T')[0],
         };
@@ -2166,6 +2181,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       logActivity('User Logged In', 'ব্যবহারকারী লগইন করেছে', cleanEmail);
       console.log(`[AUTH] login flow completed successfully in ${(performance.now() - tStart).toFixed(1)}ms`);
+
+      if (!verified) {
+        return {
+          success: true,
+          requiresEmailVerification: true,
+          message: 'Verification email sent. Please check your inbox and verify your email address.',
+        };
+      }
+
       return { success: true };
     } catch (error: any) {
       console.error('Firebase Auth login error [Full Error]:', error);
@@ -2190,7 +2214,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const signup = async (data: Partial<UserProfile> & { password?: string }): Promise<{ success: boolean; message?: string }> => {
+  const signup = async (data: Partial<UserProfile> & { password?: string }): Promise<{ success: boolean; message?: string; requiresEmailVerification?: boolean }> => {
     const cleanEmail = (data.email || '').trim().toLowerCase();
     const pass = data.password || '';
 
@@ -2216,7 +2240,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       }
 
-      // 2. Prepare user document payload with required schema
+      // 2. Immediately send Firebase Email Verification to the newly registered email
+      try {
+        await sendEmailVerification(firebaseUser);
+        console.log('[Firebase Auth] Email verification sent to:', cleanEmail);
+      } catch (verificationErr) {
+        console.warn('[Firebase Auth] Notice sending initial email verification:', verificationErr);
+      }
+
+      // 3. Prepare user document payload with required schema
       const fullName = data.ownerName || 'Store Owner';
       const storeName = data.brandName || 'My Store';
       const storeType = data.businessType || 'General Retail & Grocery';
@@ -2227,6 +2259,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const isAdmin = isTeamStockAdmin(cleanEmail);
       const assignedRole: UserRole = isAdmin ? 'Owner' : 'Manager';
       const assignedPlan: SubscriptionPlan = isAdmin ? 'Lifetime' : 'Free';
+      const verified = isAdmin || Boolean(firebaseUser.emailVerified);
+      setIsEmailVerified(verified);
 
       const userCountry = data.country || 'Bangladesh';
       const userPrefLang = data.preferredLanguage || language || 'en';
@@ -2256,7 +2290,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         subscriptionPlan: assignedPlan,
       };
 
-      // 3. Write document to users/{uid} in Firestore
+      // 4. Write document to users/{uid} in Firestore
       console.log('[Firestore Write Start] Attempting setDoc for user in "users" collection...', firebaseUser.uid);
       console.log('[Firestore Write Payload]:', userDocData);
       try {
@@ -2290,7 +2324,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         subscriptionStatus: 'active',
         storeAddress: address,
         affiliateCode,
-        verifiedEmail: true,
+        verifiedEmail: verified,
         verifiedPhone: true,
         createdAt: new Date().toISOString().split('T')[0],
       };
@@ -2309,7 +2343,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveTab('dashboard');
       }
       logActivity('User Registered Account', `নতুন অ্যাকাউন্ট তৈরি করা হয়েছে (Manager)`, cleanEmail);
-      return { success: true };
+      return {
+        success: true,
+        requiresEmailVerification: !verified,
+        message: 'Verification email sent. Please check your inbox and verify your email address.',
+      };
     } catch (error: any) {
       console.error('Firebase signup error [Full Error]:', error);
       if (error && typeof error === 'object') {
@@ -2326,6 +2364,60 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         message = 'Invalid email address.';
       }
       return { success: false, message };
+    }
+  };
+
+  // Resend Email Verification method
+  const resendEmailVerification = async (): Promise<{ success: boolean; message: string; cooldownRemaining?: number }> => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      return {
+        success: false,
+        message: 'No active user session found. Please sign in first.',
+      };
+    }
+
+    try {
+      await sendEmailVerification(currentUser);
+      return {
+        success: true,
+        message: 'Verification email resent successfully! Please check your inbox and spam folder.',
+      };
+    } catch (error: any) {
+      console.warn('Firebase resend email verification error:', error);
+      if (error.code === 'auth/too-many-requests') {
+        return {
+          success: false,
+          cooldownRemaining: 60,
+          message: 'Too many requests. Please wait a moment before trying to resend again.',
+        };
+      }
+      return {
+        success: false,
+        message: error.message || 'Failed to send verification email. Please try again later.',
+      };
+    }
+  };
+
+  // Check Email Verification Status method by reloading current Firebase user
+  const checkEmailVerification = async (): Promise<boolean> => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return false;
+
+    try {
+      await currentUser.reload();
+      const updatedUser = auth.currentUser;
+      const isAdmin = isTeamStockAdmin(updatedUser?.email);
+      const isVerified = isAdmin || Boolean(updatedUser?.emailVerified);
+
+      setIsEmailVerified(isVerified);
+      if (isVerified) {
+        setUser((prev) => (prev ? { ...prev, verifiedEmail: true } : prev));
+      }
+      return isVerified;
+    } catch (error) {
+      console.warn('Error checking Firebase email verification status:', error);
+      return Boolean(currentUser.emailVerified);
     }
   };
 
@@ -4671,8 +4763,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider
       value={{
         user,
+        isEmailVerified,
         login,
         signup,
+        resendEmailVerification,
+        checkEmailVerification,
         logout,
         updateProfile,
         updateUser,
