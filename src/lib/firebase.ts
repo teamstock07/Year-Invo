@@ -23,15 +23,13 @@ const app = !getApps().length ? initializeApp(activeConfig) : getApps()[0];
 
 export const auth = getAuth(app);
 
-// Always use provisioned Firestore database ID to ensure exact project database targeting
-export const db = defaultAppletConfig.firestoreDatabaseId
-  ? getFirestore(app, defaultAppletConfig.firestoreDatabaseId)
-  : getFirestore(app);
+// Always use default Firestore database '(default)'
+export const db = getFirestore(app);
 
 // Verification logging
 console.log('[Firebase App initialized]:', app.name);
 console.log('[Firebase Auth Project ID]:', auth.app.options.projectId);
-console.log('[Firebase Firestore Database ID]:', defaultAppletConfig.firestoreDatabaseId || '(default)');
+console.log('[Firebase Firestore Database]: (default)');
 console.log('[Firebase Verification] Auth and Firestore targeting Project ID:', activeConfig.projectId);
 
 export default app;
