@@ -42,8 +42,22 @@ export const DeviceAuthorizationGuard: React.FC<DeviceAuthorizationGuardProps> =
   const [copiedId, setCopiedId] = useState(false);
   const [requestSentMessage, setRequestSentMessage] = useState(false);
 
-  // Store owners always have full bypass access
-  const isOwner = user?.role === 'Owner' || user?.role === 'owner';
+  // Store owners and primary account holders always have full bypass access
+  // A store owner logged into their store account never needs or sees device authorization
+  const isOwner =
+    !user ||
+    user?.role === 'Owner' ||
+    user?.role === 'owner' ||
+    user?.role === 'Manager' ||
+    user?.role === 'manager' ||
+    user?.role === 'Admin' ||
+    user?.role === 'admin' ||
+    user?.subscriptionPlan === 'Lifetime' ||
+    (user &&
+      !user.role?.toLowerCase().includes('staff') &&
+      !user.role?.toLowerCase().includes('cashier') &&
+      !user.role?.toLowerCase().includes('accountant'));
+
   if (isOwner) {
     return <>{children}</>;
   }

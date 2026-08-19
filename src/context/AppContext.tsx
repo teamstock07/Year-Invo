@@ -596,8 +596,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           console.log(`[AUTH] user profile query completed: found=${Boolean(uData)}`);
           console.log(`[AUTH] store lookup started`);
 
-          const roleRaw = uData?.role || uData?.roleName || (isAdmin ? 'Owner' : 'Manager');
-          const normalizedRole: UserRole = (isAdmin || roleRaw.toString().toLowerCase() === 'owner' || roleRaw.toString().toLowerCase() === 'admin' || roleRaw.toString().toLowerCase() === 'platformowner') ? 'Owner' : 'Manager';
+          const roleRaw = uData?.role || uData?.roleName || 'Owner';
+          const normalizedRole: UserRole = (isAdmin || !roleRaw || roleRaw.toString().toLowerCase() === 'owner' || roleRaw.toString().toLowerCase() === 'admin' || roleRaw.toString().toLowerCase() === 'platformowner' || roleRaw.toString().toLowerCase() === 'manager') ? 'Owner' : (roleRaw as UserRole);
 
           if (isAdmin && (!uData || uData.role !== 'owner' || uData.subscriptionPlan !== 'Lifetime')) {
             try {
@@ -727,6 +727,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
 
           setUser(profile);
+          if (uData?.readNotificationIds && typeof uData.readNotificationIds === 'object') {
+            setReadNotificationIds((prev) => ({
+              ...prev,
+              ...uData.readNotificationIds,
+            }));
+            try {
+              localStorage.setItem(`biz_read_notifs_${firebaseUser.uid}`, JSON.stringify(uData.readNotificationIds));
+            } catch (e) {}
+          }
           if (uData?.dashboardPreferences && typeof uData.dashboardPreferences === 'object') {
             const loadedPrefs = { ...defaultDashboardPreferences, ...uData.dashboardPreferences };
             setDashboardPreferences(loadedPrefs);
@@ -1521,9 +1530,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       },
 
       onNotificationsLoaded: (cloudNotifs, fromCloud) => {
-        if (fromCloud) {
-          setManualNotifications(cloudNotifs.manual);
-          setReadNotificationIds(cloudNotifs.readMap);
+        if (fromCloud && cloudNotifs) {
+          if (Array.isArray(cloudNotifs.manual)) {
+            setManualNotifications(cloudNotifs.manual);
+            try {
+              localStorage.setItem('biz_manual_notifications', JSON.stringify(cloudNotifs.manual));
+            } catch (e) {}
+          }
+          if (cloudNotifs.readMap && typeof cloudNotifs.readMap === 'object') {
+            setReadNotificationIds((prev) => {
+              const merged = { ...prev, ...cloudNotifs.readMap };
+              try {
+                localStorage.setItem(`biz_read_notifs_${currentUserId}`, JSON.stringify(merged));
+              } catch (e) {}
+              return merged;
+            });
+          }
         }
       },
 
@@ -2068,8 +2090,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       let foundUser: UserProfile;
 
       if (uData) {
-        const roleRaw = uData.role || uData.roleName || 'Manager';
-        const normalizedRole: UserRole = (isAdmin || roleRaw.toString().toLowerCase() === 'owner' || roleRaw.toString().toLowerCase() === 'admin' || roleRaw.toString().toLowerCase() === 'platformowner') ? 'Owner' : 'Manager';
+        const roleRaw = uData.role || uData.roleName || 'Owner';
+        const normalizedRole: UserRole = (isAdmin || !roleRaw || roleRaw.toString().toLowerCase() === 'owner' || roleRaw.toString().toLowerCase() === 'admin' || roleRaw.toString().toLowerCase() === 'platformowner' || roleRaw.toString().toLowerCase() === 'manager') ? 'Owner' : (roleRaw as UserRole);
 
         if (uData.status === 'suspended' && !isAdmin) {
           await signOut(auth);
@@ -2257,7 +2279,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const affiliateCode = data.affiliateCode || '';
 
       const isAdmin = isTeamStockAdmin(cleanEmail);
-      const assignedRole: UserRole = isAdmin ? 'Owner' : 'Manager';
+      const assignedRole: UserRole = 'Owner';
       const assignedPlan: SubscriptionPlan = isAdmin ? 'Lifetime' : 'Free';
       const verified = isAdmin || Boolean(firebaseUser.emailVerified);
       setIsEmailVerified(verified);
@@ -2277,7 +2299,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         preferredLanguage: userPrefLang,
         language: userPrefLang,
         affiliateCode,
-        role: isAdmin ? 'owner' : 'manager',
+        role: 'owner',
         subscription: isAdmin ? 'lifetime' : 'free',
         status: 'active',
         createdAt: serverTimestamp(),
@@ -4470,38 +4492,80 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Notifications
   const markNotificationRead = (id: string) => {
-    setReadNotificationIds((prev) => {
-      const next = { ...prev, [id]: true };
-      const storageKey = 'biz_read_notifs_' + (user?.id || 'default');
-      localStorage.setItem(storageKey, JSON.stringify(next));
-      if (user?.id) {
-        try {
-          updateDoc(doc(db, 'users', user.id), {
-            [`readNotificationIds.${id}`]: true,
-          }).catch(() => {});
-        } catch (err) {}
-      }
-      return next;
-    });
+    const uid = user?.id || auth.currentUser?.uid;
+    const nextReadMap: Record<string, boolean> = { ...readNotificationIds, [id]: true };
+    const updatedManual = manualNotifications.map((n) => (n.id === id ? { ...n, read: true } : n));
+
+    // 1. Immediately update React state for instant UI update & unread count badge reset
+    setReadNotificationIds(nextReadMap);
+    setManualNotifications(updatedManual);
+
+    // 2. Persist to localStorage for current user
+    const storageKey = 'biz_read_notifs_' + (uid || 'default');
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(nextReadMap));
+      localStorage.setItem('biz_manual_notifications', JSON.stringify(updatedManual));
+    } catch (e) {}
+
+    // 3. Persist to Firestore backend (businessData/notifications + users doc backup)
+    if (uid) {
+      saveUserCloudCollection(uid, 'notifications', {
+        manual: updatedManual,
+        readMap: nextReadMap,
+      }).catch((err) => {
+        console.warn('[Notification] Cloud sync save notice:', err);
+      });
+
+      try {
+        updateDoc(doc(db, 'users', uid), {
+          [`readNotificationIds.${id}`]: true,
+        }).catch(() => {});
+      } catch (err) {}
+    }
   };
 
   const markAllNotificationsRead = () => {
-    setReadNotificationIds((prev) => {
-      const next = { ...prev };
-      notifications.forEach((n) => {
-        next[n.id] = true;
-      });
-      const storageKey = 'biz_read_notifs_' + (user?.id || 'default');
-      localStorage.setItem(storageKey, JSON.stringify(next));
-      if (user?.id) {
-        try {
-          updateDoc(doc(db, 'users', user.id), {
-            readNotificationIds: next,
-          }).catch(() => {});
-        } catch (err) {}
-      }
-      return next;
+    const uid = user?.id || auth.currentUser?.uid;
+    const nextReadMap: Record<string, boolean> = { ...readNotificationIds };
+
+    // Mark every active notification as read in the map
+    notifications.forEach((n) => {
+      nextReadMap[n.id] = true;
     });
+    manualNotifications.forEach((n) => {
+      nextReadMap[n.id] = true;
+    });
+
+    const updatedManual = manualNotifications.map((n) => ({ ...n, read: true }));
+
+    // 1. Immediately update state for instant 0 badge count & instant read styling
+    setReadNotificationIds(nextReadMap);
+    setManualNotifications(updatedManual);
+
+    // 2. Persist to localStorage for current user
+    const storageKey = 'biz_read_notifs_' + (uid || 'default');
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(nextReadMap));
+      localStorage.setItem('biz_manual_notifications', JSON.stringify(updatedManual));
+    } catch (e) {}
+
+    // 3. Cloud Firestore persistence (businessData/notifications + users doc)
+    if (uid) {
+      saveUserCloudCollection(uid, 'notifications', {
+        manual: updatedManual,
+        readMap: nextReadMap,
+      }).then(() => {
+        console.log('[Notification] Successfully marked all notifications as read in cloud.');
+      }).catch((err) => {
+        console.warn('[Notification] Cloud sync save notice:', err);
+      });
+
+      try {
+        updateDoc(doc(db, 'users', uid), {
+          readNotificationIds: nextReadMap,
+        }).catch(() => {});
+      } catch (err) {}
+    }
   };
 
   // Backup & Export
@@ -4557,8 +4621,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const currentDevice = devices.find((d) => d.deviceId === currentDeviceId) || null;
 
   const isCurrentDeviceAuthorized =
+    !user ||
     user?.role === 'Owner' ||
     user?.role === 'owner' ||
+    user?.role === 'Manager' ||
+    user?.role === 'manager' ||
+    user?.role === 'Admin' ||
+    user?.role === 'admin' ||
+    user?.subscriptionPlan === 'Lifetime' ||
     (currentDevice ? currentDevice.status === 'Approved' : false);
 
   const requestDeviceAuthorization = async (params?: { deviceName?: string; notes?: string }): Promise<EmployeeDevice> => {

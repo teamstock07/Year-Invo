@@ -583,15 +583,22 @@ export function generateSystemNotifications({
   });
 
   // 3. COMBINE WITH MANUAL/SYSTEM NOTIFICATIONS (Subscription, System Announcements)
-  const manualNotifs = manualNotifications.filter((m) => {
-    // Exclude stale auto-generated notifications that might have been saved in state
-    return !m.id.startsWith('low_stock_') &&
-      !m.id.startsWith('out_of_stock_') &&
-      !m.id.startsWith('expiring_soon_') &&
-      !m.id.startsWith('expired_') &&
-      !m.id.startsWith('pending_due_') &&
-      !m.id.startsWith('overdue_due_');
-  });
+  const manualNotifs = manualNotifications
+    .filter((m) => {
+      // Exclude stale auto-generated notifications that might have been saved in state
+      return (
+        !m.id.startsWith('low_stock_') &&
+        !m.id.startsWith('out_of_stock_') &&
+        !m.id.startsWith('expiring_soon_') &&
+        !m.id.startsWith('expired_') &&
+        !m.id.startsWith('pending_due_') &&
+        !m.id.startsWith('overdue_due_')
+      );
+    })
+    .map((m) => ({
+      ...m,
+      read: Boolean(readMap[m.id] || m.read),
+    }));
 
   const allNotifications = [...generated, ...manualNotifs];
   const sorted = sortNotifications(allNotifications);
