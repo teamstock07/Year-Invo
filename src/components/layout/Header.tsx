@@ -38,6 +38,7 @@ import {
   Package,
   PackageX,
 } from 'lucide-react';
+import { SyncStatusIndicator } from '../common/SyncStatusIndicator';
 
 export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSidebar }) => {
   const {
@@ -163,6 +164,11 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
               Powered by <span className="font-bold text-[#ff5c01]">YearInvo</span>
             </span>
           </div>
+        </div>
+
+        {/* Real-time Sync Status Indicator */}
+        <div className="ml-1 sm:ml-2">
+          <SyncStatusIndicator variant="header" />
         </div>
       </div>
 

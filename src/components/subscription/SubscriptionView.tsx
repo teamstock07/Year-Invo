@@ -754,14 +754,13 @@ export const SubscriptionView: React.FC = () => {
               onClick={() => setBillingCycle('five_year')}
               className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                 billingCycle === 'five_year'
-                  ? 'bg-indigo-600 text-white shadow-xs'
+                  ? 'bg-purple-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
-              <Crown className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
               <span>{langDict.fiveYear}</span>
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                billingCycle === 'five_year' ? 'bg-white text-indigo-700' : 'bg-indigo-500/10 text-indigo-400'
+                billingCycle === 'five_year' ? 'bg-white text-purple-700' : 'bg-purple-500/10 text-purple-500'
               }`}>
                 {langDict.fiveYearDiscount}
               </span>
@@ -1096,51 +1095,63 @@ export const SubscriptionView: React.FC = () => {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-medium text-slate-700 dark:text-slate-300">
                 <tr>
                   <td className="p-3.5 font-bold">Catalog Product Limit</td>
-                  <td className="p-3.5 text-center text-slate-500">100 Products</td>
+                  <td className="p-3.5 text-center text-slate-500 font-bold">5 Products Max</td>
                   <td className="p-3.5 text-center font-bold text-[#ff5c01]">Unlimited</td>
                   <td className="p-3.5 text-center font-bold text-[#ff5c01]">Unlimited</td>
                 </tr>
                 <tr>
-                  <td className="p-3.5 font-bold">Sell System & Order History</td>
+                  <td className="p-3.5 font-bold">Total Inventory Stock Capacity</td>
+                  <td className="p-3.5 text-center text-slate-500 font-bold">500 Pieces Max</td>
+                  <td className="p-3.5 text-center font-bold text-[#ff5c01]">Unlimited</td>
+                  <td className="p-3.5 text-center font-bold text-[#ff5c01]">Unlimited</td>
+                </tr>
+                <tr>
+                  <td className="p-3.5 font-bold">Daily Sales Transactions</td>
+                  <td className="p-3.5 text-center text-slate-500 font-bold">50 Sales / Day</td>
+                  <td className="p-3.5 text-center font-bold text-[#ff5c01]">Unlimited</td>
+                  <td className="p-3.5 text-center font-bold text-[#ff5c01]">Unlimited</td>
+                </tr>
+                <tr>
+                  <td className="p-3.5 font-bold">Quick Sale Counter & Order History</td>
                   <td className="p-3.5 text-center text-emerald-600 dark:text-emerald-400 font-bold">Included</td>
                   <td className="p-3.5 text-center text-emerald-600 dark:text-emerald-400 font-bold">Included</td>
                   <td className="p-3.5 text-center text-emerald-600 dark:text-emerald-400 font-bold">Included</td>
                 </tr>
                 <tr>
-                  <td className="p-3.5 font-bold">POS Counter Register</td>
-                  <td className="p-3.5 text-center text-emerald-600 dark:text-emerald-400 font-bold">Standard</td>
-                  <td className="p-3.5 text-center text-emerald-600 dark:text-emerald-400 font-bold">High Speed</td>
-                  <td className="p-3.5 text-center font-bold text-emerald-600 dark:text-emerald-400">Unlimited Multi-Branch</td>
+                  <td className="p-3.5 font-bold">Point of Sale (POS) Billing Register</td>
+                  <td className="p-3.5 text-center text-slate-400">Locked (Premium)</td>
+                  <td className="p-3.5 text-center text-slate-400">Locked (Premium)</td>
+                  <td className="p-3.5 text-center font-bold text-emerald-600 dark:text-emerald-400">Included</td>
                 </tr>
                 <tr>
-                  <td className="p-3.5 font-bold">QR Code Generator & Payments</td>
+                  <td className="p-3.5 font-bold">Barcode & QR Code Generator & Printing</td>
+                  <td className="p-3.5 text-center text-slate-400">Locked</td>
+                  <td className="p-3.5 text-center text-slate-400">Locked</td>
+                  <td className="p-3.5 text-center font-bold text-emerald-600 dark:text-emerald-400">Included</td>
+                </tr>
+                <tr>
+                  <td className="p-3.5 font-bold">Employee Salary & Payout Management</td>
                   <td className="p-3.5 text-center text-slate-400">Locked</td>
                   <td className="p-3.5 text-center text-emerald-600 dark:text-emerald-400 font-bold">Included</td>
                   <td className="p-3.5 text-center font-bold text-emerald-600 dark:text-emerald-400">Included</td>
                 </tr>
                 <tr>
-                  <td className="p-3.5 font-bold">Barcode Generator & Sticker Print</td>
-                  <td className="p-3.5 text-center text-slate-400">—</td>
+                  <td className="p-3.5 font-bold">Purchase Orders & Supplier Ledgers</td>
+                  <td className="p-3.5 text-center text-slate-400">Locked</td>
                   <td className="p-3.5 text-center text-emerald-600 dark:text-emerald-400 font-bold">Included</td>
-                  <td className="p-3.5 text-center text-emerald-600 dark:text-emerald-400 font-bold">Included</td>
+                  <td className="p-3.5 text-center font-bold text-emerald-600 dark:text-emerald-400">Included</td>
                 </tr>
                 <tr>
-                  <td className="p-3.5 font-bold">PDF Invoice Printing</td>
-                  <td className="p-3.5 text-center text-slate-400">—</td>
-                  <td className="p-3.5 text-center text-emerald-600 dark:text-emerald-400 font-bold">Included</td>
-                  <td className="p-3.5 text-center text-emerald-600 dark:text-emerald-400 font-bold">Included</td>
+                  <td className="p-3.5 font-bold">Team Member Management & Roles</td>
+                  <td className="p-3.5 text-center text-slate-400">Locked</td>
+                  <td className="p-3.5 text-center text-slate-400">Locked</td>
+                  <td className="p-3.5 text-center font-bold text-emerald-600 dark:text-emerald-400">Full Access</td>
                 </tr>
                 <tr>
-                  <td className="p-3.5 font-bold">Purchase & Supplier Orders</td>
-                  <td className="p-3.5 text-center text-slate-400">—</td>
-                  <td className="p-3.5 text-center text-emerald-600 dark:text-emerald-400 font-bold">Included</td>
-                  <td className="p-3.5 text-center text-emerald-600 dark:text-emerald-400 font-bold">Included</td>
-                </tr>
-                <tr>
-                  <td className="p-3.5 font-bold">Multi-Store & Role Permissions</td>
-                  <td className="p-3.5 text-center text-slate-400">—</td>
-                  <td className="p-3.5 text-center text-emerald-600 dark:text-emerald-400 font-bold">Included</td>
-                  <td className="p-3.5 text-center text-emerald-600 dark:text-emerald-400 font-bold">Unlimited Multi-Branch</td>
+                  <td className="p-3.5 font-bold">Reports & Profit & Loss Analytics</td>
+                  <td className="p-3.5 text-center text-slate-500">Basic</td>
+                  <td className="p-3.5 text-center text-emerald-600 dark:text-emerald-400 font-bold">Standard P&L</td>
+                  <td className="p-3.5 text-center font-bold text-emerald-600 dark:text-emerald-400">Advanced Analytics</td>
                 </tr>
               </tbody>
             </table>

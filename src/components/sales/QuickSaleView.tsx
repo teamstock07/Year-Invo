@@ -6,6 +6,7 @@ import { CustomerSelector } from '../common/CustomerSelector';
 import { DeviceAuthorizationGuard } from '../common/DeviceAuthorizationGuard';
 import { findProductWithStoreCheck } from '../../utils/scanner';
 import { playSuccessSound, playBeepSound } from '../../utils/audio';
+import { SyncStatusIndicator } from '../common/SyncStatusIndicator';
 import {
   Zap,
   Search,
@@ -226,6 +227,9 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
                 {t('quickSaleSubtitle') || 'Fast checkout for counter sales and walk-in customers.'}
               </p>
             </div>
+          </div>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <SyncStatusIndicator variant="header" />
           </div>
         </div>
 

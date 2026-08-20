@@ -47,10 +47,10 @@ export const PRICING_CONFIG = {
       monthly: 100, // Introductory ৳100 first month / ৳150 regular renewal
       monthlyIntro: 100,
       monthlyRenewal: 150,
-      sixMonths: 765, // ৳765 (Save 15% compared to 6 × ৳150 = ৳900)
-      sixMonthsDiscountPercent: 15,
-      yearly: 1440, // ৳1,440 (Save 20% compared to 12 × ৳150 = ৳1,800)
-      yearlyDiscountPercent: 20,
+      sixMonths: 648, // ৳648 (10% discount on ৳720 base)
+      sixMonthsDiscountPercent: 10,
+      yearly: 1440, // ৳1,440 base (with configurable annual discount e.g. 15% -> ৳1,224)
+      yearlyDiscountPercent: 15,
       fiveYear: 6000,
       fiveYearDiscountPercent: 33,
     },
@@ -58,10 +58,10 @@ export const PRICING_CONFIG = {
       monthly: 250, // ৳250 / month
       monthlyIntro: 250,
       monthlyRenewal: 250,
-      sixMonths: 1275, // ৳1,275 (Save 15% compared to 6 × ৳250 = ৳1,500)
+      sixMonths: 1275, // ৳1,275 (15% discount on ৳1,500 base)
       sixMonthsDiscountPercent: 15,
-      yearly: 3000, // ৳3,000 base 1-year rate
-      yearlyDiscountPercent: 0,
+      yearly: 3000, // ৳3,000 base (with configurable annual discount e.g. 20% -> ৳2,400)
+      yearlyDiscountPercent: 20,
       fiveYear: 12000,
       fiveYearDiscountPercent: 20,
     },
@@ -88,7 +88,7 @@ export const PRICING_CONFIG = {
       sixMonths: 17.85, // $17.85 (Save 15% vs 6 × $3.50 = $21.00)
       sixMonthsDiscountPercent: 15,
       yearly: 30.00, // $30.00 (Save 28.6% vs 12 × $3.50 = $42.00)
-      yearlyDiscountPercent: 29,
+      yearlyDiscountPercent: 20,
       fiveYear: 120.00,
       fiveYearDiscountPercent: 43,
     },
@@ -146,7 +146,7 @@ export const PLAN_LIMITS: Record<'Free' | 'Pro' | 'Premium', Omit<PlanLimits, 'p
     maxSalesPerDay: Number.POSITIVE_INFINITY,
     isPosAllowed: false,
     isTeamManagementAllowed: false,
-    isQrBarcodeAllowed: true, // Basic barcode labels
+    isQrBarcodeAllowed: false, // QR & Barcode generator requires Premium
     isMultiBranchAllowed: false,
     isAiInsightsAllowed: true,
     isPayrollAllowed: true,

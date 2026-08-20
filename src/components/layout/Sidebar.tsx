@@ -58,7 +58,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   };
 
   const plan = user?.subscriptionPlan || 'Free';
-  const isPosLocked = plan === 'Free';
   const role = user?.role || 'Owner';
 
   // Role based visibility checks
@@ -69,6 +68,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const canAccessPayroll = role === 'Owner' || role === 'Accountant' || role === 'PlatformOwner';
   const canAccessSettings = role === 'Owner' || role === 'Manager' || role === 'PlatformOwner';
 
+  const isPlatformSuperAdmin =
+    user?.email?.toLowerCase().trim() === 'teamstock07@gmail.com' ||
+    user?.role === 'PlatformOwner';
+
+  // Feature locking based on exact 3 plans
+  const isPosLocked = plan !== 'Premium' && plan !== 'Lifetime' && !isPlatformSuperAdmin;
+  const isBarcodeLocked = plan !== 'Premium' && plan !== 'Lifetime' && !isPlatformSuperAdmin;
+  const isTeamLocked = plan !== 'Premium' && plan !== 'Lifetime' && !isPlatformSuperAdmin;
+  const isPayrollLocked = plan === 'Free' && !isPlatformSuperAdmin;
+
   // Team Management & Payroll Grouped Children
   const teamChildren = [
     ...(dashboardPreferences?.teamManagement !== false && canAccessTeam
@@ -77,6 +86,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             id: 'team',
             label: t('modTeamManagement') || 'Team Management',
             icon: ShieldCheck,
+            locked: isTeamLocked,
+            badge: isTeamLocked ? 'PREMIUM' : undefined,
           },
         ]
       : []),
@@ -86,6 +97,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             id: 'payroll',
             label: t('modPayroll') || 'Employee Payroll',
             icon: Banknote,
+            locked: isPayrollLocked,
+            badge: isPayrollLocked ? 'PRO' : undefined,
           },
         ]
       : []),
@@ -120,10 +133,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   }, [isTeamActive]);
 
   // Primary menu items before the Team & Payroll group
-  const isPlatformSuperAdmin =
-    user?.email?.toLowerCase().trim() === 'teamstock07@gmail.com' ||
-    user?.role === 'PlatformOwner';
-
   const primaryMenuItems = [
     ...(isPlatformSuperAdmin
       ? [{ id: 'owner', label: t('navOwnerPanel') || 'Owner Panel', icon: Crown, highlight: true }]
@@ -135,7 +144,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       label: t('navPos') || 'POS & Sell', 
       icon: ShoppingCart, 
       locked: isPosLocked,
-      badge: isPosLocked ? 'PRO' : undefined 
+      badge: isPosLocked ? 'PREMIUM' : undefined 
     }] : []),
     ...(dashboardPreferences?.products !== false && canAccessInventory ? [{ id: 'products', label: t('navProducts') || 'Products', icon: Package }] : []),
     ...(dashboardPreferences?.products !== false && dashboardPreferences?.categories !== false && canAccessInventory ? [{ id: 'categories', label: t('navCategories') || 'Categories', icon: Tags }] : []),
@@ -156,7 +165,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const secondaryMenuItems = [
     ...(dashboardPreferences?.reports !== false && canAccessFinance ? [{ id: 'reports', label: t('navProfit') || 'Profit & Loss', icon: TrendingUp }] : []),
     ...(dashboardPreferences?.expiryManagement !== false && canAccessInventory ? [{ id: 'expired', label: t('navExpired') || 'Expired Products', icon: AlertTriangle }] : []),
-    ...(dashboardPreferences?.barcode !== false && canAccessInventory ? [{ id: 'barcode', label: t('navBarcode') || 'Barcode & QR Code', icon: QrCode }] : []),
+    ...(dashboardPreferences?.barcode !== false && canAccessInventory ? [{ 
+      id: 'barcode', 
+      label: t('navBarcode') || 'Barcode & QR Code', 
+      icon: QrCode,
+      locked: isBarcodeLocked,
+      badge: isBarcodeLocked ? 'PREMIUM' : undefined,
+    }] : []),
     ...(dashboardPreferences?.aiAssistant !== false ? [{ id: 'ai', label: t('navAiInsights') || 'AI Business Assistant', icon: Sparkles }] : []),
     ...(canAccessSettings && dashboardPreferences?.storeSettings !== false ? [{ id: 'branding', label: t('branding') || 'Store Branding', icon: Store }] : []),
     ...(canAccessSettings && dashboardPreferences?.storeSettings !== false ? [{ id: 'settings', label: t('navSettings') || t('settings') || 'Settings', icon: Settings }] : []),

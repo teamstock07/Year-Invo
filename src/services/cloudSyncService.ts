@@ -1,5 +1,6 @@
 import { doc, setDoc, writeBatch, onSnapshot, Unsubscribe } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { offlineDb } from './offlineDb';
 import {
   Product,
   Category,
@@ -190,8 +191,10 @@ export function subscribeToUserBusinessData(
     const items = extractItems(data, 'products');
     if (exists && items.length > 0) {
       console.log(`[AUTH] dashboard data loading completed: products=${items.length}`);
+      offlineDb.setCollection(userId, 'products', items).catch(() => {});
       callbacks.onProductsLoaded?.(items, true);
     } else if (exists && data) {
+      offlineDb.setCollection(userId, 'products', items).catch(() => {});
       callbacks.onProductsLoaded?.(items, true);
     } else {
       callbacks.onProductsLoaded?.([], false);
@@ -202,8 +205,10 @@ export function subscribeToUserBusinessData(
   attachListener('categories', (data, exists) => {
     const items = extractItems(data, 'categories');
     if (exists && items.length > 0) {
+      offlineDb.setCollection(userId, 'categories', items).catch(() => {});
       callbacks.onCategoriesLoaded?.(items, true);
     } else if (exists && data) {
+      offlineDb.setCollection(userId, 'categories', items).catch(() => {});
       callbacks.onCategoriesLoaded?.(items, true);
     } else {
       callbacks.onCategoriesLoaded?.([], false);
@@ -214,8 +219,10 @@ export function subscribeToUserBusinessData(
   attachListener('brands', (data, exists) => {
     const items = extractItems(data, 'brands');
     if (exists && items.length > 0) {
+      offlineDb.setCollection(userId, 'brands', items).catch(() => {});
       callbacks.onBrandsLoaded?.(items, true);
     } else if (exists && data) {
+      offlineDb.setCollection(userId, 'brands', items).catch(() => {});
       callbacks.onBrandsLoaded?.(items, true);
     } else {
       callbacks.onBrandsLoaded?.([], false);
@@ -226,8 +233,10 @@ export function subscribeToUserBusinessData(
   attachListener('customers', (data, exists) => {
     const items = extractItems(data, 'customers');
     if (exists && items.length > 0) {
+      offlineDb.setCollection(userId, 'customers', items).catch(() => {});
       callbacks.onCustomersLoaded?.(items, true);
     } else if (exists && data) {
+      offlineDb.setCollection(userId, 'customers', items).catch(() => {});
       callbacks.onCustomersLoaded?.(items, true);
     } else {
       callbacks.onCustomersLoaded?.([], false);
@@ -238,8 +247,10 @@ export function subscribeToUserBusinessData(
   attachListener('suppliers', (data, exists) => {
     const items = extractItems(data, 'suppliers');
     if (exists && items.length > 0) {
+      offlineDb.setCollection(userId, 'suppliers', items).catch(() => {});
       callbacks.onSuppliersLoaded?.(items, true);
     } else if (exists && data) {
+      offlineDb.setCollection(userId, 'suppliers', items).catch(() => {});
       callbacks.onSuppliersLoaded?.(items, true);
     } else {
       callbacks.onSuppliersLoaded?.([], false);
@@ -250,8 +261,10 @@ export function subscribeToUserBusinessData(
   attachListener('expenses', (data, exists) => {
     const items = extractItems(data, 'expenses');
     if (exists && items.length > 0) {
+      offlineDb.setCollection(userId, 'expenses', items).catch(() => {});
       callbacks.onExpensesLoaded?.(items, true);
     } else if (exists && data) {
+      offlineDb.setCollection(userId, 'expenses', items).catch(() => {});
       callbacks.onExpensesLoaded?.(items, true);
     } else {
       callbacks.onExpensesLoaded?.([], false);
@@ -262,8 +275,10 @@ export function subscribeToUserBusinessData(
   attachListener('sales', (data, exists) => {
     const items = extractItems(data, 'sales');
     if (exists && items.length > 0) {
+      offlineDb.setCollection(userId, 'sales', items).catch(() => {});
       callbacks.onSalesLoaded?.(items, true);
     } else if (exists && data) {
+      offlineDb.setCollection(userId, 'sales', items).catch(() => {});
       callbacks.onSalesLoaded?.(items, true);
     } else {
       callbacks.onSalesLoaded?.([], false);
@@ -274,8 +289,10 @@ export function subscribeToUserBusinessData(
   attachListener('purchases', (data, exists) => {
     const items = extractItems(data, 'purchases');
     if (exists && items.length > 0) {
+      offlineDb.setCollection(userId, 'purchases', items).catch(() => {});
       callbacks.onPurchasesLoaded?.(items, true);
     } else if (exists && data) {
+      offlineDb.setCollection(userId, 'purchases', items).catch(() => {});
       callbacks.onPurchasesLoaded?.(items, true);
     } else {
       callbacks.onPurchasesLoaded?.([], false);

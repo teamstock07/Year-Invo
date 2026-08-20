@@ -222,7 +222,7 @@ export async function getAuthoritativeSubscription(userId: string): Promise<Auth
         maxSalesPerDay: Number.POSITIVE_INFINITY,
         isPosAllowed: false,
         isTeamManagementAllowed: false,
-        isQrBarcodeAllowed: true,
+        isQrBarcodeAllowed: false,
         isMultiBranchAllowed: false,
         isAiInsightsAllowed: true,
         isPayrollAllowed: true,
@@ -376,22 +376,49 @@ export async function handleValidateSubscriptionAction(req: Request, res: Respon
       return res.json({ allowed: true });
     }
 
-    // 3. QR Code / Barcode generation
-    if (action === 'generate_qr_code' || action === 'qr_barcode') {
+    // 3. QR Code / Barcode generation & printing
+    if (action === 'generate_qr_code' || action === 'qr_barcode' || action === 'barcode_generator') {
       if (!sub.limits.isQrBarcodeAllowed) {
         return res.status(403).json({
           allowed: false,
           code: 'QR_BARCODE_LOCKED',
           plan: sub.plan,
-          message: 'Barcode & QR Code Generator requires a Pro or Premium plan. Please upgrade to create custom labels.',
-          messageBn: 'বারকোড ও কিউআর কোড জেনারেটর প্রো অথবা প্রিমিয়াম প্ল্যানের সুবিধা। লেবেল তৈরি করতে দয়া করে আপগ্রেড করুন।',
+          message: 'Barcode & QR Code Generator is a Premium feature. Please upgrade to Premium to create and print custom labels.',
+          messageBn: 'বারকোড ও কিউআর কোড জেনারেটর শুধুমাত্র প্রিমিয়াম (Premium) প্ল্যানের অন্তর্ভুক্ত। লেবেল তৈরি ও প্রিন্ট করতে প্রিমিয়ামে আপগ্রেড করুন।',
+          requiredPlan: 'Premium',
+        });
+      }
+      return res.json({ allowed: true });
+    }
+
+    // 4. Payroll / Employee Salary Payout
+    if (action === 'payroll' || action === 'employee_payout') {
+      if (!sub.limits.isPayrollAllowed) {
+        return res.status(403).json({
+          allowed: false,
+          code: 'PAYROLL_FEATURE_LOCKED',
+          plan: sub.plan,
+          message: 'Employee Payout & Salary Management is available in Pro and Premium plans. Please upgrade your plan to manage employee salaries.',
+          messageBn: 'কর্মচারীদের বেতন ও পে-আউট ম্যানেজমেন্ট প্রো এবং প্রিমিয়াম প্ল্যানের অন্তর্ভুক্ত। এটি ব্যবহার করতে আপগ্রেড করুন।',
           requiredPlan: 'Pro',
         });
       }
       return res.json({ allowed: true });
     }
 
-    // 4. Product Creation & Stock Limit Validation
+    // Check if trial has expired
+    if (sub.isTrialExpired) {
+      return res.status(403).json({
+        allowed: false,
+        code: 'TRIAL_EXPIRED',
+        plan: 'Free',
+        message: 'Your 15-day Free Trial has expired. Please upgrade to Pro or Premium to continue using store features.',
+        messageBn: 'আপনার ১৫ দিনের ফ্রি ট্রায়ালের মেয়াদ শেষ হয়েছে। কার্যক্রম চালিয়ে যেতে প্রো বা প্রিমিয়ামে আপগ্রেড করুন।',
+        requiredPlan: 'Pro',
+      });
+    }
+
+    // 5. Product Creation & Stock Limit Validation
     if (action === 'create_product') {
       if (sub.limits.maxProducts !== Number.POSITIVE_INFINITY || sub.limits.maxStockTotal !== Number.POSITIVE_INFINITY) {
         const usage = await getUserUsageStats(userId);
@@ -425,7 +452,7 @@ export async function handleValidateSubscriptionAction(req: Request, res: Respon
       return res.json({ allowed: true });
     }
 
-    // 5. Daily Sales Limit Validation
+    // 6. Daily Sales Limit Validation
     if (action === 'create_sale') {
       if (sub.limits.maxSalesPerDay !== Number.POSITIVE_INFINITY) {
         const usage = await getUserUsageStats(userId);

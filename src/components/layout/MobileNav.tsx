@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { SyncStatusIndicator } from '../common/SyncStatusIndicator';
 import {
   Home,
   ShoppingCart,
@@ -494,6 +495,9 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Offline / Cloud Sync Status Banner on Mobile */}
+            <SyncStatusIndicator variant="full" />
 
             {/* Categorized Function Cards */}
             <div className="space-y-5">

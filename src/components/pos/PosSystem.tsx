@@ -8,6 +8,7 @@ import { CustomerSelector } from '../common/CustomerSelector';
 import { DeviceAuthorizationGuard } from '../common/DeviceAuthorizationGuard';
 import { findProductByCode, findProductWithStoreCheck } from '../../utils/scanner';
 import { playSuccessSound, playBeepSound } from '../../utils/audio';
+import { SyncStatusIndicator } from '../common/SyncStatusIndicator';
 import {
   ShoppingCart,
   Search,
@@ -432,15 +433,18 @@ export const PosSystem: React.FC = () => {
           </button>
         </div>
 
-        {/* Hardware Scanner Active Status Badge */}
-        <div className="flex items-center justify-between px-3 py-1.5 mb-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 font-medium">
+        {/* Hardware Scanner Active Status Badge & Offline Sync Indicator */}
+        <div className="flex items-center justify-between px-3 py-1.5 mb-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 font-medium flex-wrap gap-2">
           <div className="flex items-center gap-1.5">
             <Scan className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
             <span>Scanner Ready (Barcode & QR / USB / Bluetooth)</span>
           </div>
-          <div className="flex items-center gap-1 text-[10px] text-emerald-500 font-bold">
-            <Volume2 className="w-3 h-3" />
-            <span>Audio Beep On</span>
+          <div className="flex items-center gap-2">
+            <SyncStatusIndicator variant="pill" />
+            <div className="flex items-center gap-1 text-[10px] text-emerald-500 font-bold">
+              <Volume2 className="w-3 h-3" />
+              <span>Audio Beep On</span>
+            </div>
           </div>
         </div>
 

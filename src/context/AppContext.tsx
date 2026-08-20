@@ -70,6 +70,8 @@ import {
   saveUserCloudCollectionsBatch,
   subscribeToUserBusinessData,
 } from '../services/cloudSyncService';
+import { offlineDb } from '../services/offlineDb';
+import { syncQueueService } from '../services/syncQueueService';
 import {
   initialCategories,
   initialBrands,
@@ -923,6 +925,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return () => unsubscribeUsers();
   }, []);
+
+  // Update Offline Sync Queue Service with current user ID & network lifecycle
+  useEffect(() => {
+    const currentUid = user?.id || auth.currentUser?.uid || null;
+    syncQueueService.setUserId(currentUid);
+  }, [user?.id]);
 
   // Subscription Approval Requests Directory (Realtime Firestore Synchronization)
   const [subscriptionRequests, setSubscriptionRequests] = useState<SubscriptionRequest[]>([]);
@@ -3888,18 +3896,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (uid) localStorage.setItem(`biz_customers_${uid}`, JSON.stringify(nextCustomers));
     } catch (e) {}
 
+    // Update local IndexedDB storage
+    if (uid) {
+      offlineDb.setCollection(uid, 'sales', nextSales).catch(() => {});
+      offlineDb.setCollection(uid, 'products', nextProducts).catch(() => {});
+      offlineDb.setCollection(uid, 'customers', nextCustomers).catch(() => {});
+    }
+
     clearCart();
     logActivity('Completed POS Sale', 'নতুন বিক্রয় ইনভয়েস সম্পন্ন', `${invoiceNo} - Total: ৳${grandTotal}`);
 
-    // Persist to Firestore asynchronously in the background so POS transaction is instant
+    // Enqueue operation in robust Offline Sync Queue
     if (uid) {
-      saveUserCloudCollectionsBatch(uid, {
-        sales: { items: nextSales },
-        products: { items: nextProducts },
-        customers: { items: nextCustomers },
-      }).catch((err) => {
-        console.warn('[CloudSync] Background save of POS sale failed:', err);
-      });
+      syncQueueService
+        .enqueue('CREATE_SALE', {
+          sale: newSale,
+          products: nextProducts,
+          customers: nextCustomers,
+        })
+        .catch((err) => {
+          console.warn('[SyncQueue] Notice enqueuing sale:', err);
+        });
     }
 
     return newSale;

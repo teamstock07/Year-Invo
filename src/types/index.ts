@@ -785,6 +785,8 @@ export interface Sale {
   cashierName: string;
   date: string; // ISO date string
   note?: string;
+  syncStatus?: 'PENDING_SYNC' | 'SYNCED';
+  opId?: string;
 }
 
 export interface PurchaseItem {
