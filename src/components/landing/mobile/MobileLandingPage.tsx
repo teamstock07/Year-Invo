@@ -221,6 +221,11 @@ export const MobileLandingPage: React.FC<MobileLandingPageProps> = ({
       subtext = isBDT
         ? (planId === 'pro' ? (isBn ? 'নিয়মিত মাসিক প্ল্যান' : 'Standard Monthly Plan') : (isBn ? 'চেইন শপ ও আনলিমিটেড ব্রাঞ্চ' : 'Unrestricted Multi-Branch Power'))
         : (isBn ? 'স্ট্যান্ডার্ড মাসিক বিলিং' : 'Standard monthly billing');
+    } else if (billingCycle === 'six_months') {
+      note = isBn ? '/৬ মাস' : '/6 months';
+      subtext = isBn
+        ? `${calculated.effectiveMonthlyFormatted}/মাস হিসেবে গণনা`
+        : `Equivalent to ${calculated.effectiveMonthlyFormatted}/mo`;
     } else if (billingCycle === 'yearly') {
       note = isBn ? '/বছর' : '/year';
       subtext = isBn

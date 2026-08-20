@@ -5,6 +5,8 @@ export type PaymentRegionId = 'international' | 'bangladesh';
 
 export interface PlanPricingPeriod {
   monthly: number;
+  sixMonths: number;
+  six_months?: number;
   yearly: number;
   fiveYear: number;
   five_year?: number;
@@ -60,31 +62,35 @@ export const PAYMENT_REGIONS: PaymentRegionConfig[] = [
 
 // Calculated plan pricing for both regions
 const bdProMo = calculatePlanPricing('Pro', 'monthly', true).finalTotal;
+const bdPro6Mo = calculatePlanPricing('Pro', 'six_months', true).finalTotal;
 const bdProYr = calculatePlanPricing('Pro', 'yearly', true).finalTotal;
 const bdPro5Yr = calculatePlanPricing('Pro', 'five_year', true).finalTotal;
 
 const bdPremMo = calculatePlanPricing('Premium', 'monthly', true).finalTotal;
+const bdPrem6Mo = calculatePlanPricing('Premium', 'six_months', true).finalTotal;
 const bdPremYr = calculatePlanPricing('Premium', 'yearly', true).finalTotal;
 const bdPrem5Yr = calculatePlanPricing('Premium', 'five_year', true).finalTotal;
 
 const intlProMo = calculatePlanPricing('Pro', 'monthly', false).finalTotal;
+const intlPro6Mo = calculatePlanPricing('Pro', 'six_months', false).finalTotal;
 const intlProYr = calculatePlanPricing('Pro', 'yearly', false).finalTotal;
 const intlPro5Yr = calculatePlanPricing('Pro', 'five_year', false).finalTotal;
 
 const intlPremMo = calculatePlanPricing('Premium', 'monthly', false).finalTotal;
+const intlPrem6Mo = calculatePlanPricing('Premium', 'six_months', false).finalTotal;
 const intlPremYr = calculatePlanPricing('Premium', 'yearly', false).finalTotal;
 const intlPrem5Yr = calculatePlanPricing('Premium', 'five_year', false).finalTotal;
 
 const bdSupportedPlans = {
-  Pro: { monthly: bdProMo, yearly: bdProYr, fiveYear: bdPro5Yr },
-  Premium: { monthly: bdPremMo, yearly: bdPremYr, fiveYear: bdPrem5Yr },
-  Business: { monthly: bdPremMo, yearly: bdPremYr, fiveYear: bdPrem5Yr },
+  Pro: { monthly: bdProMo, sixMonths: bdPro6Mo, six_months: bdPro6Mo, yearly: bdProYr, fiveYear: bdPro5Yr },
+  Premium: { monthly: bdPremMo, sixMonths: bdPrem6Mo, six_months: bdPrem6Mo, yearly: bdPremYr, fiveYear: bdPrem5Yr },
+  Business: { monthly: bdPremMo, sixMonths: bdPrem6Mo, six_months: bdPrem6Mo, yearly: bdPremYr, fiveYear: bdPrem5Yr },
 };
 
 const intlSupportedPlans = {
-  Pro: { monthly: intlProMo, yearly: intlProYr, fiveYear: intlPro5Yr },
-  Premium: { monthly: intlPremMo, yearly: intlPremYr, fiveYear: intlPrem5Yr },
-  Business: { monthly: intlPremMo, yearly: intlPremYr, fiveYear: intlPrem5Yr },
+  Pro: { monthly: intlProMo, sixMonths: intlPro6Mo, six_months: intlPro6Mo, yearly: intlProYr, fiveYear: intlPro5Yr },
+  Premium: { monthly: intlPremMo, sixMonths: intlPrem6Mo, six_months: intlPrem6Mo, yearly: intlPremYr, fiveYear: intlPrem5Yr },
+  Business: { monthly: intlPremMo, sixMonths: intlPrem6Mo, six_months: intlPrem6Mo, yearly: intlPremYr, fiveYear: intlPrem5Yr },
 };
 
 export const PAYMENT_PROVIDERS: PaymentProviderConfig[] = [

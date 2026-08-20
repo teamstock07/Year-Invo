@@ -5,6 +5,31 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import { handlePaddleWebhook } from "./server/paddleWebhook";
+import {
+  handleCreateInvitation,
+  handleResendInvitation,
+  handleRevokeInvitation,
+  handleGetInvitationDetails,
+  handleAcceptInvitation,
+  handleListInvitations,
+} from "./server/invitationApi";
+import {
+  handleSendVerificationOtp,
+  handleVerifyOtp,
+  handleCheckVerificationStatus,
+} from "./server/emailVerificationApi";
+import {
+  handleGetSubscriptionStatus,
+  handleValidateSubscriptionAction,
+  getAuthoritativeSubscription,
+} from "./server/subscriptionServer";
+import {
+  handleOwnerListUsers,
+  handleOwnerUpdateUserPlan,
+  handleOwnerApproveSubscription,
+  handleOwnerRejectSubscription,
+  handleOwnerUpdateUserRole,
+} from "./server/ownerApi";
 
 dotenv.config();
 
@@ -48,9 +73,52 @@ app.get("/api/health", (req, res) => {
 // Paddle Billing Server-side Webhook Endpoint
 app.post("/api/paddle/webhook", handlePaddleWebhook);
 
-// Gemini AI Insights Endpoint
+// Team Member Email Invitation API Endpoints (Powered by Resend)
+app.post("/api/team/invite", handleCreateInvitation);
+app.post("/api/team/resend-invite", handleResendInvitation);
+app.post("/api/team/revoke-invite", handleRevokeInvitation);
+app.get("/api/team/invitation-details", handleGetInvitationDetails);
+app.post("/api/team/accept-invite", handleAcceptInvitation);
+app.get("/api/team/invitations", handleListInvitations);
+
+// Email Verification 6-Digit OTP Endpoints (Powered by Resend)
+app.post("/api/auth/send-verification-otp", handleSendVerificationOtp);
+app.post("/api/auth/verify-otp", handleVerifyOtp);
+app.post("/api/auth/check-verification-status", handleCheckVerificationStatus);
+
+// Authoritative Subscription & Limits Endpoints
+app.get("/api/subscription/status", handleGetSubscriptionStatus);
+app.post("/api/subscription/status", handleGetSubscriptionStatus);
+app.post("/api/subscription/validate-action", handleValidateSubscriptionAction);
+
+// Server-Authoritative Platform Owner Endpoints (Strictly Protected)
+app.post("/api/owner/users", handleOwnerListUsers);
+app.post("/api/owner/update-user-plan", handleOwnerUpdateUserPlan);
+app.post("/api/owner/approve-subscription", handleOwnerApproveSubscription);
+app.post("/api/owner/reject-subscription", handleOwnerRejectSubscription);
+app.post("/api/owner/update-user-role", handleOwnerUpdateUserRole);
+
+// Gemini AI Insights Endpoint (Protected by Pro/Premium Plan)
 app.post("/api/ai/insights", async (req, res) => {
   try {
+    const { businessData, queryType, language, userId } = req.body;
+
+    // Backend validation of subscription for AI Insights
+    if (userId) {
+      try {
+        const sub = await getAuthoritativeSubscription(userId);
+        if (!sub.limits.isAiInsightsAllowed) {
+          return res.status(403).json({
+            error: "AI Business Insights is a Pro/Premium feature. Please upgrade your subscription to access AI intelligence.",
+            code: "AI_INSIGHTS_LOCKED",
+            requiredPlan: "Pro",
+          });
+        }
+      } catch (subErr) {
+        console.warn("[AI Insights API] Subscription verification notice:", subErr);
+      }
+    }
+
     const ai = getGeminiClient();
     if (!ai) {
       return res.status(400).json({
@@ -58,7 +126,6 @@ app.post("/api/ai/insights", async (req, res) => {
       });
     }
 
-    const { businessData, queryType, language } = req.body;
     const isBengali = language === "bn";
 
     let prompt = "";

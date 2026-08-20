@@ -2,10 +2,12 @@
  * Centralized Subscription Pricing Configuration & Engine for YearInvo
  * 
  * Single Source of Truth for:
- * - Bangladesh (BDT) Local Pricing & Discounts (৳100 Pro, ৳250 Premium)
- * - International (USD) Base Pricing & Discounts ($1.50 Pro, $3.50 Premium)
- * - Monthly / Yearly (12-mo with discounts) / 5-Year (60-mo with 25% discount)
- * - Dynamic Live Currency Conversion Engine for any display currency (from USD base)
+ * - 3 Exact Plans: Free Trial (15 days), Pro, Premium
+ * - 3 Supported Billing Periods: 1 Month (monthly), 6 Months (six_months), 1 Year (yearly)
+ * - Bangladesh (BDT) Local Pricing & Discounts (Pro: ৳100 intro/৳150, ৳765 6mo, ৳1,440 1yr; Premium: ৳250 mo, ৳1,275 6mo, ৳3,000 1yr)
+ * - International (USD) Base Pricing & Discounts (Pro: $1.50 mo, $7.65 6mo, $14.40 1yr; Premium: $3.50 mo, $17.85 6mo, $30.00 1yr)
+ * - Dynamic Live Currency Conversion Engine for any display currency
+ * - Authoritative Plan Limits and Feature Restrictions
  */
 
 import { BillingCycle, SubscriptionPlan, Language } from '../types';
@@ -20,8 +22,14 @@ export type { BillingCycle, SubscriptionPlan };
 
 export interface PlanPricingDefinition {
   monthly: number;
-  yearlyDiscount: number; // e.g. 0.50 for 50%, 0.15 for 15%
-  fiveYearDiscount: number; // e.g. 0.25 for 25%
+  monthlyRenewal?: number;
+  monthlyIntro?: number;
+  sixMonths: number;
+  sixMonthsDiscountPercent: number;
+  yearly: number;
+  yearlyDiscountPercent: number;
+  fiveYear?: number;
+  fiveYearDiscountPercent?: number;
 }
 
 export interface RegionalPricingConfig {
@@ -31,51 +39,158 @@ export interface RegionalPricingConfig {
   premium: PlanPricingDefinition;
 }
 
-/**
- * Centralized Pricing Source of Truth
- */
+export const PRICING_CONFIG = {
+  bangladesh: {
+    currency: 'BDT',
+    currencySymbol: '৳',
+    pro: {
+      monthly: 100, // Introductory ৳100 first month / ৳150 regular renewal
+      monthlyIntro: 100,
+      monthlyRenewal: 150,
+      sixMonths: 765, // ৳765 (Save 15% compared to 6 × ৳150 = ৳900)
+      sixMonthsDiscountPercent: 15,
+      yearly: 1440, // ৳1,440 (Save 20% compared to 12 × ৳150 = ৳1,800)
+      yearlyDiscountPercent: 20,
+      fiveYear: 6000,
+      fiveYearDiscountPercent: 33,
+    },
+    premium: {
+      monthly: 250, // ৳250 / month
+      monthlyIntro: 250,
+      monthlyRenewal: 250,
+      sixMonths: 1275, // ৳1,275 (Save 15% compared to 6 × ৳250 = ৳1,500)
+      sixMonthsDiscountPercent: 15,
+      yearly: 3000, // ৳3,000 base 1-year rate
+      yearlyDiscountPercent: 0,
+      fiveYear: 12000,
+      fiveYearDiscountPercent: 20,
+    },
+  },
+  international: {
+    currency: 'USD',
+    currencySymbol: '$',
+    baseCurrency: 'USD',
+    pro: {
+      monthly: 1.50, // $1.50 / month
+      monthlyIntro: 1.50,
+      monthlyRenewal: 1.50,
+      sixMonths: 7.65, // $7.65 (Save 15% vs 6 × $1.50 = $9.00)
+      sixMonthsDiscountPercent: 15,
+      yearly: 14.40, // $14.40 (Save 20% vs 12 × $1.50 = $18.00)
+      yearlyDiscountPercent: 20,
+      fiveYear: 60.00,
+      fiveYearDiscountPercent: 33,
+    },
+    premium: {
+      monthly: 3.50, // $3.50 / month
+      monthlyIntro: 3.50,
+      monthlyRenewal: 3.50,
+      sixMonths: 17.85, // $17.85 (Save 15% vs 6 × $3.50 = $21.00)
+      sixMonthsDiscountPercent: 15,
+      yearly: 30.00, // $30.00 (Save 28.6% vs 12 × $3.50 = $42.00)
+      yearlyDiscountPercent: 29,
+      fiveYear: 120.00,
+      fiveYearDiscountPercent: 43,
+    },
+  },
+};
+
 export const pricingConfig = {
   bangladesh: {
     currency: 'BDT',
-    proMonthly: 100,
-    premiumMonthly: 250,
+    proMonthly: PRICING_CONFIG.bangladesh.pro.monthly,
+    premiumMonthly: PRICING_CONFIG.bangladesh.premium.monthly,
   },
   international: {
     baseCurrency: 'USD',
-    proMonthly: 1.50,
-    premiumMonthly: 3.50,
+    proMonthly: PRICING_CONFIG.international.pro.monthly,
+    premiumMonthly: PRICING_CONFIG.international.premium.monthly,
   },
 } as const;
 
-export const PRICING_CONFIG = {
-  bangladesh: {
-    currency: pricingConfig.bangladesh.currency,
-    currencySymbol: '৳',
-    pro: {
-      monthly: pricingConfig.bangladesh.proMonthly,
-      yearlyDiscount: 0.50, // 50% discount from 12-month equivalent (৳100 * 12 * 0.5 = ৳600/yr)
-      fiveYearDiscount: 0.25, // 25% discount from 60-month equivalent (৳100 * 60 * 0.75 = ৳4500/5yr)
-    },
-    premium: {
-      monthly: pricingConfig.bangladesh.premiumMonthly,
-      yearlyDiscount: 0.15, // 15% discount from 12-month equivalent (৳250 * 12 * 0.85 = ৳2550/yr)
-      fiveYearDiscount: 0.25, // 25% discount from 60-month equivalent (৳250 * 60 * 0.75 = ৳11250/5yr)
-    },
+/**
+ * Plan Feature Matrix & Limit Definitions
+ */
+export interface PlanLimits {
+  plan: SubscriptionPlan;
+  trialDays: number;
+  maxProducts: number;
+  maxStockTotal: number;
+  maxSalesPerDay: number;
+  isPosAllowed: boolean;
+  isTeamManagementAllowed: boolean;
+  isQrBarcodeAllowed: boolean;
+  isMultiBranchAllowed: boolean;
+  isAiInsightsAllowed: boolean;
+  isPayrollAllowed: boolean;
+  isExpired?: boolean;
+}
+
+export const PLAN_LIMITS: Record<'Free' | 'Pro' | 'Premium', Omit<PlanLimits, 'plan'>> = {
+  Free: {
+    trialDays: 15,
+    maxProducts: 5,
+    maxStockTotal: 500,
+    maxSalesPerDay: 50,
+    isPosAllowed: false,
+    isTeamManagementAllowed: false,
+    isQrBarcodeAllowed: false,
+    isMultiBranchAllowed: false,
+    isAiInsightsAllowed: false,
+    isPayrollAllowed: false,
   },
-  international: {
-    baseCurrency: pricingConfig.international.baseCurrency,
-    currencySymbol: '$',
-    pro: {
-      monthly: pricingConfig.international.proMonthly,
-      yearlyDiscount: 0.50, // 50% discount ($1.50 * 12 * 0.50 = $9.00/yr)
-      fiveYearDiscount: 0.25, // 25% discount ($1.50 * 60 * 0.75 = $67.50/5yr)
-    },
-    premium: {
-      monthly: pricingConfig.international.premiumMonthly,
-      yearlyDiscount: 0.15, // 15% discount ($3.50 * 12 * 0.85 = $35.70/yr)
-      fiveYearDiscount: 0.25, // 25% discount ($3.50 * 60 * 0.75 = $157.50/5yr)
-    },
+  Pro: {
+    trialDays: 0,
+    maxProducts: Number.POSITIVE_INFINITY,
+    maxStockTotal: Number.POSITIVE_INFINITY,
+    maxSalesPerDay: Number.POSITIVE_INFINITY,
+    isPosAllowed: false,
+    isTeamManagementAllowed: false,
+    isQrBarcodeAllowed: true, // Basic barcode labels
+    isMultiBranchAllowed: false,
+    isAiInsightsAllowed: true,
+    isPayrollAllowed: true,
   },
+  Premium: {
+    trialDays: 0,
+    maxProducts: Number.POSITIVE_INFINITY,
+    maxStockTotal: Number.POSITIVE_INFINITY,
+    maxSalesPerDay: Number.POSITIVE_INFINITY,
+    isPosAllowed: true,
+    isTeamManagementAllowed: true,
+    isQrBarcodeAllowed: true,
+    isMultiBranchAllowed: true,
+    isAiInsightsAllowed: true,
+    isPayrollAllowed: true,
+  },
+};
+
+export const getPlanLimits = (
+  rawPlan: SubscriptionPlan | string | undefined | null,
+  isExpired: boolean = false
+): PlanLimits => {
+  const norm = (
+    rawPlan === 'Lifetime' || rawPlan === 'Business' || rawPlan === 'Premium'
+      ? 'Premium'
+      : rawPlan === 'Pro' || rawPlan === 'Tier2'
+      ? 'Pro'
+      : 'Free'
+  ) as 'Free' | 'Pro' | 'Premium';
+
+  const base = PLAN_LIMITS[norm];
+  if (isExpired && norm !== 'Free') {
+    return {
+      plan: 'Free',
+      ...PLAN_LIMITS.Free,
+      isExpired: true,
+    };
+  }
+
+  return {
+    plan: norm,
+    ...base,
+    isExpired,
+  };
 };
 
 export interface CalculatedPlanPrice {
@@ -93,12 +208,13 @@ export interface CalculatedPlanPrice {
   totalFormatted: string;
   savings: number;
   savingsFormatted: string;
-  discountPercent: number; // 0, 15, 25, 50
+  discountPercent: number; // e.g. 0, 15, 20, 28
   effectiveMonthly: number;
   effectiveMonthlyFormatted: string;
   currency: string;
   currencySymbol: string;
   isConverted: boolean;
+  renewalNotice?: string;
 }
 
 /**
@@ -125,13 +241,6 @@ export const isBangladeshCountry = (country?: string | null): boolean => {
 
 /**
  * Calculates accurate pricing for any plan and billing cycle.
- * 
- * Rules:
- * 1. BANGLADESH BASE (selected currency = BDT):
- *    Pro = ৳100 / mo, Premium = ৳250 / mo. Fixed local tier, no exchange rate conversion.
- * 2. INTERNATIONAL BASE (selected currency != BDT):
- *    Pro = $1.50 USD / mo, Premium = $3.50 USD / mo.
- *    Converted from USD base to selected currency (USD, INR, EUR, PKR, AED, etc.) using live exchange rates.
  */
 export const calculatePlanPricing = (
   plan: SubscriptionPlan | string,
@@ -153,18 +262,15 @@ export const calculatePlanPricing = (
   const displayCurrency = normalizeCurrencyCode(rawCurrency);
   const displaySymbol = getCurrencySymbol(displayCurrency);
 
-  // BASE PRICING SELECTION:
-  // BDT is dedicated fixed local pricing tier.
-  // Any other currency uses USD base ($1.50 Pro, $3.50 Premium) and converts via live exchange rates.
   const isBDT = displayCurrency === 'BDT';
-  const baseCurrency = isBDT ? pricingConfig.bangladesh.currency : pricingConfig.international.baseCurrency;
+  const baseCurrency = isBDT ? PRICING_CONFIG.bangladesh.currency : PRICING_CONFIG.international.currency;
 
   const normPlan = (plan === 'Business' || plan === 'Premium' ? 'Premium' : plan === 'Pro' ? 'Pro' : 'Free') as
     | 'Free'
     | 'Pro'
     | 'Premium';
 
-  const months = billingCycle === 'five_year' ? 60 : billingCycle === 'yearly' ? 12 : 1;
+  const months = billingCycle === 'five_year' ? 60 : billingCycle === 'yearly' ? 12 : billingCycle === 'six_months' ? 6 : 1;
 
   if (normPlan === 'Free') {
     return {
@@ -197,20 +303,24 @@ export const calculatePlanPricing = (
 
   let discountPercent = 0;
   let finalBaseTotal = monthlyPrice;
-  const originalBaseTotal = monthlyPrice * months;
+  const baseMonthlyNominal = (planDef as any).monthlyRenewal || monthlyPrice;
+  const originalBaseTotal = baseMonthlyNominal * months;
 
   if (billingCycle === 'monthly') {
     finalBaseTotal = monthlyPrice;
     discountPercent = 0;
+  } else if (billingCycle === 'six_months') {
+    finalBaseTotal = planDef.sixMonths;
+    discountPercent = planDef.sixMonthsDiscountPercent;
   } else if (billingCycle === 'yearly') {
-    discountPercent = Math.round(planDef.yearlyDiscount * 100);
-    finalBaseTotal = Math.round(originalBaseTotal * (1 - planDef.yearlyDiscount) * 100) / 100;
+    finalBaseTotal = planDef.yearly;
+    discountPercent = planDef.yearlyDiscountPercent;
   } else if (billingCycle === 'five_year') {
-    discountPercent = Math.round(planDef.fiveYearDiscount * 100);
-    finalBaseTotal = Math.round(originalBaseTotal * (1 - planDef.fiveYearDiscount) * 100) / 100;
+    finalBaseTotal = planDef.fiveYear || planDef.yearly * 4;
+    discountPercent = planDef.fiveYearDiscountPercent || 25;
   }
 
-  const baseSavings = Math.round((originalBaseTotal - finalBaseTotal) * 100) / 100;
+  const baseSavings = Math.max(0, Math.round((originalBaseTotal - finalBaseTotal) * 100) / 100);
 
   // Convert from USD base currency to selected display currency using live rates (when not BDT and not USD)
   const isConverted = !isBDT && displayCurrency !== 'USD';
@@ -223,6 +333,11 @@ export const calculatePlanPricing = (
     : baseSavings;
 
   const effectiveMonthly = Math.round((displayTotal / months) * 100) / 100;
+
+  let renewalNotice: string | undefined = undefined;
+  if (normPlan === 'Pro' && isBDT && billingCycle === 'monthly') {
+    renewalNotice = '১ম মাস ১০০৳ (বিশেষ অফার), পরবর্তী মাস থেকে নিয়মিত ১৫০৳/মাস';
+  }
 
   return {
     plan: normPlan,
@@ -245,5 +360,6 @@ export const calculatePlanPricing = (
     currency: displayCurrency,
     currencySymbol: displaySymbol,
     isConverted,
+    renewalNotice,
   };
 };

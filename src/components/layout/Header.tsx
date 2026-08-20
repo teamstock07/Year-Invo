@@ -2,6 +2,11 @@ import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';
 import { Language } from '../../types';
+import {
+  SUPPORTED_LANGUAGE_CURRENCY_PAIRS,
+  getMappedCurrencyForLanguage,
+  getMappedLanguageForCurrency,
+} from '../../config/languageCurrency';
 import { MainWebsiteLogo } from '../common/MainWebsiteLogo';
 import { LanguageSelector } from '../common/LanguageSelector';
 import { getNotificationContent } from '../../services/notificationService';
@@ -69,21 +74,17 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
 
   const handleLanguageChange = (newLang: Language) => {
     setLanguage(newLang);
-    const defaultCurrencyMap: Record<string, string> = {
-      en: '$',
-      ar: 'د.إ',
-      bn: '৳',
-      hi: '₹',
-      ur: 'Rs',
-      fr: '€',
-      de: '€',
-      es: '€',
-      zh: '¥',
-      ja: '¥',
-      ae: 'د.إ',
-    };
-    if (defaultCurrencyMap[newLang]) {
-      updateSettings({ currency: defaultCurrencyMap[newLang] });
+    const mappedCurrency = getMappedCurrencyForLanguage(newLang);
+    if (settings.currency !== mappedCurrency) {
+      updateSettings({ currency: mappedCurrency });
+    }
+  };
+
+  const handleCurrencyChange = (newCurrency: string) => {
+    updateSettings({ currency: newCurrency });
+    const mappedLanguage = getMappedLanguageForCurrency(newCurrency);
+    if (language !== mappedLanguage) {
+      setLanguage(mappedLanguage);
     }
   };
 
@@ -193,19 +194,15 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
           <div className="relative">
             <select
               value={settings.currency || '৳'}
-              onChange={(e) => updateSettings({ currency: e.target.value })}
+              onChange={(e) => handleCurrencyChange(e.target.value)}
               className="w-auto bg-[#121829] hover:bg-[#182035] text-white text-xs font-bold py-1.5 px-2.5 rounded-xl border border-white/15 focus:outline-none focus:border-[#ff5c01] cursor-pointer shadow-xs truncate"
               title="Select Store Currency"
             >
-              <option value="৳" className="bg-[#0a0e1a] text-white">৳ BDT</option>
-              <option value="$" className="bg-[#0a0e1a] text-white">$ USD</option>
-              <option value="€" className="bg-[#0a0e1a] text-white">€ EUR</option>
-              <option value="د.إ" className="bg-[#0a0e1a] text-white">د.إ AED</option>
-              <option value="₹" className="bg-[#0a0e1a] text-white">₹ INR</option>
-              <option value="Rs" className="bg-[#0a0e1a] text-white">Rs PKR</option>
-              <option value="¥" className="bg-[#0a0e1a] text-white">¥ JPY/CNY</option>
-              <option value="£" className="bg-[#0a0e1a] text-white">£ GBP</option>
-              <option value="﷼" className="bg-[#0a0e1a] text-white">﷼ SAR</option>
+              {SUPPORTED_LANGUAGE_CURRENCY_PAIRS.map((pair) => (
+                <option key={pair.currency} value={pair.currency} className="bg-[#0a0e1a] text-white">
+                  {pair.currencyLabel}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -977,30 +974,20 @@ export const Header: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
                 <span>Currency</span>
               </label>
               <div className="grid grid-cols-3 gap-1.5">
-                {[
-                  { id: '৳', label: '৳ BDT' },
-                  { id: '$', label: '$ USD' },
-                  { id: '€', label: '€ EUR' },
-                  { id: 'د.إ', label: 'د.إ AED' },
-                  { id: '₹', label: '₹ INR' },
-                  { id: 'Rs', label: 'Rs PKR' },
-                  { id: '¥', label: '¥ JPY' },
-                  { id: '£', label: '£ GBP' },
-                  { id: '﷼', label: '﷼ SAR' },
-                ].map((curr) => {
-                  const isSelected = (settings.currency || '৳') === curr.id;
+                {SUPPORTED_LANGUAGE_CURRENCY_PAIRS.map((pair) => {
+                  const isSelected = (settings.currency || '৳') === pair.currency;
                   return (
                     <button
-                      key={curr.id}
+                      key={pair.currency}
                       type="button"
-                      onClick={() => updateSettings({ currency: curr.id })}
+                      onClick={() => handleCurrencyChange(pair.currency)}
                       className={`py-2 px-1.5 rounded-xl text-[11px] font-bold transition-all border text-center truncate cursor-pointer ${
                         isSelected
                           ? 'bg-[#ff5c01] text-white border-[#ff5c01] shadow-2xs'
                           : 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-slate-300'
                       }`}
                     >
-                      {curr.label}
+                      {pair.currencyLabel}
                     </button>
                   );
                 })}

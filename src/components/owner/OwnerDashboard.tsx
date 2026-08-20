@@ -275,8 +275,12 @@ export const OwnerDashboard: React.FC = () => {
     }
   }, [settings.paymentSettings]);
 
-  // Strict Security Check: Only Owner / Admin can view
-  if (user?.role !== 'Owner') {
+  // Strict Security Check: Only Super Admin (teamstock07@gmail.com) / PlatformOwner can view
+  const isPlatformSuperAdmin =
+    user?.email?.toLowerCase().trim() === 'teamstock07@gmail.com' ||
+    user?.role === 'PlatformOwner';
+
+  if (!isPlatformSuperAdmin) {
     return (
       <div className="min-h-[400px] flex items-center justify-center p-6">
         <div className="max-w-md w-full bg-slate-900 border border-rose-500/30 rounded-2xl p-8 text-center space-y-4 shadow-2xl">
@@ -286,7 +290,7 @@ export const OwnerDashboard: React.FC = () => {
           <div className="space-y-1">
             <h3 className="font-extrabold text-xl text-white">Access Restricted</h3>
             <p className="text-sm text-slate-400">
-              The Owner Command Center is strictly restricted to Platform Owner accounts.
+              The Owner Command Center is strictly restricted to Platform Super Admin (teamstock07@gmail.com).
             </p>
           </div>
         </div>

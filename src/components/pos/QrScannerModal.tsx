@@ -1,354 +1,585 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { Product } from '../../types';
-import { findProductWithStoreCheck, normalizeCode } from '../../utils/scanner';
-import { playBeepSound } from '../../utils/audio';
 import { useApp } from '../../context/AppContext';
 import {
-  Camera,
   X,
-  AlertCircle,
-  CheckCircle,
+  Camera,
   RefreshCw,
+  Check,
+  AlertCircle,
   QrCode,
-  Zap,
+  Barcode,
   ShoppingBag,
   Plus,
-  Check,
+  Minus,
+  CheckCircle2,
+  Sparkles,
+  ArrowLeft,
+  ScanLine,
+  Package,
 } from 'lucide-react';
 
 interface QrScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
   products: Product[];
-  onProductScanned: (product: Product) => void;
-  language?: string;
+  language: string;
+  onProductScanned: (product: Product, quantity?: number) => void;
 }
+
+type ScannerMode = 'barcode' | 'qr';
 
 export const QrScannerModal: React.FC<QrScannerModalProps> = ({
   isOpen,
   onClose,
   products,
+  language,
   onProductScanned,
-  language = 'en',
 }) => {
-  const { user, cart, settings } = useApp();
-  const currentStoreId = user?.id || user?.brandName || '';
+  const { settings, user } = useApp();
   const symbol = settings.currency || '৳';
-
-  const [manualCode, setManualCode] = useState('');
-  const [scanError, setScanError] = useState<string | null>(null);
-  const [lastScannedProduct, setLastScannedProduct] = useState<{
-    name: string;
-    sku: string;
-    price: number;
-    time: number;
-  } | null>(null);
-  const [isScanning, setIsScanning] = useState(false);
-  const [isContinuousMode, setIsContinuousMode] = useState(true);
-  const [scanCount, setScanCount] = useState(0);
-
-  const html5QrcodeRef = useRef<Html5Qrcode | null>(null);
-  const lastScannedCodeRef = useRef<{ code: string; time: number } | null>(null);
-  const scannerContainerId = 'pos-camera-qr-reader';
-
   const isBn = language === 'bn';
 
-  const handleProcessCode = useCallback((scannedCode: string) => {
-    const code = normalizeCode(scannedCode);
-    if (!code) return;
+  // Scanner View & Mode State: Exactly 2 options: 'barcode' or 'qr'
+  const [activeMode, setActiveMode] = useState<ScannerMode>('barcode');
+  const [isScanning, setIsScanning] = useState<boolean>(false);
+  const [scannerError, setScannerError] = useState<string | null>(null);
 
-    const now = Date.now();
-    // 1.2s cooldown on the EXACT SAME code to prevent accidental double-fire on same item frame
-    if (
-      lastScannedCodeRef.current &&
-      lastScannedCodeRef.current.code === code &&
-      now - lastScannedCodeRef.current.time < 1200
-    ) {
-      return;
+  // Scan Locking & Debounce State
+  const [isScanLocked, setIsScanLocked] = useState<boolean>(false);
+  const [detectedProduct, setDetectedProduct] = useState<Product | null>(null);
+  const [detectedQuantity, setDetectedQuantity] = useState<number>(1);
+  const [lastAddedFeedback, setLastAddedFeedback] = useState<{ name: string; qty: number } | null>(null);
+
+  // Manual / USB Scanner Input
+  const [manualCode, setManualCode] = useState<string>('');
+  const [manualError, setManualError] = useState<string | null>(null);
+
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const scannerContainerId = 'yearinvo-pos-camera-stream';
+  const isMountedRef = useRef<boolean>(true);
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  // High-fidelity beep sound synthesizer for instant scan feedback
+  const playBeep = useCallback(() => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioCtx();
+      }
+      const ctx = audioContextRef.current;
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, ctx.currentTime); // High pitch crisp chime (A5)
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.12);
+    } catch (e) {
+      // Non-blocking audio fallback
     }
-    lastScannedCodeRef.current = { code, time: now };
+  }, []);
 
-    setScanError(null);
+  /**
+   * Securely resolve scanned code to a product that belongs to current store
+   */
+  const resolveScannedProduct = useCallback(
+    (scannedText: string): Product | null => {
+      const raw = scannedText.trim();
+      if (!raw) return null;
 
-    // Look for matching product using store-checked scanner logic
-    const result = findProductWithStoreCheck(products, code, currentStoreId);
+      // 1. Try parsing JSON payload if it was generated by app's QR code generator
+      if (raw.startsWith('{') && raw.endsWith('}')) {
+        try {
+          const parsed = JSON.parse(raw);
+          const candidateId = parsed.id || parsed.sku || parsed.barcode || parsed.productId;
+          if (candidateId) {
+            const found = products.find(
+              (p) =>
+                p.id === String(candidateId) ||
+                (p.sku && p.sku.toLowerCase() === String(candidateId).toLowerCase()) ||
+                (p.barcode && p.barcode.toLowerCase() === String(candidateId).toLowerCase())
+            );
+            if (found) return found;
+          }
+        } catch (e) {
+          // Fall through to plain text matching
+        }
+      }
 
-    if (result.error === 'different_store') {
-      setScanError(
-        isBn
-          ? 'এই স্টোরে পণ্যটি পাওয়া যায়নি (অন্যান্য স্টোরের QR কোড)'
-          : 'Product not found in this store.'
+      // 2. Exact match against barcode, sku, or ID
+      const exactMatch = products.find(
+        (p) =>
+          (p.barcode && p.barcode.trim().toLowerCase() === raw.toLowerCase()) ||
+          (p.sku && p.sku.trim().toLowerCase() === raw.toLowerCase()) ||
+          p.id.toLowerCase() === raw.toLowerCase()
       );
-      return;
-    }
+      if (exactMatch) return exactMatch;
 
-    const matched = result.product;
+      // 3. Fallback partial match (e.g. numeric ID inside SKU)
+      const numericClean = raw.replace(/\D/g, '');
+      if (numericClean.length >= 3) {
+        const partial = products.find(
+          (p) =>
+            (p.barcode && p.barcode.includes(numericClean)) ||
+            (p.sku && p.sku.includes(numericClean))
+        );
+        if (partial) return partial;
+      }
 
-    if (!matched) {
-      setScanError(
-        isBn
-          ? `কোনো প্রোডাক্ট পাওয়া যায়নি (Code: ${code})`
-          : `Product not found for scanned code: ${code}`
-      );
-      return;
-    }
+      return null;
+    },
+    [products]
+  );
 
-    // Check status
-    if (matched.status === 'damaged') {
-      setScanError(
-        isBn
-          ? `ক্ষতিগ্রস্ত পণ্য - "${matched.name}" বিক্রি করা যাবে না!`
-          : `Damaged Product - "${matched.name}" cannot be sold.`
-      );
-      return;
-    }
+  /**
+   * Handle decoded camera frame or manual submission
+   */
+  const handleDecodedCode = useCallback(
+    (decodedText: string) => {
+      // If scanner is already locked by a pending detection, completely ignore further camera frames
+      if (isScanLocked || detectedProduct) {
+        return;
+      }
 
-    // Check stock
-    if (matched.currentStock <= 0 || matched.status === 'out_of_stock') {
-      setScanError(
-        isBn
-          ? `স্টক শেষ - "${matched.name}" বর্তমানে আউট অফ স্টক!`
-          : `Out of Stock - Product "${matched.name}" is currently out of stock!`
-      );
-      return;
-    }
+      const cleanText = decodedText.trim();
+      if (!cleanText) return;
 
-    // Check expiry
-    const todayStr = new Date().toISOString().split('T')[0];
-    if (matched.expiryDate && matched.expiryDate <= todayStr) {
-      setScanError(
-        isBn
-          ? `মেয়াদ শেষ - "${matched.name}" প্রোডাক্টের মেয়াদ উত্তীর্ণ!`
-          : `Expired Product - Product "${matched.name}" has expired and cannot be sold.`
-      );
-      return;
-    }
+      const matched = resolveScannedProduct(cleanText);
 
-    // Play instant audio beep & add to cart
-    playBeepSound();
-    onProductScanned(matched);
+      if (matched) {
+        // Lock scanner immediately to prevent duplicate scans while product is held in front of lens
+        setIsScanLocked(true);
+        setScannerError(null);
+        setManualError(null);
+        playBeep();
 
-    setScanCount((prev) => prev + 1);
-    setLastScannedProduct({
-      name: matched.name,
-      sku: matched.sku || matched.barcode || matched.id,
-      price: matched.sellingPrice,
-      time: Date.now(),
+        setDetectedProduct(matched);
+        setDetectedQuantity(1);
+      } else {
+        // Product not found in current store database
+        setScannerError(
+          isBn
+            ? `পণ্যটি পাওয়া যায়নি (কোড: ${cleanText})। সঠিক বারকোড বা কিউআর স্ক্যান করুন।`
+            : `Product not found in your inventory for code: "${cleanText}".`
+        );
+        // Temporary 1.5s lock so error banner doesn't flicker continuously
+        setIsScanLocked(true);
+        setTimeout(() => {
+          if (isMountedRef.current) {
+            setIsScanLocked(false);
+          }
+        }, 1500);
+      }
+    },
+    [isScanLocked, detectedProduct, resolveScannedProduct, playBeep, isBn]
+  );
+
+  /**
+   * User explicitly confirms addition of the detected product
+   */
+  const handleConfirmAddToCart = () => {
+    if (!detectedProduct) return;
+
+    // Add to cart with chosen quantity
+    onProductScanned(detectedProduct, detectedQuantity);
+
+    // Provide visual confirmation
+    setLastAddedFeedback({
+      name: detectedProduct.name,
+      qty: detectedQuantity,
     });
 
-    // If user explicitly chose Single Scan Mode, close after 1 scan
-    if (!isContinuousMode) {
-      setTimeout(() => {
-        onClose();
-      }, 500);
-    }
-  }, [products, currentStoreId, isBn, onProductScanned, isContinuousMode, onClose]);
+    // Reset pending detection
+    setDetectedProduct(null);
+    setDetectedQuantity(1);
 
-  const restartScanner = useCallback(async () => {
-    if (html5QrcodeRef.current) {
-      try {
-        if (html5QrcodeRef.current.isScanning) {
-          await html5QrcodeRef.current.stop();
-        }
-        html5QrcodeRef.current.clear();
-      } catch (_) {}
-    }
+    // Briefly pause before unlocking to give the user time to remove the item from camera view
+    setTimeout(() => {
+      if (isMountedRef.current) {
+        setIsScanLocked(false);
+      }
+    }, 450);
+  };
 
-    const formatsToSupport = [
-      Html5QrcodeSupportedFormats.QR_CODE,
-      Html5QrcodeSupportedFormats.CODE_128,
-      Html5QrcodeSupportedFormats.CODE_39,
-      Html5QrcodeSupportedFormats.EAN_13,
-      Html5QrcodeSupportedFormats.EAN_8,
-      Html5QrcodeSupportedFormats.UPC_A,
-      Html5QrcodeSupportedFormats.UPC_E,
-    ];
+  /**
+   * User dismisses detected product without adding
+   */
+  const handleDismissDetected = () => {
+    setDetectedProduct(null);
+    setDetectedQuantity(1);
+    setScannerError(null);
+
+    // Unlock scanner immediately
+    setTimeout(() => {
+      if (isMountedRef.current) {
+        setIsScanLocked(false);
+      }
+    }, 300);
+  };
+
+  /**
+   * Start / Switch Camera Scanner
+   */
+  const startCameraScanner = useCallback(async () => {
+    if (!isOpen) return;
 
     try {
-      const html5Qrcode = new Html5Qrcode(scannerContainerId, {
+      if (scannerRef.current) {
+        try {
+          await scannerRef.current.stop();
+        } catch (e) {}
+        try {
+          await scannerRef.current.clear();
+        } catch (e) {}
+        scannerRef.current = null;
+      }
+
+      const formatsToSupport =
+        activeMode === 'barcode'
+          ? [
+              Html5QrcodeSupportedFormats.CODE_128,
+              Html5QrcodeSupportedFormats.EAN_13,
+              Html5QrcodeSupportedFormats.EAN_8,
+              Html5QrcodeSupportedFormats.UPC_A,
+              Html5QrcodeSupportedFormats.UPC_E,
+              Html5QrcodeSupportedFormats.CODE_39,
+              Html5QrcodeSupportedFormats.CODE_93,
+              Html5QrcodeSupportedFormats.ITF,
+              Html5QrcodeSupportedFormats.QR_CODE, // Also gracefully accept QR if generated as barcode
+            ]
+          : [
+              Html5QrcodeSupportedFormats.QR_CODE,
+              Html5QrcodeSupportedFormats.DATA_MATRIX,
+              Html5QrcodeSupportedFormats.AZTEC,
+            ];
+
+      const html5QrCode = new Html5Qrcode(scannerContainerId, {
         formatsToSupport,
         verbose: false,
       });
-      html5QrcodeRef.current = html5Qrcode;
 
-      await html5Qrcode.start(
+      scannerRef.current = html5QrCode;
+
+      const qrConfig = {
+        fps: 15,
+        qrbox: activeMode === 'barcode' ? { width: 280, height: 140 } : { width: 220, height: 220 },
+        aspectRatio: 1.0,
+      };
+
+      await html5QrCode.start(
         { facingMode: 'environment' },
-        {
-          fps: 12,
-          qrbox: { width: 260, height: 200 },
-        },
+        qrConfig,
         (decodedText) => {
-          handleProcessCode(decodedText);
+          handleDecodedCode(decodedText);
         },
         () => {
-          // Quiet frame scan callback
+          // Ignore empty frame decode attempts
         }
       );
-      setIsScanning(true);
-    } catch (err) {
-      console.warn('Camera Scanner startup warning:', err);
-      setIsScanning(false);
-    }
-  }, [handleProcessCode]);
 
-  useEffect(() => {
-    if (!isOpen) {
-      setScanCount(0);
-      setLastScannedProduct(null);
-      setScanError(null);
-      return;
-    }
-
-    let isMounted = true;
-    const timer = setTimeout(() => {
-      if (isMounted) {
-        restartScanner();
+      if (isMountedRef.current) {
+        setIsScanning(true);
+        setScannerError(null);
       }
-    }, 200);
+    } catch (err: any) {
+      console.warn('[POS Scanner] Camera initialization error:', err);
+      if (isMountedRef.current) {
+        setIsScanning(false);
+        setScannerError(
+          isBn
+            ? 'ক্যামেরা সংযোগ ব্যর্থ হয়েছে। ক্যামেরা পারমিশন দিন অথবা নিচে কোড লিখে সার্চ করুন।'
+            : 'Camera permission denied or camera not found. Please enable permissions or use manual entry below.'
+        );
+      }
+    }
+  }, [isOpen, activeMode, handleDecodedCode, isBn]);
+
+  /**
+   * Stop camera on unmount or close
+   */
+  const stopCameraScanner = useCallback(async () => {
+    if (scannerRef.current) {
+      try {
+        if (scannerRef.current.isScanning) {
+          await scannerRef.current.stop();
+        }
+      } catch (e) {}
+      try {
+        await scannerRef.current.clear();
+      } catch (e) {}
+      scannerRef.current = null;
+    }
+    setIsScanning(false);
+  }, []);
+
+  // Mount/Unmount effect
+  useEffect(() => {
+    isMountedRef.current = true;
+    if (isOpen) {
+      // Delay slightly for modal animation DOM readiness
+      const timer = setTimeout(() => {
+        startCameraScanner();
+      }, 150);
+      return () => {
+        clearTimeout(timer);
+        stopCameraScanner();
+      };
+    } else {
+      stopCameraScanner();
+      setDetectedProduct(null);
+      setIsScanLocked(false);
+      setScannerError(null);
+      setLastAddedFeedback(null);
+    }
 
     return () => {
-      isMounted = false;
-      clearTimeout(timer);
-      const scanner = html5QrcodeRef.current;
-      if (scanner) {
-        try {
-          if (scanner.isScanning) {
-            scanner
-              .stop()
-              .catch(() => {})
-              .then(() => {
-                try {
-                  scanner.clear();
-                } catch (_) {}
-              })
-              .catch(() => {});
-          } else {
-            try {
-              scanner.clear();
-            } catch (_) {}
-          }
-        } catch (_) {}
-      }
-      html5QrcodeRef.current = null;
-      setIsScanning(false);
+      isMountedRef.current = false;
+      stopCameraScanner();
     };
-  }, [isOpen, restartScanner]);
+  }, [isOpen, activeMode, startCameraScanner, stopCameraScanner]);
 
   if (!isOpen) return null;
 
-  const totalCartItems = cart.reduce((sum, item) => sum + item.quantity, 0);
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto">
-      <div className="relative w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 my-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/50">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#ff5c01]/10 text-[#ff5c01] flex items-center justify-center font-bold">
-              <QrCode className="w-5 h-5" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-150">
+      <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+        {/* Modal Header */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-800/50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-[#ff5c01]/10 text-[#ff5c01] flex items-center justify-center">
+              {activeMode === 'barcode' ? <Barcode className="w-5 h-5" /> : <QrCode className="w-5 h-5" />}
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight">
-                  {isBn ? 'বারকোড ও QR কোড স্ক্যানার' : 'Continuous Barcode & QR Scanner'}
-                </h3>
-                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 animate-pulse">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  LIVE
+              <h2 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                <span>{isBn ? 'পণ্য স্ক্যানার' : 'POS Scanner'}</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#ff5c01] text-white">
+                  {activeMode === 'barcode' ? 'Barcode 1D' : 'QR Code 2D'}
                 </span>
-              </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 {isBn
-                  ? 'ক্যামেরার সামনে বারকোড বা QR কোড ধরুন, স্ক্যানার চালু থাকবে।'
-                  : 'Point camera at any Barcode or QR Code. Scanner detects automatically.'}
+                  ? 'ক্যামেরা দিয়ে স্ক্যান করে কার্টে যোগ করুন'
+                  : 'Scan barcode or QR code with camera to add to POS'}
               </p>
             </div>
           </div>
 
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+            aria-label="Close"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Modal Content */}
-        <div className="p-5 space-y-3.5">
-          {/* Mode Selector & Quick Controls */}
-          <div className="flex items-center justify-between gap-2 p-2 rounded-2xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 text-xs">
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setIsContinuousMode(true)}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  isContinuousMode
-                    ? 'bg-[#ff5c01] text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                }`}
-              >
-                <Zap className="w-3.5 h-3.5" />
-                <span>{isBn ? 'মাল্টি-স্ক্যান (চলমান)' : 'Continuous Multi-Scan'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsContinuousMode(false)}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
-                  !isContinuousMode
-                    ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                }`}
-              >
-                <span>{isBn ? 'সিঙ্গেল স্ক্যান' : 'Single Scan'}</span>
-              </button>
-            </div>
-
+        {/* Scanner Selection Tabs (Exactly 2 Premium Options: 1. Barcode, 2. QR Code) */}
+        <div className="p-3 bg-slate-100 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800/80">
+          <div className="grid grid-cols-2 gap-2">
+            {/* OPTION 1: Barcode Scanner */}
             <button
               type="button"
-              onClick={restartScanner}
-              className="p-1.5 rounded-xl text-slate-500 hover:text-[#ff5c01] hover:bg-white dark:hover:bg-slate-700 transition-all cursor-pointer flex items-center gap-1 text-[11px] font-bold"
-              title="Restart Camera Stream"
+              onClick={() => {
+                if (activeMode !== 'barcode') {
+                  setActiveMode('barcode');
+                  setDetectedProduct(null);
+                  setIsScanLocked(false);
+                }
+              }}
+              className={`flex items-center justify-center gap-2.5 py-2.5 px-3 rounded-2xl font-bold text-xs transition-all cursor-pointer border ${
+                activeMode === 'barcode'
+                  ? 'bg-white dark:bg-slate-800 text-[#ff5c01] border-[#ff5c01] shadow-xs'
+                  : 'bg-transparent text-slate-600 dark:text-slate-400 border-transparent hover:bg-white/50 dark:hover:bg-slate-800/40'
+              }`}
             >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">{isBn ? 'রিস্টার্ট' : 'Restart'}</span>
+              <Barcode className="w-4 h-4" />
+              <span>{isBn ? '১. বারকোড স্ক্যানার' : '1. Barcode Scanner'}</span>
+            </button>
+
+            {/* OPTION 2: QR Code Scanner */}
+            <button
+              type="button"
+              onClick={() => {
+                if (activeMode !== 'qr') {
+                  setActiveMode('qr');
+                  setDetectedProduct(null);
+                  setIsScanLocked(false);
+                }
+              }}
+              className={`flex items-center justify-center gap-2.5 py-2.5 px-3 rounded-2xl font-bold text-xs transition-all cursor-pointer border ${
+                activeMode === 'qr'
+                  ? 'bg-white dark:bg-slate-800 text-[#ff5c01] border-[#ff5c01] shadow-xs'
+                  : 'bg-transparent text-slate-600 dark:text-slate-400 border-transparent hover:bg-white/50 dark:hover:bg-slate-800/40'
+              }`}
+            >
+              <QrCode className="w-4 h-4" />
+              <span>{isBn ? '২. কিউআর কোড স্ক্যানার' : '2. QR Code Scanner'}</span>
             </button>
           </div>
+        </div>
 
-          {/* Real Camera View Area */}
-          <div className="relative rounded-2xl overflow-hidden bg-slate-950 border-2 border-[#ff5c01]/60 min-h-[230px] flex items-center justify-center shadow-inner">
-            <div id={scannerContainerId} className="w-full h-full min-h-[220px]" />
+        {/* Scrollable Content Body */}
+        <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
+          {/* Camera Viewfinder View */}
+          <div className="relative rounded-2xl overflow-hidden bg-slate-950 border-2 border-slate-800 min-h-[220px] flex items-center justify-center shadow-inner">
+            <div id={scannerContainerId} className="w-full h-full min-h-[210px]" />
 
             {/* Target Reticle Overlay */}
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-              <div className="w-56 h-36 border-2 border-emerald-400/80 rounded-xl relative">
-                <div className="absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 border-emerald-400" />
-                <div className="absolute -top-1 -right-1 w-3 h-3 border-t-2 border-r-2 border-emerald-400" />
-                <div className="absolute -bottom-1 -left-1 w-3 h-3 border-b-2 border-l-2 border-emerald-400" />
-                <div className="absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 border-emerald-400" />
-                <div className="w-full h-0.5 bg-emerald-400/60 absolute top-1/2 -translate-y-1/2 animate-pulse" />
-              </div>
+              {activeMode === 'barcode' ? (
+                <div className="w-64 h-28 border-2 border-emerald-400/90 rounded-xl relative shadow-lg shadow-emerald-500/10">
+                  <div className="absolute -top-1 -left-1 w-3.5 h-3.5 border-t-2 border-l-2 border-emerald-400" />
+                  <div className="absolute -top-1 -right-1 w-3.5 h-3.5 border-t-2 border-r-2 border-emerald-400" />
+                  <div className="absolute -bottom-1 -left-1 w-3.5 h-3.5 border-b-2 border-l-2 border-emerald-400" />
+                  <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 border-b-2 border-r-2 border-emerald-400" />
+                  <div className="w-full h-0.5 bg-emerald-400/80 absolute top-1/2 -translate-y-1/2 animate-pulse" />
+                </div>
+              ) : (
+                <div className="w-44 h-44 border-2 border-emerald-400/90 rounded-xl relative shadow-lg shadow-emerald-500/10">
+                  <div className="absolute -top-1 -left-1 w-3.5 h-3.5 border-t-2 border-l-2 border-emerald-400" />
+                  <div className="absolute -top-1 -right-1 w-3.5 h-3.5 border-t-2 border-r-2 border-emerald-400" />
+                  <div className="absolute -bottom-1 -left-1 w-3.5 h-3.5 border-b-2 border-l-2 border-emerald-400" />
+                  <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 border-b-2 border-r-2 border-emerald-400" />
+                  <div className="w-full h-0.5 bg-emerald-400/80 absolute top-1/2 -translate-y-1/2 animate-pulse" />
+                </div>
+              )}
             </div>
 
+            {/* Lock / Processing Indicator Overlay */}
+            {isScanLocked && !detectedProduct && (
+              <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 text-center z-10 animate-in fade-in">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800 text-slate-200 text-xs font-bold border border-slate-700">
+                  <ScanLine className="w-4 h-4 text-emerald-400 animate-spin" />
+                  <span>{isBn ? 'স্ক্যান সম্পন্ন হচ্ছে...' : 'Processing scan...'}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Camera start fallback */}
             {!isScanning && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-slate-900/90 space-y-2">
-                <Camera className="w-8 h-8 text-[#ff5c01] animate-pulse" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-slate-900/95 space-y-2.5 z-20">
+                <Camera className="w-8 h-8 text-[#ff5c01] animate-bounce" />
                 <p className="text-xs text-slate-200 font-bold">
-                  {isBn ? 'ক্যামেরা চালু হচ্ছে...' : 'Starting camera stream...'}
+                  {isBn ? 'ক্যামেরা চালু হচ্ছে...' : 'Initializing camera stream...'}
                 </p>
                 <button
                   type="button"
-                  onClick={restartScanner}
-                  className="px-3 py-1.5 bg-[#ff5c01] text-white text-xs font-bold rounded-lg cursor-pointer"
+                  onClick={startCameraScanner}
+                  className="px-3.5 py-1.5 bg-[#ff5c01] hover:bg-[#e05100] text-white text-xs font-bold rounded-xl cursor-pointer transition-all flex items-center gap-1.5"
                 >
-                  {isBn ? 'ক্যামেরা চালু করুন' : 'Enable Camera'}
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>{isBn ? 'ক্যামেরা রিস্টার্ট করুন' : 'Restart Camera'}</span>
                 </button>
               </div>
             )}
           </div>
 
-          {/* Last Scanned Banner */}
-          {lastScannedProduct && (
+          {/* DETECTED PRODUCT CARD (With Debounced Add Confirmation) */}
+          {detectedProduct && (
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-slate-900 border-2 border-emerald-500/80 shadow-lg space-y-3.5 animate-in zoom-in-95 duration-150">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30 overflow-hidden">
+                    {detectedProduct.image ? (
+                      <img
+                        src={detectedProduct.image}
+                        alt={detectedProduct.name}
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <Package className="w-6 h-6" />
+                    )}
+                  </div>
+                  <div>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-600 text-white uppercase tracking-wider mb-1">
+                      <CheckCircle2 className="w-3 h-3" />
+                      {isBn ? 'পণ্য শনাক্ত হয়েছে' : 'Product Detected'}
+                    </span>
+                    <h3 className="font-extrabold text-sm text-slate-900 dark:text-white line-clamp-1">
+                      {detectedProduct.name}
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                      SKU: #{detectedProduct.sku || detectedProduct.id} • {isBn ? 'স্টক:' : 'Stock:'}{' '}
+                      <span className="font-bold text-slate-700 dark:text-slate-200">
+                        {detectedProduct.stock}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">
+                    {isBn ? 'মূল্য' : 'Price'}
+                  </span>
+                  <span className="text-base font-black text-emerald-600 dark:text-emerald-400">
+                    {symbol}
+                    {detectedProduct.price}
+                  </span>
+                </div>
+              </div>
+
+              {/* Quantity Selector & Action Buttons */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-2 border-t border-emerald-200/60 dark:border-emerald-800/50">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                    {isBn ? 'পরিমাণ:' : 'Qty:'}
+                  </span>
+                  <div className="flex items-center border border-emerald-300 dark:border-emerald-700 rounded-xl bg-white dark:bg-slate-800 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setDetectedQuantity((q) => Math.max(1, q - 1))}
+                      className="p-1.5 px-2 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 cursor-pointer"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="px-3 font-bold text-xs text-slate-900 dark:text-white">
+                      {detectedQuantity}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setDetectedQuantity((q) => q + 1)}
+                      className="p-1.5 px-2 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDismissDetected}
+                    className="flex-1 sm:flex-none px-3 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                  >
+                    {isBn ? 'বাতিল' : 'Dismiss'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleConfirmAddToCart}
+                    className="flex-1 sm:flex-none px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>{isBn ? 'কার্টে যোগ করুন' : 'Add to POS Cart'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Last Added Toast Feedback */}
+          {lastAddedFeedback && !detectedProduct && (
             <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 flex items-center justify-between gap-3 text-xs animate-in fade-in slide-in-from-top-1">
               <div className="flex items-center gap-2.5">
                 <div className="w-7 h-7 rounded-lg bg-emerald-500 text-white flex items-center justify-center font-bold">
@@ -356,37 +587,36 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
                 </div>
                 <div>
                   <p className="font-extrabold text-emerald-900 dark:text-emerald-100 line-clamp-1">
-                    {lastScannedProduct.name}
+                    {lastAddedFeedback.name}
                   </p>
-                  <p className="text-[10px] text-emerald-700 dark:text-emerald-300 font-mono">
-                    SKU: #{lastScannedProduct.sku} • {symbol}{lastScannedProduct.price}
+                  <p className="text-[10px] text-emerald-700 dark:text-emerald-300 font-medium">
+                    {isBn
+                      ? `${lastAddedFeedback.qty}টি কার্টে যোগ করা হয়েছে। পরবর্তী পণ্য স্ক্যান করুন।`
+                      : `Added ${lastAddedFeedback.qty} item(s) to POS cart. Ready for next scan.`}
                   </p>
                 </div>
               </div>
-              <span className="px-2.5 py-1 rounded-xl bg-emerald-600 text-white font-black text-[11px] shrink-0">
-                +1 Added
-              </span>
             </div>
           )}
 
           {/* Error Banner */}
-          {scanError && (
+          {scannerError && (
             <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900/50 flex items-start gap-2.5 text-rose-700 dark:text-rose-300 text-xs font-bold animate-in fade-in">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
-              <span>{scanError}</span>
+              <span>{scannerError}</span>
             </div>
           )}
 
-          {/* Manual / Machine Scanner Input fallback */}
+          {/* Manual Entry / USB Machine Scanner Input */}
           <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-              {isBn ? 'বারকোড মেশিন বা ম্যানুয়াল এন্ট্রি:' : 'USB Scanner / Manual Code Entry:'}
+              {isBn ? 'ইউএসবি বারকোড মেশিন বা ম্যানুয়াল এন্ট্রি:' : 'USB Scanner / Manual Code Entry:'}
             </label>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 if (manualCode.trim()) {
-                  handleProcessCode(manualCode);
+                  handleDecodedCode(manualCode);
                   setManualCode('');
                 }
               }}
@@ -396,7 +626,11 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
                 type="text"
                 value={manualCode}
                 onChange={(e) => setManualCode(e.target.value)}
-                placeholder={isBn ? 'কোড স্ক্যান বা পেস্ট করুন...' : 'Scan or type QR/Barcode here...'}
+                placeholder={
+                  isBn
+                    ? 'কোড টাইপ বা বারকোড গান দিয়ে স্ক্যান করুন...'
+                    : 'Type code or scan with USB barcode gun...'
+                }
                 className="flex-1 px-3.5 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 font-mono focus:outline-none focus:border-[#ff5c01]"
               />
               <button
@@ -404,26 +638,24 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
                 disabled={!manualCode.trim()}
                 className="px-4 py-2 bg-[#ff5c01] hover:bg-[#e05100] disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
               >
-                {isBn ? 'যোগ করুন' : 'Add'}
+                {isBn ? 'খুঁজুন' : 'Find'}
               </button>
             </form>
           </div>
         </div>
 
-        {/* Footer Summary Bar */}
+        {/* Footer */}
         <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-              <ShoppingBag className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                {isBn ? 'মোট কার্ট আইটেম:' : 'Cart Items:'}
-              </p>
-              <p className="text-xs font-black text-slate-800 dark:text-slate-100">
-                {totalCartItems} {isBn ? 'টি পণ্য' : 'items in cart'} ({scanCount} scanned now)
-              </p>
-            </div>
+            <button
+              type="button"
+              onClick={startCameraScanner}
+              className="p-2 rounded-xl text-slate-500 hover:text-[#ff5c01] hover:bg-white dark:hover:bg-slate-700 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold"
+              title="Restart Camera"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>{isBn ? 'ক্যামেরা রিফ্রেশ' : 'Refresh Camera'}</span>
+            </button>
           </div>
 
           <button
@@ -431,11 +663,10 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
             onClick={onClose}
             className="px-5 py-2.5 rounded-xl bg-[#ff5c01] hover:bg-[#e05100] text-white text-xs font-black shadow-md shadow-[#ff5c01]/20 transition-all cursor-pointer"
           >
-            {isBn ? 'সম্পন্ন করুন' : 'Done Scanning'}
+            {isBn ? 'স্ক্যান সম্পন্ন' : 'Done Scanning'}
           </button>
         </div>
       </div>
     </div>
   );
 };
-

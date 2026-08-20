@@ -2,7 +2,7 @@ export type Language = 'en' | 'bn' | 'hi' | 'ar' | 'es' | 'fr';
 export type ThemeMode = 'light' | 'dark';
 export type UserRole = 'Owner' | 'Manager' | 'Staff' | 'Accountant' | 'PlatformOwner' | 'Cashier' | 'Inventory Manager' | 'Custom Role';
 export type SubscriptionPlan = 'Starter' | 'Tier2' | 'Lifetime' | 'Free' | 'Pro' | 'Premium' | 'Business';
-export type BillingCycle = 'monthly' | 'yearly' | 'five_year';
+export type BillingCycle = 'monthly' | 'six_months' | 'yearly' | 'five_year';
 
 export type BusinessType =
   | 'Retail Shop'
@@ -454,7 +454,32 @@ export interface TeamMember {
   joinedDate: string;
   lastActive?: string;
   invitedBy?: string;
+  invitationId?: string;
   customPermissions?: Partial<TeamPermissions>;
+}
+
+export type InvitationStatus = 'pending' | 'accepted' | 'expired' | 'revoked';
+
+export interface TeamInvitation {
+  id: string;
+  storeId: string;
+  storeName: string;
+  invitedEmail: string;
+  name: string;
+  phone?: string;
+  role: TeamRole;
+  customPermissions?: Partial<TeamPermissions>;
+  invitedBy: string;
+  invitedByName: string;
+  tokenHash?: string;
+  status: InvitationStatus;
+  createdAt: string;
+  expiresAt: string;
+  acceptedAt?: string;
+  acceptedByUid?: string;
+  revokedAt?: string;
+  resendCount?: number;
+  lastResentAt?: string;
 }
 
 // Secure Employee Device Access Types

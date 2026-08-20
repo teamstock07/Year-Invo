@@ -120,8 +120,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   }, [isTeamActive]);
 
   // Primary menu items before the Team & Payroll group
+  const isPlatformSuperAdmin =
+    user?.email?.toLowerCase().trim() === 'teamstock07@gmail.com' ||
+    user?.role === 'PlatformOwner';
+
   const primaryMenuItems = [
-    ...(user?.role === 'Owner' || user?.role === 'PlatformOwner'
+    ...(isPlatformSuperAdmin
       ? [{ id: 'owner', label: t('navOwnerPanel') || 'Owner Panel', icon: Crown, highlight: true }]
       : []),
     ...(dashboardPreferences?.dashboard !== false ? [{ id: 'dashboard', label: t('navDashboard') || 'Dashboard', icon: LayoutDashboard }] : []),

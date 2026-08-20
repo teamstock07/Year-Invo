@@ -3,6 +3,11 @@ import { useApp } from '../../context/AppContext';
 import { getDisplayBrandName } from '../../utils/brand';
 import { MainWebsiteLogo } from '../common/MainWebsiteLogo';
 import { compressImage } from '../../utils/imageCompressor';
+import {
+  SUPPORTED_LANGUAGE_CURRENCY_PAIRS,
+  getMappedCurrencyForLanguage,
+  getMappedLanguageForCurrency,
+} from '../../config/languageCurrency';
 import { Settings, Save, Shield, Download, Upload, Store, DollarSign, Receipt, Users, Camera, Trash2, Image, User, SlidersHorizontal } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
@@ -327,27 +332,38 @@ export const SettingsView: React.FC = () => {
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">System Language</label>
               <select
                 value={formData.language}
-                onChange={(e) => setFormData({ ...formData, language: e.target.value as any })}
+                onChange={(e) => {
+                  const newLang = e.target.value as any;
+                  const mappedCurr = getMappedCurrencyForLanguage(newLang);
+                  setFormData({ ...formData, language: newLang, currency: mappedCurr });
+                }}
                 className="w-full px-3.5 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold cursor-pointer"
               >
-                <option value="en">🇺🇸 English</option>
-                <option value="bn">🇧🇩 বাংলা (Bengali)</option>
-                <option value="ar">🇸🇦 العربية (Arabic)</option>
-                <option value="ae">🇦🇪 Dubai / UAE</option>
-                <option value="hi">🇮🇳 हिन्दी (Hindi)</option>
-                <option value="ur">🇵🇰 اردو (Urdu)</option>
+                {SUPPORTED_LANGUAGE_CURRENCY_PAIRS.map((pair) => (
+                  <option key={pair.language} value={pair.language}>
+                    {pair.flag} {pair.languageNative} ({pair.languageName})
+                  </option>
+                ))}
               </select>
             </div>
 
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">{t('currencySymbol')}</label>
-              <input
-                type="text"
-                value={formData.currency}
-                onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-                placeholder="৳ or $ or ₹ or AED"
-                className="w-full px-3.5 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
-              />
+              <select
+                value={formData.currency || '৳'}
+                onChange={(e) => {
+                  const newCurr = e.target.value;
+                  const mappedLang = getMappedLanguageForCurrency(newCurr);
+                  setFormData({ ...formData, currency: newCurr, language: mappedLang });
+                }}
+                className="w-full px-3.5 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold cursor-pointer"
+              >
+                {SUPPORTED_LANGUAGE_CURRENCY_PAIRS.map((pair) => (
+                  <option key={pair.currency} value={pair.currency}>
+                    {pair.currencyLabel}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>

@@ -50,9 +50,11 @@ interface SubDict {
   title: string;
   subtitle: string;
   monthly: string;
+  sixMonths: string;
   yearly: string;
   fiveYear: string;
   discountBadge: string;
+  sixMonthsDiscount: string;
   fiveYearDiscount: string;
   freePlanTitle: string;
   freePlanSub: string;
@@ -77,15 +79,21 @@ interface SubDict {
   everythingInFreePlus: string;
   everythingInProPlus: string;
   perMonth: string;
+  perSixMonths: string;
   perYear: string;
   perFiveYear: string;
   saveYearlyTag: string;
   saveFiveYearTag: string;
 
   // Features
+  upTo5Products: string;
+  upTo500Stock: string;
+  upTo50SalesDay: string;
   upTo10Products: string;
   upTo25Products: string;
   unlimitedProducts: string;
+  unlimitedStock: string;
+  unlimitedSales: string;
   upTo500Posts: string;
   unlimitedPosts: string;
   basicProductMgmt: string;
@@ -103,11 +111,15 @@ interface SubDict {
   advancedAnalytics: string;
   mobileAppSync: string;
   onlineOrderTracking: string;
+  payrollIncluded: string;
+  aiInsightsIncluded: string;
 
   sellSystemEnabled: string;
   sellSystemLocked: string;
   posSystemLocked: string;
   posSystemUnlocked: string;
+  teamLocked: string;
+  teamUnlocked: string;
   qrCodeLocked: string;
   qrCodeUnlocked: string;
 
@@ -127,43 +139,51 @@ const subTranslations: Record<string, SubDict> = {
   en: {
     badge: 'Subscription Plans & Pricing',
     title: 'Choose the Right Plan for Your Store',
-    subtitle: 'Unlock features to manage inventory, point-of-sale, multi-store operations, and business reports.',
-    monthly: 'Monthly Billing',
-    yearly: '1-Year Billing',
-    fiveYear: '5-Year Billing',
-    discountBadge: 'Save up to 50%',
+    subtitle: 'Unlock features to manage inventory, point-of-sale, team roles, multi-store operations, and business reports.',
+    monthly: '1 Month',
+    sixMonths: '6 Months',
+    yearly: '1 Year',
+    fiveYear: '5 Years',
+    discountBadge: 'Save 20%',
+    sixMonthsDiscount: 'Save 15%',
     fiveYearDiscount: 'Save 25%',
-    freePlanTitle: 'Free Plan',
-    freePlanSub: 'Starter Access',
-    freePlanDesc: 'Basic inventory and store tools for 1 month trial period.',
-    freeLifetime: '1 Month Free (30 Days Trial)',
+    freePlanTitle: 'Free Trial',
+    freePlanSub: '15 Days Trial',
+    freePlanDesc: 'Explore core inventory and store management for a 15-day trial period.',
+    freeLifetime: '15 Days Free Trial',
     proPlanTitle: 'Pro Plan',
-    proPlanSub: 'Growing Business',
-    proPlanDesc: 'Essential tools including PDF invoices, sell system, and reports.',
+    proPlanSub: 'Unlimited Inventory',
+    proPlanDesc: 'Unlimited products, inventory, sales, employee payouts, and AI insights.',
     proSpecialOffer: 'Special offer, standard rate applies',
     proFirstMonth: 'Special Rate',
     proSecondMonth: 'Regular',
     proPopularBadge: 'MOST POPULAR',
     premiumPlanTitle: 'Premium Plan',
-    premiumPlanSub: 'Unlimited Business',
-    premiumPlanDesc: 'Complete POS register, multi-store management, and custom branding.',
+    premiumPlanSub: 'Complete POS & Team System',
+    premiumPlanDesc: 'Full POS register, Team Management, QR Generator, and Multi-Branch.',
     recommended: 'RECOMMENDED',
     currentPlanTag: 'CURRENT PLAN',
     activePlanBtn: 'Current Active Plan',
-    switchToFreeBtn: 'Switch to Free Plan',
+    switchToFreeBtn: 'Switch to Free Trial',
     upgradeProBtn: 'Upgrade to Pro',
     upgradePremiumBtn: 'Upgrade to Premium',
-    everythingInFreePlus: 'Everything in Free Plan, plus:',
+    everythingInFreePlus: 'Everything in Free Trial, plus:',
     everythingInProPlus: 'Everything in Pro Plan, plus:',
     perMonth: '/ month',
+    perSixMonths: '/ 6 months',
     perYear: '/ year',
     perFiveYear: '/ 5 years',
     saveYearlyTag: 'Save with 1-year billing',
     saveFiveYearTag: 'Save 25% with 5-year billing',
 
+    upTo5Products: 'Max 5 Products in Catalog',
+    upTo500Stock: 'Max 500 Total Stock Units',
+    upTo50SalesDay: 'Max 50 Sales Transactions / Day',
     upTo10Products: 'Up to 10 Products Catalog',
     upTo25Products: 'Up to 25 Products Catalog',
     unlimitedProducts: 'Unlimited Products & Catalog',
+    unlimitedStock: 'Unlimited Inventory Stock',
+    unlimitedSales: 'Unlimited Daily Sales Transactions',
     upTo500Posts: 'Up to 500 Sales Transactions / mo',
     unlimitedPosts: 'Unlimited Daily Sales Entries',
     basicProductMgmt: 'Basic Product Catalog Management',
@@ -181,12 +201,16 @@ const subTranslations: Record<string, SubDict> = {
     advancedAnalytics: 'Advanced Sales Analytics Dashboard',
     mobileAppSync: 'Real-time Mobile App Synchronization',
     onlineOrderTracking: 'Online Order Status Tracking',
+    payrollIncluded: 'Employee Payroll & Salary Tracking',
+    aiInsightsIncluded: 'AI Business Intelligence & Forecasting',
 
     sellSystemEnabled: 'Sell System Included',
     sellSystemLocked: 'Sell System Not Included',
-    posSystemLocked: 'POS Register Counter Locked',
-    posSystemUnlocked: 'Full POS Register Counter Unlocked',
-    qrCodeLocked: 'QR Code Payments Locked',
+    posSystemLocked: 'POS Counter Locked (Requires Premium)',
+    posSystemUnlocked: 'Full POS Register & Cash Counter',
+    teamLocked: 'Team Management Locked (Requires Premium)',
+    teamUnlocked: 'Team Staff Management & Roles',
+    qrCodeLocked: 'QR Code Generator Locked',
     qrCodeUnlocked: 'QR Code Generator & Payments',
 
     barcodePrinting: 'Barcode Generator & Label Printing',
@@ -197,48 +221,56 @@ const subTranslations: Record<string, SubDict> = {
     apiPrioritySupport: '24/7 Priority Support & API Access',
 
     matrixTitle: 'Feature Matrix Comparison',
-    matrixSubtitle: 'Detailed comparison of capabilities across Free, Pro, and Premium plans.',
+    matrixSubtitle: 'Detailed comparison of capabilities across Free Trial, Pro, and Premium plans.',
   },
   bn: {
     badge: 'সাবস্ক্রিপশন প্ল্যান ও প্রাইসিং',
     title: 'আপনার দোকানের জন্য সঠিক প্ল্যান বেছে নিন',
-    subtitle: 'ইনভেন্টরি, পয়েন্ট-অফ-সেল, সেলস হিস্ট্রি ও রিপোর্ট ব্যবস্থার সকল সুবিধা আনলক করুন।',
-    monthly: 'মাসিক বিলিং',
-    yearly: '১ বছরের বিলিং',
-    fiveYear: '৫ বছরের বিলিং',
-    discountBadge: '৫০% পর্যন্ত ছাড়',
+    subtitle: 'ইনভেন্টরি, পয়েন্ট-অফ-সেল, টিম মেম্বার, সেলস হিস্ট্রি ও রিপোর্ট ব্যবস্থার সকল সুবিধা আনলক করুন।',
+    monthly: '১ মাস',
+    sixMonths: '৬ মাস',
+    yearly: '১ বছর',
+    fiveYear: '৫ বছর',
+    discountBadge: '২০% ছাড়',
+    sixMonthsDiscount: '১৫% সাশ্রয়',
     fiveYearDiscount: '২৫% ছাড়',
-    freePlanTitle: 'ফ্রি প্ল্যান',
-    freePlanSub: 'স্টার্টার প্যাক',
-    freePlanDesc: '১ মাসের ট্রায়ালের জন্য বেসিক ইনভেন্টরি ও স্টোর টুলস।',
-    freeLifetime: '১ মাস ফ্রি ট্রায়াল (৩০ দিন)',
+    freePlanTitle: 'ফ্রি ট্রায়াল',
+    freePlanSub: '১৫ দিনের ট্রায়াল',
+    freePlanDesc: '১৫ দিনের ট্রায়াল মেয়াদে স্টোর ও ইনভেন্টরি টেস্ট করুন।',
+    freeLifetime: '১৫ দিনের ফ্রি ট্রায়াল',
     proPlanTitle: 'প্রো প্ল্যান',
-    proPlanSub: 'গ্রোথ প্যাক',
-    proPlanDesc: 'পিডিএফ ইনভয়েস, সেলস রিপোর্ট ও ক্যাটালগ সম্বলিত প্রো সার্ভিস।',
+    proPlanSub: 'আনলিমিটেড স্টক ও সেলস',
+    proPlanDesc: 'আনলিমিটেড প্রডাক্ট, আনলিমিটেড বিক্রি, কর্মচারী বেতন ও এআই ইনসাইটস।',
     proSpecialOffer: 'বিশেষ সাশ্রয়ী অফার',
     proFirstMonth: 'স্পেশাল রেট',
     proSecondMonth: 'নিয়মিত',
     proPopularBadge: 'সর্বাধিক জনপ্রিয়',
     premiumPlanTitle: 'প্রিমিয়াম প্ল্যান',
-    premiumPlanSub: 'আনলিমিটেড প্যাক',
-    premiumPlanDesc: 'সম্পূর্ণ POS রেজিস্ট্রেশন, মাল্টি-স্টোর ও আনলিমিটেড সার্ভিস।',
+    premiumPlanSub: 'সম্পূর্ণ POS ও টিম সিস্টেম',
+    premiumPlanDesc: 'সম্পূর্ণ POS ক্যাশ কাউন্টার, টিম মেম্বার ম্যানেজমেন্ট, কিউআর ও মাল্টি-ব্রাঞ্চ।',
     recommended: 'পরামর্শকৃত',
     currentPlanTag: 'বর্তমান প্ল্যান',
     activePlanBtn: 'সক্রিয় প্ল্যান',
-    switchToFreeBtn: 'ফ্রি প্ল্যানে যান',
+    switchToFreeBtn: 'ফ্রি ট্রায়ালে যান',
     upgradeProBtn: 'প্রো প্ল্যানে আপগ্রেড করুন',
     upgradePremiumBtn: 'প্রিমিয়ামে আপগ্রেড করুন',
-    everythingInFreePlus: 'ফ্রি প্ল্যানের সকল সুবিধার সাথে:',
+    everythingInFreePlus: 'ফ্রি ট্রায়ালের সকল সুবিধার সাথে:',
     everythingInProPlus: 'প্রো প্ল্যানের সকল সুবিধার সাথে:',
     perMonth: '/ মাস',
+    perSixMonths: '/ ৬ মাস',
     perYear: '/ বছর',
     perFiveYear: '/ ৫ বছর',
     saveYearlyTag: 'বার্ষিক বিলে বিশাল সাশ্রয় করুন',
     saveFiveYearTag: '৫ বছরের বিলে ২৫% অতিরিক্ত সাশ্রয়',
 
+    upTo5Products: 'সর্বোচ্চ ৫ টি পণ্য ক্যাটালগ',
+    upTo500Stock: 'সর্বোচ্চ ৫০০ ইউনিট মোট স্টক',
+    upTo50SalesDay: 'দৈনিক সর্বোচ্চ ৫০ টি বিক্রি',
     upTo10Products: 'সর্বোচ্চ ১০টি পণ্য ক্যাটালগ',
     upTo25Products: 'সর্বোচ্চ ২৫টি পণ্য ক্যাটালগ',
     unlimitedProducts: 'আনলিমিটেড পণ্য ও ক্যাটালগ',
+    unlimitedStock: 'আনলিমিটেড ইনভেন্টরি স্টক',
+    unlimitedSales: 'আনলিমিটেড দৈনিক বিক্রি',
     upTo500Posts: 'মাসিক ৫০০টি সেলস এন্ট্রি',
     unlimitedPosts: 'আনলিমিটেড সেলস এন্ট্রি',
     basicProductMgmt: 'প্রাথমিক পণ্য ব্যবস্থাপনা',
@@ -256,11 +288,15 @@ const subTranslations: Record<string, SubDict> = {
     advancedAnalytics: 'উন্নত সেলস অ্যানালিটিক্স ড্যাশবোর্ড',
     mobileAppSync: 'রিয়েল-টাইম মোবাইল অ্যাপ সিঙ্ক',
     onlineOrderTracking: 'অনলাইন অর্ডার ট্র্যাকিং',
+    payrollIncluded: 'কর্মচারী বেতন ও পে-রোল ট্র্যাকিং',
+    aiInsightsIncluded: 'এআই বিজনেস ইনসাইটস ও পূর্বাভাস',
 
     sellSystemEnabled: 'সেল সিস্টেম সুবিধাসমূহ অন্তর্ভুক্ত',
     sellSystemLocked: 'সেল সিস্টেম উপলব্ধ নয়',
-    posSystemLocked: 'POS কাউন্টার লক করা',
+    posSystemLocked: 'POS কাউন্টার লকড (প্রিমিয়াম প্রয়োজন)',
     posSystemUnlocked: 'সম্পূর্ণ POS কাউন্টার আনলকড',
+    teamLocked: 'টিম ম্যানেজমেন্ট লকড (প্রিমিয়াম প্রয়োজন)',
+    teamUnlocked: 'টিম মেম্বার ও রোল ম্যানেজমেন্ট',
     qrCodeLocked: 'QR কোড পেমেন্ট লক করা',
     qrCodeUnlocked: 'QR কোড জেনারেটর ও পেমেন্ট',
 
@@ -272,48 +308,56 @@ const subTranslations: Record<string, SubDict> = {
     apiPrioritySupport: '২৪/৭ অগ্রাধিকার সহায়তা',
 
     matrixTitle: 'প্ল্যান তুলনামূলক তালিকা',
-    matrixSubtitle: 'ফ্রি, প্রো এবং প্রিমিয়াম প্ল্যানের ফিচার সমূহের পার্থক্য দেখুন।',
+    matrixSubtitle: 'ফ্রি ট্রায়াল, প্রো এবং প্রিমিয়াম প্ল্যানের বৈশিষ্ট্যের তুলনা দেখুন।',
   },
   ar: {
     badge: 'خطط الاشتراك والأسعار',
     title: 'اختر الخطة المناسبة لمتجرك',
     subtitle: 'إدارة المخزون والمبيعات والتقارير المالية بسهولة.',
-    monthly: 'فواتير شهرية',
-    yearly: 'فواتير سنوية (سنة واحدة)',
-    fiveYear: 'فواتير 5 سنوات',
-    discountBadge: 'خصم يصل إلى 50%',
-    fiveYearDiscount: 'خصم 25%',
-    freePlanTitle: 'الخطة المجانية',
-    freePlanSub: 'بداية مجانية',
-    freePlanDesc: 'أدوات أساسية لمدة شهر واحد مجاناً.',
-    freeLifetime: 'تجربة مجانية لمدة شهر واحد',
-    proPlanTitle: 'الخطة الاحترافية',
-    proPlanSub: 'الأعمال النامية',
-    proPlanDesc: 'فواتير PDF وتقارير المبيعات المتقدمة.',
+    monthly: 'شهر واحد',
+    sixMonths: '6 أشهر',
+    yearly: 'سنة واحدة',
+    fiveYear: '5 سنوات',
+    discountBadge: 'وفر 20%',
+    sixMonthsDiscount: 'وفر 15%',
+    fiveYearDiscount: 'وفر 25%',
+    freePlanTitle: 'تجربة مجانية',
+    freePlanSub: 'تجربة 15 يوماً',
+    freePlanDesc: 'أدوات أساسية لمدة 15 يوماً مجاناً.',
+    freeLifetime: '15 يوماً تجربة مجانية',
+    proPlanTitle: 'الخطة الاحترافية Pro',
+    proPlanSub: 'مخزون ومبيعات غير محدودة',
+    proPlanDesc: 'منتجات غير محدودة، فواتير PDF، رواتب الموظفين، ورؤى الذكاء الاصطناعي.',
     proSpecialOffer: 'عرض التوفير',
     proFirstMonth: 'السعر المخفض',
     proSecondMonth: 'عادي',
     proPopularBadge: 'الأكثر شعبية',
-    premiumPlanTitle: 'الخطة الممتازة',
-    premiumPlanSub: 'بلا حدود',
-    premiumPlanDesc: 'نظام نقاط البيع الكامل وإدارة الفروع المتعددة.',
+    premiumPlanTitle: 'الخطة الممتازة Premium',
+    premiumPlanSub: 'نقاط بيع وفريق عمل متكامل',
+    premiumPlanDesc: 'نظام نقاط البيع الكامل وإدارة الفروع المتعددة وإدارة الفريق.',
     recommended: 'موصى به',
     currentPlanTag: 'الخطة الحالية',
     activePlanBtn: 'الخطة النشطة حالياً',
-    switchToFreeBtn: 'التحويل للمجانية',
+    switchToFreeBtn: 'التحويل للتجربة المجانية',
     upgradeProBtn: 'الترقية إلى Pro',
     upgradePremiumBtn: 'الترقية إلى Premium',
-    everythingInFreePlus: 'كل شيء في الخطة المجانية بالإضافة إلى:',
+    everythingInFreePlus: 'كل شيء في التجربة المجانية بالإضافة إلى:',
     everythingInProPlus: 'كل شيء في خطة Pro بالإضافة إلى:',
     perMonth: '/ شهر',
+    perSixMonths: '/ 6 أشهر',
     perYear: '/ سنة',
     perFiveYear: '/ 5 سنوات',
     saveYearlyTag: 'وفر مع الاشتراك السنوي',
     saveFiveYearTag: 'وفر 25% مع اشتراك 5 سنوات',
 
+    upTo5Products: 'حتى 5 منتجات',
+    upTo500Stock: 'حتى 500 وحدة مخزون',
+    upTo50SalesDay: 'حتى 50 عملية بيع يومياً',
     upTo10Products: 'حتى 10 منتجات',
     upTo25Products: 'حتى 25 منتجاً',
     unlimitedProducts: 'منتجات غير محدودة',
+    unlimitedStock: 'مخزون غير محدود',
+    unlimitedSales: 'مبيعات يومية غير محدودة',
     upTo500Posts: 'حتى 500 عملية شهرياً',
     unlimitedPosts: 'عمليات غير محدودة',
     basicProductMgmt: 'إدارة المنتجات الأساسية',
@@ -331,11 +375,15 @@ const subTranslations: Record<string, SubDict> = {
     advancedAnalytics: 'لوحة التحليلات المتقدمة',
     mobileAppSync: 'مزامنة التطبيق',
     onlineOrderTracking: 'تتبع الطلبات',
+    payrollIncluded: 'إدارة رواتب الموظفين',
+    aiInsightsIncluded: 'رؤى الأعمال بالذكاء الاصطناعي',
 
     sellSystemEnabled: 'نظام المبيعات مفعّل',
     sellSystemLocked: 'نظام المبيعات غير متوفر',
-    posSystemLocked: 'نظام نقاط البيع مغلق',
+    posSystemLocked: 'نظام POS مغلق (يتطلب Premium)',
     posSystemUnlocked: 'نظام نقاط البيع كامل مفعّل',
+    teamLocked: 'إدارة الفريق مغلقة (تتطلب Premium)',
+    teamUnlocked: 'إدارة فريق العمل والأدوار',
     qrCodeLocked: 'رمز QR مغلق',
     qrCodeUnlocked: 'مولد رمز QR والدفع',
 
@@ -347,48 +395,56 @@ const subTranslations: Record<string, SubDict> = {
     apiPrioritySupport: 'دعم أولوية 24/7',
 
     matrixTitle: 'مقارنة خطط الاشتراك',
-    matrixSubtitle: 'مقارنة بين الخطة المجانية و Pro و Premium.',
+    matrixSubtitle: 'مقارنة بين التجربة المجانية و Pro و Premium.',
   },
   hi: {
     badge: 'सदस्यता योजनाएं और मूल्य निर्धारण',
     title: 'अपनी दुकान के लिए सही प्लान चुनें',
-    subtitle: 'इन्वेंट्री, पॉइंट-ऑफ-सेल और वित्तीय रिपोर्टिंग के लिए सभी सुविधाओं को अनलॉक करें।',
-    monthly: 'मासिक बिलिंग',
-    yearly: '1 वर्ष की बिलिंग',
-    fiveYear: '5 वर्ष की बिलिंग',
-    discountBadge: '50% तक की छूट',
+    subtitle: 'इन्वेंट्री, पॉइंट-ऑफ-सेल, टीम प्रबंधन और वित्तीय रिपोर्टिंग के लिए सभी सुविधाओं को अनलॉक करें।',
+    monthly: '1 माह',
+    sixMonths: '6 माह',
+    yearly: '1 वर्ष',
+    fiveYear: '5 वर्ष',
+    discountBadge: '20% छूट',
+    sixMonthsDiscount: '15% छूट',
     fiveYearDiscount: '25% छूट',
-    freePlanTitle: 'फ्री प्लान',
-    freePlanSub: 'स्टार्टर एक्सेस',
-    freePlanDesc: '1 महीने के परीक्षण के लिए बुनियादी उपकरण।',
-    freeLifetime: '1 माह का निःशुल्क परीक्षण',
+    freePlanTitle: 'फ्री ट्रायल',
+    freePlanSub: '15 दिनों का ट्रायल',
+    freePlanDesc: '15 दिनों के परीक्षण के लिए बुनियादी इन्वेंट्री और स्टोर टूल्स।',
+    freeLifetime: '15 दिन निःशुल्क परीक्षण',
     proPlanTitle: 'प्रो प्लान',
-    proPlanSub: 'बढ़ता व्यापार',
-    proPlanDesc: 'PDF इनवॉइस और विस्तृत बिक्री रिपोर्ट।',
+    proPlanSub: 'असीमित स्टॉक और बिक्री',
+    proPlanDesc: 'असीमित उत्पाद, असीमित बिक्री, वेतन ट्रैकिंग और AI इनसाइट्स।',
     proSpecialOffer: 'विशेष ऑफर',
     proFirstMonth: 'विशेष दर',
     proSecondMonth: 'नियमित',
     proPopularBadge: 'सर्वाधिक लोकप्रिय',
     premiumPlanTitle: 'प्रीमियम प्लान',
-    premiumPlanSub: 'असीमित क्षमताएं',
-    premiumPlanDesc: 'पूर्ण POS काउंटर और मल्टी-स्टोर प्रबंधन।',
+    premiumPlanSub: 'संपूर्ण POS और टीम सिस्टम',
+    premiumPlanDesc: 'पूर्ण POS काउंटर, टीम प्रबंधन, QR जनरेटर और मल्टी-ब्रांच।',
     recommended: 'अनुशंसित',
     currentPlanTag: 'वर्तमान प्लान',
     activePlanBtn: 'सक्रिय प्लान',
-    switchToFreeBtn: 'फ्री पर जाएं',
+    switchToFreeBtn: 'फ्री ट्रायल पर जाएं',
     upgradeProBtn: 'प्रो में अपग्रेड करें',
     upgradePremiumBtn: 'प्रीमियम में अपग्रेड करें',
-    everythingInFreePlus: 'फ्री प्लान की सभी सुविधाओं के साथ:',
+    everythingInFreePlus: 'फ्री ट्रायल की सभी सुविधाओं के साथ:',
     everythingInProPlus: 'प्रो प्लान की सभी सुविधाओं के साथ:',
     perMonth: '/ माह',
+    perSixMonths: '/ 6 माह',
     perYear: '/ वर्ष',
     perFiveYear: '/ 5 वर्ष',
     saveYearlyTag: 'वार्षिक बिलिंग पर बचत करें',
     saveFiveYearTag: '5-वर्षीय बिलिंग पर 25% अतिरिक्त बचत',
 
+    upTo5Products: 'अधिकतम 5 उत्पाद',
+    upTo500Stock: 'अधिकतम 500 यूनिट कुल स्टॉक',
+    upTo50SalesDay: 'प्रतिदिन अधिकतम 50 बिक्री',
     upTo10Products: '10 उत्पादों तक',
     upTo25Products: '25 उत्पादों तक',
     unlimitedProducts: 'असीमित उत्पाद',
+    unlimitedStock: 'असीमित इन्वेंट्री स्टॉक',
+    unlimitedSales: 'असीमित दैनिक लेनदेन',
     upTo500Posts: '500 मासिक लेनदेन',
     unlimitedPosts: 'असीमित लेनदेन',
     basicProductMgmt: 'बुनियादी उत्पाद प्रबंधन',
@@ -406,13 +462,17 @@ const subTranslations: Record<string, SubDict> = {
     advancedAnalytics: 'उन्नत विश्लेषिकी डैशबोर्ड',
     mobileAppSync: 'मोबाइल ऐप सिंक',
     onlineOrderTracking: 'ऑनलाइन ऑर्डर ट्रैकिंग',
+    payrollIncluded: 'कर्मचारी वेतन व पे-रोल',
+    aiInsightsIncluded: 'AI व्यापार विश्लेषण',
 
     sellSystemEnabled: 'बिक्री प्रणाली शामिल',
     sellSystemLocked: 'बिक्री प्रणाली उपलब्ध नहीं',
-    posSystemLocked: 'POS काउंटर लॉक है',
+    posSystemLocked: 'POS काउंटर लॉक (प्रीमियम आवश्यक)',
     posSystemUnlocked: 'संपूर्ण POS काउंटर अनलॉक',
-    qrCodeLocked: 'QR कोड भुगतान लॉक है',
-    qrCodeUnlocked: 'QR कोड और भुगतान',
+    teamLocked: 'टीम प्रबंधन लॉक (प्रीमियम आवश्यक)',
+    teamUnlocked: 'टीम सदस्य व भूमिका प्रबंधन',
+    qrCodeLocked: 'QR कोड लॉक है',
+    qrCodeUnlocked: 'QR कोड और बारकोड जनरेटर',
 
     barcodePrinting: 'बारकोड जनरेटर',
     purchaseSupplierMgmt: 'आपूर्तिकर्ता प्रबंधन',
@@ -422,7 +482,7 @@ const subTranslations: Record<string, SubDict> = {
     apiPrioritySupport: '24/7 प्राथमिकता सहायता',
 
     matrixTitle: 'फीचर तुलना तालिका',
-    matrixSubtitle: 'फ्री, प्रो और प्रीमियम प्लान की विशेषताओं की तुलना करें।',
+    matrixSubtitle: 'फ्री ट्रायल, प्रो और प्रीमियम प्लान की विशेषताओं की तुलना करें।',
   },
 };
 
@@ -643,7 +703,7 @@ export const SubscriptionView: React.FC = () => {
           </div>
         )}
 
-        {/* 3 Billing Cycle Toggle (Monthly / 1-Year / 5-Year) */}
+        {/* Billing Cycle Toggle (1 Month / 6 Months / 1 Year / 5 Years) */}
         <div className="pt-3 flex items-center justify-center">
           <div className="bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700/80 inline-flex flex-wrap items-center justify-center gap-1">
             <button
@@ -656,6 +716,22 @@ export const SubscriptionView: React.FC = () => {
               }`}
             >
               {langDict.monthly}
+            </button>
+            <button
+              type="button"
+              onClick={() => setBillingCycle('six_months')}
+              className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                billingCycle === 'six_months'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <span>{langDict.sixMonths}</span>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                billingCycle === 'six_months' ? 'bg-white text-amber-700' : 'bg-amber-500/10 text-amber-500'
+              }`}>
+                {langDict.sixMonthsDiscount}
+              </span>
             </button>
             <button
               type="button"
@@ -737,25 +813,29 @@ export const SubscriptionView: React.FC = () => {
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>{langDict.upTo10Products}</span>
+                <span>{langDict.upTo5Products}</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>{langDict.upTo500Posts}</span>
+                <span>{langDict.upTo500Stock}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.upTo50SalesDay}</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>{langDict.basicProductMgmt}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>{langDict.basicStockView}</span>
               </div>
 
               <div className="pt-2 space-y-2 text-slate-400 dark:text-slate-500">
                 <div className="flex items-center gap-2">
                   <XCircle className="w-4 h-4 text-slate-400 dark:text-slate-600 shrink-0" />
                   <span>{langDict.posSystemLocked}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <XCircle className="w-4 h-4 text-slate-400 dark:text-slate-600 shrink-0" />
+                  <span>{langDict.teamLocked}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <XCircle className="w-4 h-4 text-slate-400 dark:text-slate-600 shrink-0" />
@@ -808,12 +888,18 @@ export const SubscriptionView: React.FC = () => {
                   {proPricing.totalFormatted}
                 </span>
                 <span className="text-xs text-slate-500 font-bold">
-                  {billingCycle === 'monthly' ? langDict.perMonth : billingCycle === 'yearly' ? langDict.perYear : langDict.perFiveYear}
+                  {billingCycle === 'monthly'
+                    ? langDict.perMonth
+                    : billingCycle === 'six_months'
+                    ? langDict.perSixMonths
+                    : billingCycle === 'yearly'
+                    ? langDict.perYear
+                    : langDict.perFiveYear}
                 </span>
               </div>
               <p className="text-[11px] font-bold text-slate-600 dark:text-slate-400 mt-0.5">
                 {billingCycle === 'monthly'
-                  ? (isBDT ? 'নিয়মিত মাসিক প্ল্যান' : 'Standard Monthly')
+                  ? (isBDT ? '৳১০০ ১ম মাস / ৳১৫০ রিনিউ' : 'Special Intro Offer')
                   : `${proPricing.effectiveMonthlyFormatted}/mo • ${proPricing.discountPercent}% OFF`}
               </p>
             </div>
@@ -824,23 +910,27 @@ export const SubscriptionView: React.FC = () => {
               </div>
               <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>{langDict.sellSystemEnabled}</span>
+                <span>{langDict.unlimitedProducts}</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>{langDict.upTo25Products}</span>
+                <span>{langDict.unlimitedStock}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.unlimitedSales}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.payrollIncluded}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.aiInsightsIncluded}</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>{langDict.pdfInvoices}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>{langDict.detailedSalesReports}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>{langDict.advancedStockMgmt}</span>
               </div>
 
               <div className="pt-2 space-y-2 text-slate-400 dark:text-slate-500">
@@ -850,7 +940,7 @@ export const SubscriptionView: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <Lock className="w-4 h-4 text-slate-400 dark:text-slate-600 shrink-0" />
-                  <span>{langDict.qrCodeLocked}</span>
+                  <span>{langDict.teamLocked}</span>
                 </div>
               </div>
             </div>
@@ -907,12 +997,18 @@ export const SubscriptionView: React.FC = () => {
                   {premiumPricing.totalFormatted}
                 </span>
                 <span className="text-xs text-slate-500 font-bold">
-                  {billingCycle === 'monthly' ? langDict.perMonth : billingCycle === 'yearly' ? langDict.perYear : langDict.perFiveYear}
+                  {billingCycle === 'monthly'
+                    ? langDict.perMonth
+                    : billingCycle === 'six_months'
+                    ? langDict.perSixMonths
+                    : billingCycle === 'yearly'
+                    ? langDict.perYear
+                    : langDict.perFiveYear}
                 </span>
               </div>
               <p className="text-[11px] font-bold text-[#ff5c01] mt-0.5">
                 {billingCycle === 'monthly'
-                  ? (isBDT ? 'আনলিমিটেড ব্রাঞ্চ ও ফিচার' : 'Unlimited Multi-Branch Power')
+                  ? (isBDT ? '৳২৫০ / মাস • সম্পূর্ণ আনলিমিটেড' : 'Full POS & Team Access')
                   : `${premiumPricing.effectiveMonthlyFormatted}/mo • ${premiumPricing.discountPercent}% OFF`}
               </p>
             </div>
@@ -928,6 +1024,10 @@ export const SubscriptionView: React.FC = () => {
               <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>{langDict.posSystemUnlocked}</span>
+              </div>
+              <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.teamUnlocked}</span>
               </div>
               <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
@@ -984,7 +1084,7 @@ export const SubscriptionView: React.FC = () => {
               <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-bold uppercase">
                 <tr>
                   <th className="p-3.5 min-w-[200px]">System Features</th>
-                  <th className="p-3.5 text-center min-w-[100px]">Free</th>
+                  <th className="p-3.5 text-center min-w-[100px]">Free (15-Day Trial)</th>
                   <th className="p-3.5 text-center min-w-[120px] text-[#ff5c01]">
                     Pro ({isBDT ? (language === 'bn' ? '৳১০০/মাস' : '৳100/mo') : (normCurrency === 'USD' ? '$1.50/mo' : `${proPricing.effectiveMonthlyFormatted}/mo`)})
                   </th>

@@ -893,8 +893,11 @@ export const PosSystem: React.FC = () => {
         onClose={() => setIsScannerOpen(false)}
         products={products}
         language={language}
-        onProductScanned={(scannedProduct) => {
-          addToCart(scannedProduct);
+        onProductScanned={(scannedProduct, qty) => {
+          const count = qty && qty > 0 ? qty : 1;
+          for (let i = 0; i < count; i++) {
+            addToCart(scannedProduct);
+          }
         }}
       />
 

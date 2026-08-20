@@ -3,55 +3,112 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper: Check if user is authenticated
+    // Global Deny Catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Security Helper Functions
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Helper: Check if user is Owner (email match or owner role)
-    function isOwner() {
+    function isPlatformAdmin() {
       return isSignedIn() && (
         request.auth.token.email == 'teamstock07@gmail.com' ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['owner', 'Owner', 'admin', 'Admin', 'platformowner']
+        (request.auth.uid != null && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['platformowner', 'PlatformOwner', 'superadmin', 'SuperAdmin'])
       );
     }
 
-    // Users collection and subcollections rules (business data isolation)
-    match /users/{userId} {
-      allow read: if isSignedIn() || true;
-      allow write: if isSignedIn() || request.auth.uid == userId || true;
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
 
+    // Users Collection (Profile & Stores)
+    match /users/{userId} {
+      // Allow single read if owner, self, or signed in (for team/manager lookup)
+      allow get: if isSignedIn() && (request.auth.uid == userId || isPlatformAdmin());
+      allow list: if isSignedIn() && isPlatformAdmin();
+
+      // Creation allowed during signup for authenticated user UID
+      allow create: if isSignedIn() && (request.auth.uid == userId || isPlatformAdmin());
+
+      // Updates allowed for self or admin
+      allow update: if isSignedIn() && (
+        isPlatformAdmin() ||
+        (request.auth.uid == userId && (
+          // Prevent non-admins from self-escalating roles to platform admin
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) ||
+          resource.data.role == request.resource.data.role
+        ))
+      );
+
+      // Deletion strictly reserved for platform admins
+      allow delete: if isPlatformAdmin();
+
+      // Nested subcollections (products, sales, purchases, inventory, etc.)
       match /{subcollection=**} {
-        allow read, write: if isSignedIn() || request.auth.uid == userId || true;
+        allow read, write: if isSignedIn() && (request.auth.uid == userId || isPlatformAdmin());
       }
     }
 
-    // Subscription Requests collection
+    // Subscription Requests Collection (CamelCase)
     match /subscriptionRequests/{requestId} {
-      // Authenticated users can create subscription requests
-      allow create: if isSignedIn() || true;
-      // Read access allowed for authenticated users/owners
-      allow read: if isSignedIn() || true;
-      // Update and delete allowed for owner or authenticated user
-      allow update, delete: if isSignedIn() || isOwner() || true;
+      allow create: if isSignedIn() && (
+        request.resource.data.userId == request.auth.uid ||
+        request.resource.data.uid == request.auth.uid ||
+        isPlatformAdmin()
+      );
+      allow get: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.uid == request.auth.uid ||
+        isPlatformAdmin()
+      );
+      allow list: if isSignedIn() && isPlatformAdmin();
+      allow update, delete: if isSignedIn() && isPlatformAdmin();
     }
 
-    // Compatibility rule for snake_case subscription_requests
+    // Subscription Requests Collection (Snake_case compatibility)
     match /subscription_requests/{requestId} {
-      allow create: if isSignedIn() || true;
-      allow read, update, delete: if isSignedIn() || true;
+      allow create: if isSignedIn() && (
+        request.resource.data.userId == request.auth.uid ||
+        request.resource.data.uid == request.auth.uid ||
+        isPlatformAdmin()
+      );
+      allow get: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.uid == request.auth.uid ||
+        isPlatformAdmin()
+      );
+      allow list: if isSignedIn() && isPlatformAdmin();
+      allow update, delete: if isSignedIn() && isPlatformAdmin();
     }
 
-    // Global platform settings (Payment settings, branding)
+    // Team Invitations Collection
+    match /teamInvitations/{invitationId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && (
+        request.resource.data.invitedBy == request.auth.uid ||
+        request.resource.data.ownerId == request.auth.uid ||
+        isPlatformAdmin()
+      );
+      allow update, delete: if isSignedIn() && (
+        resource.data.invitedBy == request.auth.uid ||
+        resource.data.ownerId == request.auth.uid ||
+        isPlatformAdmin()
+      );
+    }
+
+    // Email Verification OTPs (Protected: Managed exclusively by server API)
+    match /emailVerifications/{docId} {
+      allow read, write: if false;
+    }
+
+    // Global Public Settings (e.g., payment methods, store configuration)
     match /settings/{settingId} {
       allow read: if true;
-      allow write: if isOwner() || isSignedIn();
-    }
-
-    // Default rule for all other collections
-    match /{document=**} {
-      allow read, write: if isSignedIn() || true;
+      allow write: if isPlatformAdmin();
     }
   }
 }
-

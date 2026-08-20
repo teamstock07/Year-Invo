@@ -46,6 +46,25 @@
         "requestDate": { "type": "string" }
       },
       "required": ["id", "userId", "requestedPlan", "status"]
+    },
+    "email_verifications": {
+      "title": "email_verifications",
+      "description": "Hashed 6-digit OTP verification records for user email confirmation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "codeHash": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "expiresAt": { "type": "string" },
+        "attempts": { "type": "number" },
+        "maxAttempts": { "type": "number" },
+        "verified": { "type": "boolean" },
+        "lastSentAt": { "type": "string" }
+      },
+      "required": ["id", "email", "codeHash", "expiresAt", "verified"]
     }
   },
   "firestore": {
@@ -60,6 +79,10 @@
     "/subscription_requests/{requestId}": {
       "schema": "subscription_requests",
       "description": "User plan subscription requests"
+    },
+    "/emailVerifications/{docId}": {
+      "schema": "email_verifications",
+      "description": "Server-managed email verification OTP records"
     }
   }
 }

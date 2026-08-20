@@ -39,6 +39,7 @@ import { AuditLogView } from './components/audit/AuditLogView';
 import { CapitalInvestmentView } from './components/capital/CapitalInvestmentView';
 import { BusinessTypeSetupModal } from './components/common/BusinessTypeSetupModal';
 import { EmailVerificationPrompt } from './components/auth/EmailVerificationPrompt';
+import { AcceptInvitationView } from './components/team/AcceptInvitationView';
 
 import { getDisplayBrandName } from './utils/brand';
 
@@ -60,11 +61,22 @@ const MainLayout: React.FC = () => {
 
   const dueCustomerId = urlParams.get('dueCustomerId') || urlParams.get('dueId') || urlParams.get('customer');
   const invoiceNo = urlParams.get('invoice') || urlParams.get('invoiceNo');
+  const invitationToken = urlParams.get('token') || urlParams.get('inviteToken') || urlParams.get('invitationToken');
 
   const handleClearLiveView = () => {
     window.history.pushState({}, '', window.location.pathname);
     setUrlParams(new URLSearchParams(''));
   };
+
+  // If team invitation token is present in URL, present AcceptInvitationView directly
+  if (invitationToken) {
+    return (
+      <AcceptInvitationView
+        token={invitationToken}
+        onSuccess={handleClearLiveView}
+      />
+    );
+  }
 
   // If live statement parameter is present in URL, present LivePublicView directly
   if (dueCustomerId || invoiceNo) {
@@ -162,7 +174,10 @@ const MainLayout: React.FC = () => {
       case 'about':
         return <AboutView />;
       case 'owner':
-        return <OwnerDashboard />;
+        if (user?.email?.toLowerCase().trim() === 'teamstock07@gmail.com' || user?.role === 'PlatformOwner') {
+          return <OwnerDashboard />;
+        }
+        return <DashboardView />;
       default:
         return <DashboardView />;
     }

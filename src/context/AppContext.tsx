@@ -136,6 +136,8 @@ interface AppContextType {
   isEmailVerified: boolean;
   login: (email: string, pass: string) => Promise<{ success: boolean; message?: string; requiresEmailVerification?: boolean }>;
   signup: (data: Partial<UserProfile> & { password?: string }) => Promise<{ success: boolean; message?: string; requiresEmailVerification?: boolean }>;
+  sendVerificationOtp: (email?: string, name?: string) => Promise<{ success: boolean; message: string; cooldownRemaining?: number }>;
+  verifyEmailOtp: (code: string, email?: string) => Promise<{ success: boolean; message?: string }>;
   resendEmailVerification: () => Promise<{ success: boolean; message: string; cooldownRemaining?: number }>;
   checkEmailVerification: () => Promise<boolean>;
   logout: () => Promise<void>;
@@ -691,13 +693,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             photoUrl: uData?.photoUrl || uData?.avatarUrl || uData?.profilePhotoUrl || firebaseUser.photoURL || undefined,
             avatarUrl: uData?.avatarUrl || uData?.photoUrl || uData?.profilePhotoUrl || firebaseUser.photoURL || undefined,
             profilePhotoUrl: uData?.profilePhotoUrl || uData?.photoUrl || uData?.avatarUrl || firebaseUser.photoURL || undefined,
-            verifiedEmail: isAdmin || Boolean(firebaseUser.emailVerified),
+            verifiedEmail: isAdmin || Boolean(firebaseUser.emailVerified) || Boolean(uData?.verifiedEmail) || Boolean(uData?.emailVerified),
             verifiedPhone: true,
             createdAt: uData?.createdAt ? (typeof uData.createdAt === 'string' ? uData.createdAt : new Date().toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
             dashboardPreferences: uData?.dashboardPreferences ? { ...defaultDashboardPreferences, ...uData.dashboardPreferences } : defaultDashboardPreferences,
           };
 
-          setIsEmailVerified(isAdmin || Boolean(firebaseUser.emailVerified));
+          setIsEmailVerified(isAdmin || Boolean(firebaseUser.emailVerified) || Boolean(uData?.verifiedEmail) || Boolean(uData?.emailVerified));
 
           // If document didn't exist in Firestore, save it now with merge
           if (!docSnap.exists()) {
@@ -806,20 +808,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         snapshot.forEach((docSnap) => {
           const uData = docSnap.data();
           const uEmail = (uData.email || '').toLowerCase();
-          const isAdmin = isTeamStockAdmin(uEmail) || uData.role === 'owner' || uData.role === 'Owner' || uData.role === 'admin' || uData.role === 'PlatformOwner';
+          const isPlatformSuperAdmin = isTeamStockAdmin(uEmail) || uData.role === 'PlatformOwner' || uData.role === 'platformowner';
           
           let normalizedRole: UserRole = 'Manager';
-          if (isAdmin) {
+          if (uData.role === 'Owner' || uData.role === 'owner' || isPlatformSuperAdmin) {
             normalizedRole = 'Owner';
           } else if (uData.role === 'Staff' || uData.role === 'staff') {
             normalizedRole = 'Staff';
           } else if (uData.role === 'Accountant' || uData.role === 'accountant') {
             normalizedRole = 'Accountant';
+          } else if (uData.role === 'Cashier' || uData.role === 'cashier') {
+            normalizedRole = 'Cashier';
           } else {
             normalizedRole = 'Manager';
           }
 
-          const assignedPlan: SubscriptionPlan = isAdmin ? 'Lifetime' : ((uData.subscriptionPlan || uData.subscription || 'Free') as SubscriptionPlan);
+          const assignedPlan: SubscriptionPlan = isPlatformSuperAdmin ? 'Lifetime' : ((uData.subscriptionPlan || uData.subscription || 'Free') as SubscriptionPlan);
 
           let createdDateStr = new Date().toISOString().split('T')[0];
           if (uData.createdAt) {
@@ -2051,8 +2055,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.log(`[AUTH] user profile query started: docPath=users/${firebaseUser.uid}`);
 
       const isAdmin = isTeamStockAdmin(cleanEmail);
-      const verified = isAdmin || Boolean(firebaseUser.emailVerified);
-      setIsEmailVerified(verified);
+      let verified = isAdmin || Boolean(firebaseUser.emailVerified);
 
       let docSnap: any = null;
       let uData: any = null;
@@ -2083,6 +2086,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (docErr) {
         console.warn('User document fetch fast notice:', docErr);
       }
+
+      if (uData?.verifiedEmail || uData?.emailVerified) {
+        verified = true;
+      }
+      setIsEmailVerified(verified);
 
       console.log(`[AUTH] user profile query completed: found=${Boolean(uData)} in ${(performance.now() - tStart).toFixed(1)}ms`);
       console.log(`[AUTH] store lookup started`);
@@ -2205,10 +2213,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.log(`[AUTH] login flow completed successfully in ${(performance.now() - tStart).toFixed(1)}ms`);
 
       if (!verified) {
+        // Automatically send a fresh 6-digit verification code to the user's inbox
+        sendVerificationOtp(cleanEmail, foundUser.fullName).catch(() => {});
         return {
           success: true,
           requiresEmailVerification: true,
-          message: 'Verification email sent. Please check your inbox and verify your email address.',
+          message: 'A 6-digit verification code has been sent to your email. Please enter it to verify your account.',
         };
       }
 
@@ -2262,15 +2272,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       }
 
-      // 2. Immediately send Firebase Email Verification to the newly registered email
-      try {
-        await sendEmailVerification(firebaseUser);
-        console.log('[Firebase Auth] Email verification sent to:', cleanEmail);
-      } catch (verificationErr) {
-        console.warn('[Firebase Auth] Notice sending initial email verification:', verificationErr);
-      }
-
-      // 3. Prepare user document payload with required schema
+      // 2. Immediately send 6-Digit Email Verification OTP via Resend
       const fullName = data.ownerName || 'Store Owner';
       const storeName = data.brandName || 'My Store';
       const storeType = data.businessType || 'General Retail & Grocery';
@@ -2281,8 +2283,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const isAdmin = isTeamStockAdmin(cleanEmail);
       const assignedRole: UserRole = 'Owner';
       const assignedPlan: SubscriptionPlan = isAdmin ? 'Lifetime' : 'Free';
-      const verified = isAdmin || Boolean(firebaseUser.emailVerified);
+      const verified = isAdmin;
       setIsEmailVerified(verified);
+
+      if (!isAdmin) {
+        try {
+          fetch('/api/auth/send-verification-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: cleanEmail,
+              uid: firebaseUser.uid,
+              name: fullName,
+            }),
+          }).catch((err) => {
+            console.warn('[Auth OTP] Background OTP send warning:', err);
+          });
+          console.log('[Auth OTP] Dispatched 6-digit verification code to:', cleanEmail);
+        } catch (verificationErr) {
+          console.warn('[Auth OTP] Notice sending initial email verification:', verificationErr);
+        }
+      }
+
+      // 3. Prepare user document payload with required schema
 
       const userCountry = data.country || 'Bangladesh';
       const userPrefLang = data.preferredLanguage || language || 'en';
@@ -2368,7 +2391,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return {
         success: true,
         requiresEmailVerification: !verified,
-        message: 'Verification email sent. Please check your inbox and verify your email address.',
+        message: 'A 6-digit verification code has been sent to your email address.',
       };
     } catch (error: any) {
       console.error('Firebase signup error [Full Error]:', error);
@@ -2389,58 +2412,159 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // Resend Email Verification method
-  const resendEmailVerification = async (): Promise<{ success: boolean; message: string; cooldownRemaining?: number }> => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
+  // Send / Resend 6-Digit Email Verification OTP via Resend API
+  const sendVerificationOtp = async (
+    targetEmail?: string,
+    targetName?: string
+  ): Promise<{ success: boolean; message: string; cooldownRemaining?: number }> => {
+    const cleanEmail = (targetEmail || user?.email || auth.currentUser?.email || '').trim().toLowerCase();
+    const displayName = targetName || user?.fullName || user?.ownerName || auth.currentUser?.displayName || 'Store Owner';
+    const uid = user?.id || auth.currentUser?.uid || '';
+
+    if (!cleanEmail) {
       return {
         success: false,
-        message: 'No active user session found. Please sign in first.',
+        message: 'No email address available to send verification code.',
       };
     }
 
     try {
-      await sendEmailVerification(currentUser);
-      return {
-        success: true,
-        message: 'Verification email resent successfully! Please check your inbox and spam folder.',
-      };
-    } catch (error: any) {
-      console.warn('Firebase resend email verification error:', error);
-      if (error.code === 'auth/too-many-requests') {
+      const res = await fetch('/api/auth/send-verification-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, name: displayName, uid }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
         return {
           success: false,
-          cooldownRemaining: 60,
-          message: 'Too many requests. Please wait a moment before trying to resend again.',
+          message: data.error || 'Failed to send verification code. Please try again.',
+          cooldownRemaining: data.cooldownRemaining,
         };
       }
+
+      return {
+        success: true,
+        message: data.message || `A 6-digit verification code has been sent to ${cleanEmail}.`,
+      };
+    } catch (err: any) {
+      console.error('Error calling /api/auth/send-verification-otp:', err);
       return {
         success: false,
-        message: error.message || 'Failed to send verification email. Please try again later.',
+        message: err.message || 'Failed to reach verification server. Please check your network connection.',
       };
     }
   };
 
-  // Check Email Verification Status method by reloading current Firebase user
-  const checkEmailVerification = async (): Promise<boolean> => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) return false;
+  // Verify 6-digit OTP code against server
+  const verifyEmailOtp = async (
+    code: string,
+    targetEmail?: string
+  ): Promise<{ success: boolean; message?: string }> => {
+    const cleanEmail = (targetEmail || user?.email || auth.currentUser?.email || '').trim().toLowerCase();
+    const uid = user?.id || auth.currentUser?.uid || '';
+
+    if (!cleanEmail || !code) {
+      return {
+        success: false,
+        message: 'Email and 6-digit verification code are required.',
+      };
+    }
 
     try {
-      await currentUser.reload();
-      const updatedUser = auth.currentUser;
-      const isAdmin = isTeamStockAdmin(updatedUser?.email);
-      const isVerified = isAdmin || Boolean(updatedUser?.emailVerified);
+      const res = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, code, uid }),
+      });
 
-      setIsEmailVerified(isVerified);
-      if (isVerified) {
-        setUser((prev) => (prev ? { ...prev, verifiedEmail: true } : prev));
+      const data = await res.json();
+      if (!res.ok) {
+        return {
+          success: false,
+          message: data.error || 'Verification failed. Please try again.',
+        };
       }
-      return isVerified;
-    } catch (error) {
-      console.warn('Error checking Firebase email verification status:', error);
-      return Boolean(currentUser.emailVerified);
+
+      // Mark verified in client state
+      setIsEmailVerified(true);
+      setUser((prev) => (prev ? { ...prev, verifiedEmail: true } : prev));
+      try {
+        if (user?.id) {
+          const saved = localStorage.getItem('biz_user');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            parsed.verifiedEmail = true;
+            localStorage.setItem('biz_user', JSON.stringify(parsed));
+          }
+        }
+      } catch (e) {}
+
+      return {
+        success: true,
+        message: data.message || 'Email successfully verified!',
+      };
+    } catch (err: any) {
+      console.error('Error calling /api/auth/verify-otp:', err);
+      return {
+        success: false,
+        message: err.message || 'Network error while verifying code. Please try again.',
+      };
     }
+  };
+
+  // Resend Email Verification method (reusable wrapper)
+  const resendEmailVerification = async (): Promise<{ success: boolean; message: string; cooldownRemaining?: number }> => {
+    return sendVerificationOtp();
+  };
+
+  // Check Email Verification Status method
+  const checkEmailVerification = async (): Promise<boolean> => {
+    const cleanEmail = (user?.email || auth.currentUser?.email || '').trim().toLowerCase();
+    const uid = user?.id || auth.currentUser?.uid || '';
+    if (!cleanEmail && !uid) return false;
+
+    const isAdmin = isTeamStockAdmin(cleanEmail);
+    if (isAdmin) {
+      setIsEmailVerified(true);
+      setUser((prev) => (prev ? { ...prev, verifiedEmail: true } : prev));
+      return true;
+    }
+
+    // 1. Check server verification status
+    try {
+      const res = await fetch('/api/auth/check-verification-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, uid }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.isVerified) {
+          setIsEmailVerified(true);
+          setUser((prev) => (prev ? { ...prev, verifiedEmail: true } : prev));
+          return true;
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    // 2. Also check Firebase client user reload
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      try {
+        await currentUser.reload();
+        if (currentUser.emailVerified) {
+          setIsEmailVerified(true);
+          setUser((prev) => (prev ? { ...prev, verifiedEmail: true } : prev));
+          return true;
+        }
+      } catch (e) {}
+    }
+
+    return isEmailVerified || Boolean(user?.verifiedEmail);
   };
 
   const logout = async (): Promise<void> => {
@@ -2629,18 +2753,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       snapshot.forEach((docSnap) => {
         const uData = docSnap.data();
         const uEmail = (uData.email || '').toLowerCase();
-        const isAdmin = isTeamStockAdmin(uEmail) || uData.role === 'owner' || uData.role === 'Owner' || uData.role === 'admin' || uData.role === 'PlatformOwner';
+        const isPlatformSuperAdmin = isTeamStockAdmin(uEmail) || uData.role === 'PlatformOwner' || uData.role === 'platformowner';
         let normalizedRole: UserRole = 'Manager';
-        if (isAdmin) {
+        if (uData.role === 'Owner' || uData.role === 'owner' || isPlatformSuperAdmin) {
           normalizedRole = 'Owner';
         } else if (uData.role === 'Staff' || uData.role === 'staff') {
           normalizedRole = 'Staff';
         } else if (uData.role === 'Accountant' || uData.role === 'accountant') {
           normalizedRole = 'Accountant';
+        } else if (uData.role === 'Cashier' || uData.role === 'cashier') {
+          normalizedRole = 'Cashier';
         } else {
           normalizedRole = 'Manager';
         }
-        const assignedPlan: SubscriptionPlan = isAdmin ? 'Lifetime' : ((uData.subscriptionPlan || uData.subscription || 'Free') as SubscriptionPlan);
+        const assignedPlan: SubscriptionPlan = isPlatformSuperAdmin ? 'Lifetime' : ((uData.subscriptionPlan || uData.subscription || 'Free') as SubscriptionPlan);
 
         list.push({
           id: docSnap.id || uData.uid || uData.id,
@@ -4836,6 +4962,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isEmailVerified,
         login,
         signup,
+        sendVerificationOtp,
+        verifyEmailOtp,
         resendEmailVerification,
         checkEmailVerification,
         logout,

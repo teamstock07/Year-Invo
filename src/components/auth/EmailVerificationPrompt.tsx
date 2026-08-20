@@ -1,19 +1,51 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Mail, CheckCircle2, RefreshCw, LogOut, Send, AlertCircle, ShieldAlert, Sparkles, Inbox } from 'lucide-react';
+import {
+  ShieldCheck,
+  RefreshCw,
+  LogOut,
+  Send,
+  AlertCircle,
+  CheckCircle2,
+  Inbox,
+  Clock,
+  KeyRound,
+  Sparkles,
+} from 'lucide-react';
 import { LanguageSelector } from '../common/LanguageSelector';
 
 export const EmailVerificationPrompt: React.FC = () => {
-  const { user, isEmailVerified, resendEmailVerification, checkEmailVerification, logout, language, t } = useApp();
+  const {
+    user,
+    verifyEmailOtp,
+    sendVerificationOtp,
+    checkEmailVerification,
+    logout,
+    language,
+  } = useApp();
+
   const isBn = language === 'bn';
+  const userEmail = (user?.email || '').trim().toLowerCase();
 
+  // 6-digit OTP state array
+  const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Action & loading states
+  const [verifyLoading, setVerifyLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
-  const [resendStatus, setResendStatus] = useState<{ success: boolean; message: string } | null>(null);
-  const [cooldown, setCooldown] = useState(0);
-  const [checkLoading, setCheckLoading] = useState(false);
-  const [checkMessage, setCheckMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [cooldown, setCooldown] = useState(60); // Initial 60s cooldown since code was sent on signup/login
 
-  // Countdown timer for resend cooldown
+  // Focus the first input box on mount
+  useEffect(() => {
+    if (inputRefs.current[0]) {
+      inputRefs.current[0].focus();
+    }
+  }, []);
+
+  // Cooldown countdown timer
   useEffect(() => {
     if (cooldown <= 0) return;
     const timer = setInterval(() => {
@@ -22,67 +54,183 @@ export const EmailVerificationPrompt: React.FC = () => {
     return () => clearInterval(timer);
   }, [cooldown]);
 
-  // Periodic automatic check in the background every 5 seconds
-  useEffect(() => {
-    const autoCheckInterval = setInterval(async () => {
-      try {
-        await checkEmailVerification();
-      } catch (err) {
-        // silent auto check
+  // Handle single digit input
+  const handleDigitChange = (index: number, value: string) => {
+    // Only accept numeric characters
+    const numericChar = value.replace(/[^0-9]/g, '');
+
+    const newDigits = [...digits];
+
+    if (!numericChar) {
+      newDigits[index] = '';
+      setDigits(newDigits);
+      return;
+    }
+
+    // If user typed or pasted more than 1 character directly into a box
+    if (numericChar.length > 1) {
+      handlePasteString(numericChar, index);
+      return;
+    }
+
+    newDigits[index] = numericChar;
+    setDigits(newDigits);
+    setErrorMessage(null);
+
+    // Auto-advance to next box if not on the last box
+    if (index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    } else {
+      // If 6th digit entered, auto submit if all filled
+      const fullCode = newDigits.join('');
+      if (fullCode.length === 6) {
+        submitVerification(fullCode);
       }
-    }, 5000);
+    }
+  };
 
-    return () => clearInterval(autoCheckInterval);
-  }, [checkEmailVerification]);
+  // Handle keyboard navigation (Backspace & Arrows)
+  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace') {
+      if (!digits[index] && index > 0) {
+        // Current box is empty, move back and clear previous
+        const newDigits = [...digits];
+        newDigits[index - 1] = '';
+        setDigits(newDigits);
+        inputRefs.current[index - 1]?.focus();
+      }
+    } else if (e.key === 'ArrowLeft' && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    } else if (e.key === 'ArrowRight' && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
 
-  const handleResend = async () => {
+  // Handle pasting full 6-digit code
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text');
+    handlePasteString(pastedData, 0);
+  };
+
+  const handlePasteString = (pastedText: string, startIndex: number = 0) => {
+    const cleanNumbers = pastedText.replace(/[^0-9]/g, '');
+    if (!cleanNumbers) return;
+
+    const newDigits = [...digits];
+    let writeIndex = startIndex;
+
+    for (let i = 0; i < cleanNumbers.length && writeIndex < 6; i++) {
+      newDigits[writeIndex] = cleanNumbers[i];
+      writeIndex++;
+    }
+
+    setDigits(newDigits);
+    setErrorMessage(null);
+
+    // Focus last populated box or next available box
+    const nextFocusIndex = Math.min(writeIndex, 5);
+    inputRefs.current[nextFocusIndex]?.focus();
+
+    // If all 6 digits populated, trigger verification
+    const fullCode = newDigits.join('');
+    if (fullCode.length === 6) {
+      submitVerification(fullCode);
+    }
+  };
+
+  // Submit 6-digit OTP verification
+  const submitVerification = async (codeToVerify?: string) => {
+    const fullCode = codeToVerify || digits.join('');
+    if (fullCode.length !== 6) {
+      setErrorMessage(
+        isBn
+          ? 'অনুগ্রহ করে সম্পূর্ণ ৬-ডিজিটের ভেরিফিকেশন কোডটি প্রবেশ করান।'
+          : 'Please enter the complete 6-digit verification code.'
+      );
+      return;
+    }
+
+    setVerifyLoading(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const result = await verifyEmailOtp(fullCode, userEmail);
+    setVerifyLoading(false);
+
+    if (result.success) {
+      setSuccessMessage(
+        isBn
+          ? 'ইমেইল সফলভাবে ভেরিফাই হয়েছে! সিস্টেমে প্রবেশ করা হচ্ছে...'
+          : 'Email verified successfully! Unlocking your dashboard...'
+      );
+      // Double check status to trigger app navigation
+      setTimeout(() => {
+        checkEmailVerification();
+      }, 800);
+    } else {
+      setErrorMessage(
+        result.message ||
+          (isBn
+            ? 'ভেরিফিকেশন কোডটি ভুল অথবা মেয়াদোত্তীর্ণ। আবার চেষ্টা করুন।'
+            : 'Invalid or expired verification code. Please check and try again.')
+      );
+    }
+  };
+
+  // Resend 6-digit verification code
+  const handleResendCode = async () => {
     if (cooldown > 0 || resendLoading) return;
-    setResendLoading(true);
-    setResendStatus(null);
-    setCheckMessage(null);
 
-    const res = await resendEmailVerification();
+    setResendLoading(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const res = await sendVerificationOtp(userEmail, user?.fullName || user?.ownerName);
     setResendLoading(false);
-    setResendStatus(res);
 
     if (res.success) {
-      setCooldown(60); // 60 seconds cooldown
-    } else if (res.cooldownRemaining) {
-      setCooldown(res.cooldownRemaining);
-    }
-  };
-
-  const handleCheckNow = async () => {
-    if (checkLoading) return;
-    setCheckLoading(true);
-    setCheckMessage(null);
-    setResendStatus(null);
-
-    const isNowVerified = await checkEmailVerification();
-    setCheckLoading(false);
-
-    if (isNowVerified) {
-      setCheckMessage(isBn ? 'ইমেইল সফলভাবে ভেরিফাই হয়েছে! সিস্টেমে প্রবেশ করা হচ্ছে...' : 'Email verified successfully! Entering dashboard...');
+      setSuccessMessage(
+        isBn
+          ? 'নতুন ভেরিফিকেশন কোড পাঠানো হয়েছে! আপনার ইনবক্স চেক করুন।'
+          : 'A new 6-digit verification code has been sent to your email.'
+      );
+      setCooldown(60);
+      setDigits(['', '', '', '', '', '']);
+      inputRefs.current[0]?.focus();
     } else {
-      setCheckMessage(isBn ? 'ইমেইল এখনো ভেরিফাই হয়নি। দয়া করে আপনার ইনবক্স অথবা স্প্যাম ফোল্ডার চেক করুন।' : 'Email is not verified yet. Please check your inbox or spam folder and click the verification link.');
+      setErrorMessage(
+        res.message ||
+          (isBn
+            ? 'কোড পাঠাতে ব্যর্থ হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর চেষ্টা করুন।'
+            : 'Failed to send verification code. Please try again.')
+      );
+      if (res.cooldownRemaining) {
+        setCooldown(res.cooldownRemaining);
+      }
     }
   };
-
-  const userEmail = user?.email || 'your email';
 
   return (
     <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex flex-col items-center justify-center p-4 sm:p-6 relative overflow-hidden font-sans antialiased">
-      {/* Subtle Background Glows */}
-      <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-gradient-to-b from-[#ff5c01]/10 via-purple-600/5 to-transparent blur-3xl rounded-full" />
-      <div className="pointer-events-none absolute bottom-0 right-0 w-[400px] h-[300px] bg-blue-600/5 blur-3xl rounded-full" />
+      {/* Background Decorative Blur Gradients */}
+      <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[650px] h-[350px] bg-gradient-to-b from-[#ff5c01]/15 via-purple-600/5 to-transparent blur-3xl rounded-full" />
+      <div className="pointer-events-none absolute bottom-0 right-0 w-[450px] h-[350px] bg-blue-600/10 blur-3xl rounded-full" />
 
-      {/* Top Bar with Language Selector & Logout */}
+      {/* Top Header Bar */}
       <div className="w-full max-w-lg flex items-center justify-between mb-4 z-10">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#ff5c01] to-[#ff8038] flex items-center justify-center font-black text-white text-sm shadow-md shadow-[#ff5c01]/20">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#ff5c01] to-[#ff8038] flex items-center justify-center font-black text-white text-base shadow-lg shadow-[#ff5c01]/30">
             Y
           </div>
-          <span className="font-extrabold text-sm tracking-tight text-white">YearInvo</span>
+          <div>
+            <span className="font-extrabold text-sm tracking-tight text-white block leading-none">
+              YearInvo
+            </span>
+            <span className="text-[10px] text-slate-400 font-medium tracking-wide">
+              Cloud POS &amp; Inventory
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <LanguageSelector variant="dropdown" />
@@ -97,128 +245,158 @@ export const EmailVerificationPrompt: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Verification Card */}
-      <div className="w-full max-w-lg bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/60 relative z-10 space-y-6">
-        {/* Top Icon Badge */}
+      {/* Main OTP Verification Card */}
+      <div className="w-full max-w-lg bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/80 relative z-10 space-y-6">
+        {/* Top Badge & Header */}
         <div className="text-center space-y-3">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500/20 via-[#ff5c01]/20 to-purple-500/20 border border-[#ff5c01]/30 flex items-center justify-center mx-auto text-[#ff8038] shadow-inner relative">
-            <Mail className="w-8 h-8 text-[#ff8038] animate-pulse" />
-            <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center text-[10px] font-black">
-              !
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#ff5c01]/20 via-amber-500/15 to-purple-500/20 border border-[#ff5c01]/30 flex items-center justify-center mx-auto text-[#ff8038] shadow-inner relative">
+            <KeyRound className="w-8 h-8 text-[#ff8038] animate-pulse" />
+            <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-[10px] font-black shadow-md">
+              <ShieldCheck className="w-3 h-3 text-white" />
             </div>
           </div>
 
           <div>
-            <span className="px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[11px] font-extrabold uppercase tracking-wider inline-block">
-              {isBn ? 'ইমেইল ভেরিফিকেশন প্রয়োজন' : 'Email Verification Required'}
+            <span className="px-3 py-1 rounded-full bg-[#ff5c01]/10 border border-[#ff5c01]/30 text-[#ff8038] text-[11px] font-extrabold uppercase tracking-wider inline-block">
+              {isBn ? 'ইমেইল ওটিপি ভেরিফিকেশন' : 'Email OTP Verification'}
             </span>
           </div>
 
           <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            {isBn ? 'আপনার ইমেইল ভেরিফাই করুন' : 'Verify Your Email Address'}
+            {isBn ? '৬-ডিজিট কোডটি প্রবেশ করান' : 'Enter 6-Digit Verification Code'}
           </h2>
 
           <p className="text-xs sm:text-sm text-slate-400 leading-relaxed max-w-md mx-auto">
             {isBn
-              ? 'আমরা আপনার ইমেইল এড্রেসে একটি ভেরিফিকেশন লিংক পাঠিয়েছি। আপনার অ্যাকাউন্টের নিরাপত্তা নিশ্চিত করতে লিংকে ক্লিক করে ভেরিফাই করুন।'
-              : 'We have sent a verification email to your registered address. Please click the link inside the email to verify and unlock your full business dashboard.'}
+              ? 'আপনার ইমেইলে প্রেরিত ৬-ডিজিটের ভেরিফিকেশন কোডটি নিচে লিখে আপনার অ্যাকাউন্ট সক্রিয় করুন।'
+              : 'We have sent a 6-digit verification code to your email address. Enter the code below to verify your account.'}
           </p>
         </div>
 
-        {/* Email Address Highlight Card */}
-        <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-[#ff8038]">
-            <Inbox className="w-5 h-5" />
+        {/* Registered Email Highlighting Card */}
+        <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-3.5 sm:p-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-[#ff8038] shrink-0">
+              <Inbox className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                {isBn ? 'কোড পাঠানো হয়েছে' : 'Code Sent To'}
+              </p>
+              <p className="text-sm font-black text-white truncate font-mono">{userEmail}</p>
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              {isBn ? 'রেজিস্টার্ড ইমেইল' : 'Registered Email Address'}
-            </p>
-            <p className="text-sm font-black text-white truncate font-mono">{userEmail}</p>
-          </div>
+          <button
+            type="button"
+            onClick={() => logout()}
+            className="text-[11px] font-bold text-[#ff8038] hover:underline shrink-0 cursor-pointer"
+          >
+            {isBn ? 'ইমেইল পরিবর্তন' : 'Change Email'}
+          </button>
         </div>
 
         {/* Status Alerts */}
-        {resendStatus && (
+        {errorMessage && (
+          <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-medium flex items-start gap-2.5 animate-in fade-in">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
+            <div className="flex-1 leading-relaxed">{errorMessage}</div>
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium flex items-start gap-2.5 animate-in fade-in">
+            <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
+            <div className="flex-1 leading-relaxed">{successMessage}</div>
+          </div>
+        )}
+
+        {/* 6-Digit OTP Inputs */}
+        <div className="space-y-3">
+          <label className="block text-center text-xs font-bold text-slate-300 uppercase tracking-wider">
+            {isBn ? '৬-ডিজিট সিকিউরিটি কোড' : '6-Digit Security Code'}
+          </label>
+
           <div
-            className={`p-3.5 rounded-2xl text-xs font-medium flex items-start gap-2.5 animate-in fade-in ${
-              resendStatus.success
-                ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
-                : 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
-            }`}
+            className="flex items-center justify-center gap-2 sm:gap-3"
+            onPaste={handlePaste}
           >
-            {resendStatus.success ? (
-              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
-            ) : (
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
-            )}
-            <div className="flex-1 leading-relaxed">{resendStatus.message}</div>
+            {digits.map((digit, index) => (
+              <input
+                key={index}
+                ref={(el) => {
+                  inputRefs.current[index] = el;
+                }}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={1}
+                value={digit}
+                onChange={(e) => handleDigitChange(index, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(index, e)}
+                disabled={verifyLoading}
+                className={`w-11 h-14 sm:w-14 sm:h-16 text-center text-2xl sm:text-3xl font-black font-mono rounded-2xl bg-slate-950 border transition-all shadow-inner focus:outline-none ${
+                  digit
+                    ? 'border-[#ff5c01] text-white bg-slate-900/80 shadow-[#ff5c01]/10 ring-2 ring-[#ff5c01]/20'
+                    : 'border-slate-800 text-slate-100 hover:border-slate-700 focus:border-[#ff5c01] focus:ring-2 focus:ring-[#ff5c01]/30'
+                } disabled:opacity-50`}
+              />
+            ))}
           </div>
-        )}
 
-        {checkMessage && (
-          <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs font-medium flex items-start gap-2.5 animate-in fade-in">
-            <Sparkles className="w-4 h-4 shrink-0 mt-0.5 text-indigo-400" />
-            <div className="flex-1 leading-relaxed">{checkMessage}</div>
+          <div className="flex items-center justify-center gap-1.5 text-xs text-amber-400 font-semibold pt-1">
+            <Clock className="w-3.5 h-3.5" />
+            <span>
+              {isBn ? 'কোডের মেয়াদ ১০ মিনিট' : 'Code expires in 10 minutes'}
+            </span>
           </div>
-        )}
-
-        {/* Quick Instructions */}
-        <div className="bg-slate-950/50 border border-slate-800/60 rounded-2xl p-4 space-y-2 text-xs text-slate-400">
-          <p className="font-bold text-slate-300 flex items-center gap-1.5">
-            <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
-            <span>{isBn ? 'ইমেইল খুঁজে পাচ্ছেন না?' : "Can't find the verification email?"}</span>
-          </p>
-          <ul className="list-disc pl-5 space-y-1 text-slate-400 text-[11px] leading-relaxed">
-            <li>{isBn ? 'আপনার স্প্যাম (Spam) বা জাঙ্ক (Junk) ফোল্ডারটি চেক করুন।' : 'Check your Spam or Junk folder.'}</li>
-            <li>{isBn ? 'ফায়ারবেস থেকে পাঠানো ইমেইলে "Verify" বাটনে ক্লিক করুন।' : 'Click the verification link provided in the email from Firebase.'}</li>
-            <li>{isBn ? 'ভেরিফাই সম্পন্ন হলে নিচের "যাচাই করুন" বাটনে ক্লিক করুন।' : 'Once verified, click "I\'ve Verified My Email — Check Again" below.'}</li>
-          </ul>
         </div>
 
         {/* Action Buttons */}
         <div className="space-y-3 pt-2">
-          {/* Main Primary: Check Status Again */}
+          {/* Primary: Verify Code */}
           <button
             type="button"
-            onClick={handleCheckNow}
-            disabled={checkLoading}
-            className="w-full py-3.5 px-4 bg-gradient-to-r from-[#ff5c01] to-[#ff8038] hover:from-[#e05100] hover:to-[#e07030] text-white font-extrabold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#ff5c01]/25 cursor-pointer disabled:opacity-60"
+            onClick={() => submitVerification()}
+            disabled={verifyLoading || digits.join('').length !== 6}
+            className="w-full py-3.5 px-4 bg-gradient-to-r from-[#ff5c01] to-[#ff8038] hover:from-[#e05100] hover:to-[#e07030] text-white font-extrabold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#ff5c01]/25 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <RefreshCw className={`w-4 h-4 ${checkLoading ? 'animate-spin' : ''}`} />
+            <ShieldCheck className={`w-4 h-4 ${verifyLoading ? 'animate-spin' : ''}`} />
             <span>
-              {checkLoading
-                ? (isBn ? 'স্ট্যাটাস যাচাই করা হচ্ছে...' : 'Checking Verification Status...')
-                : (isBn ? "আমি ইমেইল ভেরিফাই করেছি — যাচাই করুন" : "I've Verified My Email — Check Again")}
+              {verifyLoading
+                ? (isBn ? 'কোড যাচাই করা হচ্ছে...' : 'Verifying Code...')
+                : (isBn ? 'কোড যাচাই করে ড্যাশবোর্ডে প্রবেশ করুন' : 'Verify Code & Unlock Dashboard')}
             </span>
           </button>
 
-          {/* Secondary: Resend Verification Email */}
+          {/* Secondary: Resend Verification Code */}
           <button
             type="button"
-            onClick={handleResend}
+            onClick={handleResendCode}
             disabled={resendLoading || cooldown > 0}
             className="w-full py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold rounded-2xl text-xs transition-all flex items-center justify-center gap-2 border border-slate-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Send className="w-3.5 h-3.5 text-[#ff8038]" />
             <span>
               {resendLoading
-                ? (isBn ? 'পাঠানো হচ্ছে...' : 'Sending Verification Email...')
+                ? (isBn ? 'পাঠানো হচ্ছে...' : 'Sending Code...')
                 : cooldown > 0
-                ? (isBn ? `পুনরায় পাঠাতে অপেক্ষা করুন (${cooldown}s)` : `Resend Available in ${cooldown}s`)
-                : (isBn ? 'ভেরিফিকেশন ইমেইল পুনরায় পাঠান' : 'Resend Verification Email')}
+                ? (isBn ? `কোড পুনরায় পাঠাতে অপেক্ষা করুন (${cooldown}s)` : `Resend Code in ${cooldown}s`)
+                : (isBn ? 'ভেরিফিকেশন কোড পুনরায় পাঠান' : 'Resend Verification Code')}
             </span>
           </button>
         </div>
 
-        {/* Bottom helper footer */}
-        <div className="text-center pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
-          <span>{isBn ? 'অটো-ডিটেকশন প্রতি ৫ সেকেন্ডে সক্রিয়' : 'Auto-detecting verification status...'}</span>
+        {/* Footer Notes */}
+        <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
+          <span className="flex items-center gap-1">
+            <Sparkles className="w-3 h-3 text-[#ff8038]" />
+            {isBn ? 'স্প্যাম ফোল্ডার চেক করুন' : 'Check Spam folder if not in Inbox'}
+          </span>
           <button
             onClick={() => logout()}
-            className="text-[#ff8038] hover:underline font-bold cursor-pointer"
+            className="text-slate-400 hover:text-rose-400 font-bold cursor-pointer transition-colors"
           >
-            {isBn ? 'অন্য অ্যাকাউন্টে লগইন' : 'Use Different Account'}
+            {isBn ? 'লগআউট' : 'Sign Out'}
           </button>
         </div>
       </div>

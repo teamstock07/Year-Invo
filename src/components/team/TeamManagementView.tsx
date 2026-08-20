@@ -1,15 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   TeamMember,
   TeamRole,
   TeamPermissions,
+  TeamInvitation,
   roleDefaultPermissions,
 } from '../../types';
 import {
   Users,
   UserPlus,
-  Shield,
   ShieldCheck,
   UserCheck,
   UserX,
@@ -22,11 +22,17 @@ import {
   Search,
   CheckCircle2,
   XCircle,
-  HelpCircle,
   Clock,
   Key,
   X,
   Info,
+  Send,
+  RotateCw,
+  Ban,
+  AlertCircle,
+  Loader2,
+  Inbox,
+  Check,
 } from 'lucide-react';
 
 const PERMISSION_GROUPS: {
@@ -179,9 +185,7 @@ const PERMISSION_GROUPS: {
 export const TeamManagementView: React.FC = () => {
   const {
     user,
-    t,
-    language,
-    theme,
+    settings,
     teamMembers: contextTeamMembers,
     saveTeamMembers: contextSaveTeamMembers,
   } = useApp();
@@ -198,9 +202,16 @@ export const TeamManagementView: React.FC = () => {
     } catch (e) {}
   };
 
+  const [activeTab, setActiveTab] = useState<'members' | 'invitations'>('members');
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+
+  // Invitations state
+  const [invitations, setInvitations] = useState<TeamInvitation[]>([]);
+  const [loadingInvitations, setLoadingInvitations] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
   // Modals state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -214,6 +225,33 @@ export const TeamManagementView: React.FC = () => {
   const [formStatus, setFormStatus] = useState<'Active' | 'Invited' | 'Disabled'>('Active');
   const [formPermissions, setFormPermissions] = useState<TeamPermissions>(roleDefaultPermissions.Cashier);
 
+  // Invitation Submission status
+  const [isSending, setIsSending] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Load invitations from server
+  const fetchInvitations = async () => {
+    if (!user?.id) return;
+    try {
+      setLoadingInvitations(true);
+      const res = await fetch(`/api/team/invitations?storeId=${encodeURIComponent(user.id)}`);
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.invitations)) {
+        setInvitations(data.invitations);
+      }
+    } catch (e) {
+      console.warn('[Invitations] Fetch notice:', e);
+    } finally {
+      setLoadingInvitations(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchInvitations();
+  }, [user?.id]);
+
   const openAddModal = () => {
     setEditingMember(null);
     setFormName('');
@@ -222,6 +260,8 @@ export const TeamManagementView: React.FC = () => {
     setFormRole('Cashier');
     setFormStatus('Active');
     setFormPermissions(roleDefaultPermissions.Cashier);
+    setFormError(null);
+    setFormSuccess(null);
     setIsModalOpen(true);
   };
 
@@ -232,6 +272,8 @@ export const TeamManagementView: React.FC = () => {
     setFormPhone(member.phone || '');
     setFormRole(member.role);
     setFormStatus(member.status);
+    setFormError(null);
+    setFormSuccess(null);
     const effectivePermissions = {
       ...roleDefaultPermissions[member.role],
       ...(member.customPermissions || {}),
@@ -252,20 +294,28 @@ export const TeamManagementView: React.FC = () => {
     }));
   };
 
-  const handleSaveMember = (e: React.FormEvent) => {
+  // Submit Handler: Creates team member and delivers email invitation via Resend
+  const handleSaveMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName.trim() || !formEmail.trim()) {
-      alert('Please provide staff name and email address.');
+    setFormError(null);
+    setFormSuccess(null);
+
+    const cleanName = formName.trim();
+    const cleanEmail = formEmail.trim().toLowerCase();
+
+    if (!cleanName || !cleanEmail) {
+      setFormError('Please provide a staff name and a valid email address.');
       return;
     }
 
     if (editingMember) {
+      // Direct local update of existing team member permissions
       const updated = teamMembers.map((m) =>
         m.id === editingMember.id
           ? {
               ...m,
-              name: formName.trim(),
-              email: formEmail.trim().toLowerCase(),
+              name: cleanName,
+              email: cleanEmail,
               phone: formPhone.trim(),
               role: formRole,
               status: formStatus,
@@ -274,22 +324,137 @@ export const TeamManagementView: React.FC = () => {
           : m
       );
       saveTeamMembers(updated);
-    } else {
-      const newMember: TeamMember = {
-        id: `team-${Date.now()}`,
-        name: formName.trim(),
-        email: formEmail.trim().toLowerCase(),
-        phone: formPhone.trim(),
-        role: formRole,
-        status: formStatus,
-        joinedDate: new Date().toISOString().split('T')[0],
-        lastActive: 'Invited',
-        customPermissions: formPermissions,
-      };
-      saveTeamMembers([...teamMembers, newMember]);
+      setIsModalOpen(false);
+      return;
     }
 
-    setIsModalOpen(false);
+    // New Invitation Flow -> Calls Server Endpoint to send email via Resend
+    setIsSending(true);
+
+    try {
+      const storeId = user?.id || 'default_store';
+      const storeName = settings.brandName || user?.storeName || user?.name || 'Your Store';
+      const ownerName = user?.name || 'Store Owner';
+
+      const response = await fetch('/api/team/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storeId,
+          storeName,
+          name: cleanName,
+          email: cleanEmail,
+          phone: formPhone.trim(),
+          role: formRole,
+          customPermissions: formPermissions,
+          invitedBy: storeId,
+          invitedByName: ownerName,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to send invitation email.');
+      }
+
+      setFormSuccess(`Invitation email successfully sent to ${cleanEmail}!`);
+
+      // Refresh invitations list and local team members
+      await fetchInvitations();
+
+      const newMember: TeamMember = {
+        id: `team-${Date.now()}`,
+        name: cleanName,
+        email: cleanEmail,
+        phone: formPhone.trim(),
+        role: formRole,
+        status: 'Invited',
+        joinedDate: new Date().toISOString().split('T')[0],
+        lastActive: 'Invited',
+        invitedBy: ownerName,
+        invitationId: data.invitation?.id,
+        customPermissions: formPermissions,
+      };
+
+      const exists = teamMembers.some((m) => m.email.toLowerCase() === cleanEmail);
+      if (!exists) {
+        saveTeamMembers([...teamMembers, newMember]);
+      }
+
+      setTimeout(() => {
+        setIsModalOpen(false);
+        setIsSending(false);
+        setActiveTab('invitations');
+      }, 1200);
+    } catch (err: any) {
+      setFormError(err.message || 'Email delivery failed. Please check server configuration.');
+      setIsSending(false);
+    }
+  };
+
+  // Resend invitation action
+  const handleResendInvite = async (invitationId: string, email: string) => {
+    if (!user?.id) return;
+    setResendingId(invitationId);
+    setActionNotice(null);
+
+    try {
+      const res = await fetch('/api/team/resend-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invitationId,
+          storeId: user.id,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to resend invitation email.');
+      }
+
+      setActionNotice({ type: 'success', message: `Invitation email resent to ${email}` });
+      await fetchInvitations();
+    } catch (err: any) {
+      setActionNotice({ type: 'error', message: err.message || 'Failed to resend invitation.' });
+    } finally {
+      setResendingId(null);
+    }
+  };
+
+  // Revoke invitation action
+  const handleRevokeInvite = async (invitationId: string, name: string) => {
+    if (!user?.id) return;
+    if (!confirm(`Are you sure you want to revoke the invitation for "${name}"? They will no longer be able to accept it.`)) {
+      return;
+    }
+
+    setRevokingId(invitationId);
+    setActionNotice(null);
+
+    try {
+      const res = await fetch('/api/team/revoke-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invitationId,
+          storeId: user.id,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to revoke invitation.');
+      }
+
+      setActionNotice({ type: 'success', message: `Invitation for ${name} has been revoked.` });
+      await fetchInvitations();
+    } catch (err: any) {
+      setActionNotice({ type: 'error', message: err.message || 'Failed to revoke invitation.' });
+    } finally {
+      setRevokingId(null);
+    }
   };
 
   const handleDeleteMember = (id: string, name: string) => {
@@ -320,8 +485,18 @@ export const TeamManagementView: React.FC = () => {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
+  const filteredInvitations = invitations.filter((inv) => {
+    const matchesSearch =
+      inv.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      inv.invitedEmail.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesRole = roleFilter === 'all' || inv.role === roleFilter;
+    const matchesStatus = statusFilter === 'all' || inv.status === statusFilter;
+    return matchesSearch && matchesRole && matchesStatus;
+  });
+
   const activeCount = teamMembers.filter((m) => m.status === 'Active').length;
-  const invitedCount = teamMembers.filter((m) => m.status === 'Invited').length;
+  const pendingInvitesCount = invitations.filter((i) => i.status === 'pending').length;
+  const acceptedInvitesCount = invitations.filter((i) => i.status === 'accepted').length;
   const disabledCount = teamMembers.filter((m) => m.status === 'Disabled').length;
 
   return (
@@ -332,7 +507,7 @@ export const TeamManagementView: React.FC = () => {
           <div>
             <div className="flex items-center gap-2 mb-1.5">
               <span className="text-[11px] font-bold uppercase tracking-wider text-[#ff5c01] bg-[#ff5c01]/10 px-2.5 py-0.5 rounded-full border border-[#ff5c01]/20">
-                Workforce & Access Control
+                Workforce &amp; Access Control
               </span>
             </div>
             <h1 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2.5">
@@ -340,7 +515,7 @@ export const TeamManagementView: React.FC = () => {
               <span>Team Management</span>
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xl">
-              Invite cashiers, managers, and accountants. Configure granular role permissions to keep your store data secure.
+              Invite cashiers, managers, and staff with secure single-use email invitations powered by Resend.
             </p>
           </div>
 
@@ -353,25 +528,84 @@ export const TeamManagementView: React.FC = () => {
           </button>
         </div>
 
+        {/* Action Notice Alert */}
+        {actionNotice && (
+          <div
+            className={`mt-4 p-3 rounded-xl border flex items-center justify-between text-xs transition-all ${
+              actionNotice.type === 'success'
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {actionNotice.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 shrink-0" />
+              )}
+              <span>{actionNotice.message}</span>
+            </div>
+            <button
+              onClick={() => setActionNotice(null)}
+              className="p-1 hover:bg-white/10 rounded-lg"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* Quick Metric Badges */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-slate-200/80 dark:border-slate-800/80">
           <div className="glass-panel rounded-2xl p-3.5">
-            <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Total Staff</p>
-            <p className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">{teamMembers.length}</p>
+            <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Active Staff</p>
+            <p className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">{activeCount}</p>
           </div>
           <div className="glass-panel rounded-2xl p-3.5">
-            <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">Active Members</p>
-            <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{activeCount}</p>
+            <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">Pending Invites</p>
+            <p className="text-xl font-bold text-amber-600 dark:text-amber-400 mt-0.5">{pendingInvitesCount}</p>
           </div>
           <div className="glass-panel rounded-2xl p-3.5">
-            <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">Invited / Pending</p>
-            <p className="text-xl font-bold text-amber-600 dark:text-amber-400 mt-0.5">{invitedCount}</p>
+            <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">Accepted Invites</p>
+            <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{acceptedInvitesCount}</p>
           </div>
           <div className="glass-panel rounded-2xl p-3.5">
-            <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400">Disabled Accounts</p>
+            <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400">Disabled Staff</p>
             <p className="text-xl font-bold text-rose-600 dark:text-rose-400 mt-0.5">{disabledCount}</p>
           </div>
         </div>
+      </div>
+
+      {/* Tabs Switcher */}
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+        <button
+          onClick={() => setActiveTab('members')}
+          className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+            activeTab === 'members'
+              ? 'bg-[#ff5c01] text-white shadow-sm'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          <span>Active Staff Members ({teamMembers.length})</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('invitations');
+            fetchInvitations();
+          }}
+          className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+            activeTab === 'invitations'
+              ? 'bg-[#ff5c01] text-white shadow-sm'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Mail className="w-4 h-4" />
+          <span>Email Invitations ({invitations.length})</span>
+          {pendingInvitesCount > 0 && (
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+          )}
+        </button>
       </div>
 
       {/* Filter & Search Bar */}
@@ -382,7 +616,7 @@ export const TeamManagementView: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by name, email or phone..."
+            placeholder="Search by name or email..."
             className="w-full bg-slate-100/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#ff5c01]"
           />
         </div>
@@ -408,168 +642,322 @@ export const TeamManagementView: React.FC = () => {
             className="bg-slate-100/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-xs text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-[#ff5c01] cursor-pointer"
           >
             <option value="all">All Status</option>
-            <option value="Active">Active</option>
-            <option value="Invited">Invited</option>
-            <option value="Disabled">Disabled</option>
+            {activeTab === 'members' ? (
+              <>
+                <option value="Active">Active</option>
+                <option value="Invited">Invited</option>
+                <option value="Disabled">Disabled</option>
+              </>
+            ) : (
+              <>
+                <option value="pending">Pending</option>
+                <option value="accepted">Accepted</option>
+                <option value="expired">Expired</option>
+                <option value="revoked">Revoked</option>
+              </>
+            )}
           </select>
         </div>
       </div>
 
-      {/* Staff Members List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredMembers.map((member) => {
-          const isOwner = member.role === 'Owner';
-          return (
-            <div
-              key={member.id}
-              className={`glass-card glass-hover rounded-2xl p-5 flex flex-col justify-between transition-all relative ${
-                member.status === 'Disabled'
-                  ? 'border-rose-900/40 opacity-70'
-                  : ''
-              }`}
-            >
-              <div>
-                {/* Card Top Row */}
-                <div className="flex items-start justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#ff5c01] to-amber-500 flex items-center justify-center font-bold text-white text-base shadow-sm">
-                      {member.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <span>{member.name}</span>
-                        {isOwner && <ShieldCheck className="w-4 h-4 text-[#ff5c01]" />}
-                      </h3>
-                      <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block mt-0.5">
-                        {member.role}
+      {/* TAB 1: Staff Members Grid */}
+      {activeTab === 'members' && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredMembers.map((member) => {
+              const isOwner = member.role === 'Owner';
+              return (
+                <div
+                  key={member.id}
+                  className={`glass-card glass-hover rounded-2xl p-5 flex flex-col justify-between transition-all relative ${
+                    member.status === 'Disabled'
+                      ? 'border-rose-900/40 opacity-70'
+                      : ''
+                  }`}
+                >
+                  <div>
+                    {/* Card Top Row */}
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#ff5c01] to-amber-500 flex items-center justify-center font-bold text-white text-base shadow-sm">
+                          {member.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                            <span>{member.name}</span>
+                            {isOwner && <ShieldCheck className="w-4 h-4 text-[#ff5c01]" />}
+                          </h3>
+                          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block mt-0.5">
+                            {member.role}
+                          </span>
+                        </div>
+                      </div>
+
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          member.status === 'Active'
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            : member.status === 'Invited'
+                            ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                            : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                        }`}
+                      >
+                        {member.status}
                       </span>
                     </div>
+
+                    {/* Contact Details */}
+                    <div className="space-y-1.5 py-3 border-y border-slate-800 text-xs text-slate-300">
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                        <span className="truncate">{member.email}</span>
+                      </div>
+                      {member.phone && (
+                        <div className="flex items-center gap-2">
+                          <Phone className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                          <span>{member.phone}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 text-slate-400 text-[11px]">
+                        <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                        <span>Joined: {member.joinedDate}</span>
+                      </div>
+                    </div>
+
+                    {/* Permissions Summary Pills */}
+                    <div className="mt-3">
+                      <p className="text-[10px] font-bold uppercase text-slate-400 mb-1.5">
+                        Access Scope
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {isOwner ? (
+                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#ff5c01]/15 text-[#ff5c01] font-bold">
+                            Full Administrator Access
+                          </span>
+                        ) : (
+                          <>
+                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-300">
+                              {member.role} Preset
+                            </span>
+                            {member.customPermissions?.payroll && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-300 font-semibold">
+                                Payroll
+                              </span>
+                            )}
+                            {member.customPermissions?.pos && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-300 font-semibold">
+                                POS Counter
+                              </span>
+                            )}
+                            {member.customPermissions?.expenses && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 font-semibold">
+                                Expenses
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      member.status === 'Active'
-                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                        : member.status === 'Invited'
-                        ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                        : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                    }`}
-                  >
-                    {member.status}
-                  </span>
-                </div>
+                  {/* Action Buttons */}
+                  {!isOwner && (
+                    <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleStatus(member.id)}
+                        className={`text-xs font-semibold px-2.5 py-1.5 rounded-xl border transition-colors flex items-center gap-1.5 cursor-pointer ${
+                          member.status === 'Active'
+                            ? 'border-amber-700/50 bg-amber-950/20 text-amber-300 hover:bg-amber-900/30'
+                            : 'border-emerald-700/50 bg-emerald-950/20 text-emerald-300 hover:bg-emerald-900/30'
+                        }`}
+                      >
+                        {member.status === 'Active' ? (
+                          <>
+                            <UserX className="w-3.5 h-3.5" />
+                            <span>Disable</span>
+                          </>
+                        ) : (
+                          <>
+                            <UserCheck className="w-3.5 h-3.5" />
+                            <span>Activate</span>
+                          </>
+                        )}
+                      </button>
 
-                {/* Contact Details */}
-                <div className="space-y-1.5 py-3 border-y border-slate-800 text-xs text-slate-300">
-                  <div className="flex items-center gap-2">
-                    <Mail className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                    <span className="truncate">{member.email}</span>
-                  </div>
-                  {member.phone && (
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                      <span>{member.phone}</span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(member)}
+                          className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                          title="Edit Permissions"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteMember(member.id, member.name)}
+                          className="p-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 rounded-xl transition-colors cursor-pointer"
+                          title="Delete Member"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   )}
-                  <div className="flex items-center gap-2 text-slate-400 text-[11px]">
-                    <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                    <span>Joined: {member.joinedDate}</span>
-                  </div>
                 </div>
+              );
+            })}
+          </div>
 
-                {/* Permissions Summary Pills */}
-                <div className="mt-3">
-                  <p className="text-[10px] font-bold uppercase text-slate-400 mb-1.5">
-                    Access Scope
-                  </p>
-                  <div className="flex flex-wrap gap-1">
-                    {isOwner ? (
-                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#ff5c01]/15 text-[#ff5c01] font-bold">
-                        Full Administrator Access
-                      </span>
-                    ) : (
-                      <>
-                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-300">
-                          {member.role} Preset
-                        </span>
-                        {member.customPermissions?.payroll && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-300 font-semibold">
-                            Payroll
-                          </span>
-                        )}
-                        {member.customPermissions?.pos && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-300 font-semibold">
-                            POS Counter
-                          </span>
-                        )}
-                        {member.customPermissions?.expenses && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 font-semibold">
-                            Expenses
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              {!isOwner && (
-                <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleToggleStatus(member.id)}
-                    className={`text-xs font-semibold px-2.5 py-1.5 rounded-xl border transition-colors flex items-center gap-1.5 cursor-pointer ${
-                      member.status === 'Active'
-                        ? 'border-amber-700/50 bg-amber-950/20 text-amber-300 hover:bg-amber-900/30'
-                        : 'border-emerald-700/50 bg-emerald-950/20 text-emerald-300 hover:bg-emerald-900/30'
-                    }`}
-                  >
-                    {member.status === 'Active' ? (
-                      <>
-                        <UserX className="w-3.5 h-3.5" />
-                        <span>Disable</span>
-                      </>
-                    ) : (
-                      <>
-                        <UserCheck className="w-3.5 h-3.5" />
-                        <span>Activate</span>
-                      </>
-                    )}
-                  </button>
-
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => openEditModal(member)}
-                      className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
-                      title="Edit Permissions"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteMember(member.id, member.name)}
-                      className="p-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 rounded-xl transition-colors cursor-pointer"
-                      title="Delete Member"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              )}
+          {filteredMembers.length === 0 && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center">
+              <Users className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+              <h3 className="text-base font-bold text-white">No Team Members Found</h3>
+              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                Try adjusting your search criteria or click "Invite Team Member" to send an email invitation.
+              </p>
             </div>
-          );
-        })}
-      </div>
+          )}
+        </>
+      )}
 
-      {filteredMembers.length === 0 && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center">
-          <Users className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-          <h3 className="text-base font-bold text-white">No Team Members Found</h3>
-          <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-            Try adjusting your search criteria or click "Invite Team Member" to add a new staff account.
-          </p>
+      {/* TAB 2: Email Invitations List */}
+      {activeTab === 'invitations' && (
+        <div className="space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-[#ff5c01]" />
+                <h3 className="text-sm font-bold text-white">Sent Email Invitations</h3>
+              </div>
+              <button
+                onClick={fetchInvitations}
+                disabled={loadingInvitations}
+                className="text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-1.5 py-1 px-2.5 rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                <RotateCw className={`w-3.5 h-3.5 ${loadingInvitations ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-300">
+                <thead className="bg-slate-850 text-slate-400 uppercase text-[10px] font-bold border-b border-slate-800">
+                  <tr>
+                    <th className="py-3 px-4">Invited Member</th>
+                    <th className="py-3 px-4">Email</th>
+                    <th className="py-3 px-4">Role</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4">Sent Date</th>
+                    <th className="py-3 px-4">Expires</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {filteredInvitations.map((inv) => {
+                    const isPending = inv.status === 'pending';
+                    const isExpired = inv.status === 'expired';
+                    const isAccepted = inv.status === 'accepted';
+                    const isRevoked = inv.status === 'revoked';
+
+                    return (
+                      <tr key={inv.id} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="py-3 px-4 font-bold text-white">
+                          {inv.name}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-slate-300">
+                          {inv.invitedEmail}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="font-semibold text-[#ff5c01] bg-[#ff5c01]/10 px-2 py-0.5 rounded-md border border-[#ff5c01]/20">
+                            {inv.role}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          {isPending && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                              <Clock className="w-3 h-3" />
+                              <span>Pending</span>
+                            </span>
+                          )}
+                          {isAccepted && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                              <Check className="w-3 h-3" />
+                              <span>Accepted</span>
+                            </span>
+                          )}
+                          {isExpired && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-400 border border-slate-500/20">
+                              <Clock className="w-3 h-3" />
+                              <span>Expired</span>
+                            </span>
+                          )}
+                          {isRevoked && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                              <Ban className="w-3 h-3" />
+                              <span>Revoked</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-slate-400">
+                          {new Date(inv.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="py-3 px-4 text-slate-400">
+                          {new Date(inv.expiresAt).toLocaleDateString()}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {(isPending || isExpired) && (
+                              <button
+                                onClick={() => handleResendInvite(inv.id, inv.invitedEmail)}
+                                disabled={resendingId === inv.id}
+                                className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
+                                title="Resend email with new secure single-use token"
+                              >
+                                {resendingId === inv.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <RotateCw className="w-3 h-3" />
+                                )}
+                                <span>Resend</span>
+                              </button>
+                            )}
+
+                            {isPending && (
+                              <button
+                                onClick={() => handleRevokeInvite(inv.id, inv.name)}
+                                disabled={revokingId === inv.id}
+                                className="px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
+                                title="Revoke invitation"
+                              >
+                                {revokingId === inv.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Ban className="w-3 h-3" />
+                                )}
+                                <span>Revoke</span>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {filteredInvitations.length === 0 && (
+              <div className="p-10 text-center text-slate-500">
+                <Inbox className="w-10 h-10 mx-auto mb-2 text-slate-600" />
+                <p className="text-xs font-semibold text-slate-400">No invitations found.</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Click "Invite Team Member" to send an email invitation to a new staff member.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -581,20 +969,47 @@ export const TeamManagementView: React.FC = () => {
             <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-900">
               <div>
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Key className="w-5 h-5 text-[#ff5c01]" />
-                  <span>{editingMember ? 'Edit Staff Permissions' : 'Invite New Team Member'}</span>
+                  {editingMember ? (
+                    <>
+                      <Key className="w-5 h-5 text-[#ff5c01]" />
+                      <span>Edit Staff Permissions</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-5 h-5 text-[#ff5c01]" />
+                      <span>Invite New Team Member</span>
+                    </>
+                  )}
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Configure role assignment and granular module permission flags.
+                  {editingMember
+                    ? 'Update custom permission flags for this staff member.'
+                    : 'A secure single-use invitation email will be sent via Resend.'}
                 </p>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors"
+                disabled={isSending}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Error / Success Banners */}
+            {formError && (
+              <div className="mx-6 mt-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <span>{formError}</span>
+              </div>
+            )}
+
+            {formSuccess && (
+              <div className="mx-6 mt-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <span>{formSuccess}</span>
+              </div>
+            )}
 
             <form onSubmit={handleSaveMember}>
               <div className="p-6 max-h-[65vh] overflow-y-auto custom-scrollbar space-y-6">
@@ -616,7 +1031,7 @@ export const TeamManagementView: React.FC = () => {
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Email Address *
+                      Email Address (Recipient) *
                     </label>
                     <input
                       type="email"
@@ -650,10 +1065,10 @@ export const TeamManagementView: React.FC = () => {
                       onChange={(e) => handleRoleChange(e.target.value as TeamRole)}
                       className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#ff5c01] cursor-pointer"
                     >
-                      <option value="Cashier">Cashier (Point of Sale, Receipts & Quick Sale)</option>
-                      <option value="Manager">Manager (Operations, Stock & Customers)</option>
-                      <option value="Inventory Manager">Inventory Manager (Stock, Products & Suppliers)</option>
-                      <option value="Accountant">Accountant (Sales Reports, Expenses & Payroll)</option>
+                      <option value="Cashier">Cashier (Point of Sale, Receipts &amp; Quick Sale)</option>
+                      <option value="Manager">Manager (Operations, Stock &amp; Customers)</option>
+                      <option value="Inventory Manager">Inventory Manager (Stock, Products &amp; Suppliers)</option>
+                      <option value="Accountant">Accountant (Sales Reports, Expenses &amp; Payroll)</option>
                       <option value="Custom Role">Custom Role (Fine-grained toggles)</option>
                       <option value="Owner">Owner (Full Store Admin)</option>
                     </select>
@@ -732,15 +1147,27 @@ export const TeamManagementView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-700 text-xs font-semibold text-slate-300 hover:bg-slate-800 transition-colors"
+                  disabled={isSending}
+                  className="px-4 py-2 rounded-xl border border-slate-700 text-xs font-semibold text-slate-300 hover:bg-slate-800 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#ff5c01] hover:bg-[#e05100] text-xs font-bold text-white shadow-md shadow-[#ff5c01]/20 transition-all cursor-pointer"
+                  disabled={isSending}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#ff5c01] to-amber-500 hover:from-[#e05100] hover:to-amber-600 disabled:opacity-50 text-xs font-bold text-white shadow-md shadow-[#ff5c01]/20 transition-all flex items-center gap-2 cursor-pointer"
                 >
-                  {editingMember ? 'Save Permissions' : 'Send Invite'}
+                  {isSending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Sending Invitation Email...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>{editingMember ? 'Save Permissions' : 'Send Invite'}</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
