@@ -1,4 +1,4 @@
-export type Language = 'en' | 'bn' | 'hi' | 'ar' | 'es' | 'fr';
+export type Language = 'en' | 'bn' | 'hi' | 'ar' | 'es' | 'fr' | 'ur';
 export type ThemeMode = 'light' | 'dark';
 export type UserRole = 'Owner' | 'Manager' | 'Staff' | 'Accountant' | 'PlatformOwner' | 'Cashier' | 'Inventory Manager' | 'Custom Role';
 export type SubscriptionPlan = 'Starter' | 'Tier2' | 'Lifetime' | 'Free' | 'Pro' | 'Premium' | 'Business';
@@ -1037,6 +1037,174 @@ export interface OwnerPaymentSettings {
   updatedAt?: string;
 }
 
+export interface OnlineOrderItem {
+  productId: string;
+  productName: string;
+  sku?: string;
+  buyingPrice?: number;
+  sellingPrice: number;
+  quantity: number;
+  unit?: string;
+  total: number;
+  imageUrl?: string;
+}
+
+export interface OnlineProduct {
+  id: string;
+  name: string;
+  sku?: string;
+  barcode?: string;
+  category?: string;
+  buyingPrice: number;
+  sellingPrice: number;
+  stock: number;
+  minStockAlert?: number;
+  unit?: string;
+  description?: string;
+  imageUrl?: string;
+  status: 'active' | 'inactive';
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export type OnlineOrderStatus =
+  | 'Pending'
+  | 'Confirmed'
+  | 'Processing'
+  | 'Shipped'
+  | 'Delivered'
+  | 'Cancelled'
+  | 'Returned';
+
+export type DeliveryPayer = 'Customer' | 'Owner';
+
+export interface DeliverySettings {
+  defaultInsideCityCharge: number;
+  defaultOutsideCityCharge: number;
+  defaultPayer: DeliveryPayer;
+  freeDeliveryThreshold?: number;
+  supportedCouriers?: string[];
+  enableCod: boolean;
+}
+
+export interface OnlineBusinessSettings {
+  enabled: boolean;
+  storeDomain?: string;
+  storeDescription?: string;
+  contactPhone?: string;
+  whatsappNumber?: string;
+  orderNotificationEmail?: string;
+  delivery: DeliverySettings;
+  autoDeductInventory: boolean;
+  requireApproval: boolean;
+}
+
+export const defaultOnlineBusinessSettings: OnlineBusinessSettings = {
+  enabled: false,
+  delivery: {
+    defaultInsideCityCharge: 80,
+    defaultOutsideCityCharge: 150,
+    defaultPayer: 'Customer',
+    freeDeliveryThreshold: 0,
+    supportedCouriers: ['Pathao', 'Steadfast', 'RedX', 'Paperfly', 'In-House Courier'],
+    enableCod: true,
+  },
+  autoDeductInventory: true,
+  requireApproval: true,
+};
+
+export const isOnlineBusinessEligible = (
+  user: UserProfile | null
+): { eligible: boolean; reason?: 'free' | 'expired' | 'unauthorized' } => {
+  if (!user) return { eligible: false, reason: 'unauthorized' };
+
+  // Platform admin is always eligible
+  const isSuperAdmin =
+    user.email?.toLowerCase().trim() === 'teamstock07@gmail.com' ||
+    user.role === 'PlatformOwner';
+  if (isSuperAdmin) return { eligible: true };
+
+  const plan = user.subscriptionPlan || 'Free';
+  // Pro, Premium, Lifetime, Business, Tier2 are eligible
+  const eligiblePlans = ['Pro', 'Premium', 'Lifetime', 'Business', 'Tier2'];
+  const isPlanEligible = eligiblePlans.includes(plan);
+
+  if (!isPlanEligible || plan === 'Free' || plan === 'Starter') {
+    return { eligible: false, reason: 'free' };
+  }
+
+  // Check expiration if applicable (Lifetime has no expiry)
+  if (plan !== 'Lifetime' && user.expiryDate) {
+    const expiryTime = new Date(user.expiryDate).getTime();
+    if (!isNaN(expiryTime) && expiryTime < Date.now()) {
+      return { eligible: false, reason: 'expired' };
+    }
+  }
+
+  if (
+    user.subscriptionStatus === 'expired' ||
+    user.subscriptionStatus === 'suspended' ||
+    user.subscriptionStatus === 'blocked'
+  ) {
+    return { eligible: false, reason: 'expired' };
+  }
+
+  return { eligible: true };
+};
+
+export interface OnlineCustomer {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  address: string;
+  city?: string;
+  area?: string;
+  totalOrders: number;
+  totalSpent: number;
+  lastOrderDate?: string;
+  createdAt: string;
+  notes?: string;
+}
+
+export interface OnlineOrder {
+  id: string;
+  orderNo: string;
+  userId: string;
+  customerId?: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string;
+  deliveryAddress: string;
+  deliveryCity?: string;
+  items: OnlineOrderItem[];
+  subtotal: number;
+  deliveryCharge: number;
+  deliveryPayer: DeliveryPayer;
+  discount: number;
+  grandTotal: number;
+  ownerDeliveryExpense: number;
+  paymentMethod: 'COD' | 'bKash' | 'Nagad' | 'Card' | 'Bank Transfer' | 'Prepaid';
+  paymentStatus: 'Pending' | 'Paid' | 'Partially Paid' | 'Refunded';
+  status: OnlineOrderStatus;
+  courierName?: string;
+  trackingNumber?: string;
+  courierTrackingUrl?: string;
+  codAmount: number;
+  codCollected: boolean;
+  codCollectedAt?: string;
+  notes?: string;
+  cancellationReason?: string;
+  returnReason?: string;
+  createdAt: string;
+  updatedAt: string;
+  confirmedAt?: string;
+  shippedAt?: string;
+  deliveredAt?: string;
+  cancelledAt?: string;
+  returnedAt?: string;
+}
+
 export interface BusinessSettings {
   logoUrl: string;
   brandName: string;
@@ -1054,4 +1222,5 @@ export interface BusinessSettings {
   theme: ThemeMode;
   autoBackup: boolean;
   paymentSettings?: OwnerPaymentSettings;
+  onlineBusiness?: OnlineBusinessSettings;
 }

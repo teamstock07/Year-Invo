@@ -132,6 +132,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     }
   }, [isTeamActive]);
 
+  // Online Business Mode Navigation Group (Only shown when Online Business Mode is ON)
+  const isOnlineModeEnabled = Boolean(settings.onlineBusiness?.enabled);
+  const isOnlineActive = activeTab.startsWith('online');
+  const [isOnlineExpanded, setIsOnlineExpanded] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (isOnlineActive) {
+      setIsOnlineExpanded(true);
+    }
+  }, [isOnlineActive]);
+
+  const onlineChildren = [
+    { id: 'online-business', label: 'Online Dashboard', icon: LayoutDashboard },
+    { id: 'online-orders', label: 'Online Orders', icon: ShoppingBag },
+    { id: 'online-status', label: 'Order Status', icon: Truck },
+    { id: 'online-customers', label: 'Online Customers', icon: Users },
+    { id: 'online-delivery', label: 'Delivery & Rates', icon: Settings },
+    { id: 'online-cod', label: 'COD Management', icon: Banknote },
+    { id: 'online-reports', label: 'Online Reports', icon: TrendingUp },
+  ];
+
   // Primary menu items before the Team & Payroll group
   const primaryMenuItems = [
     ...(isPlatformSuperAdmin
@@ -270,6 +291,64 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               </button>
             );
           })}
+
+          {/* Online Business Mode Navigation Group (Visible ONLY when Online Business Mode is Enabled) */}
+          {isOnlineModeEnabled && (
+            <div className="pt-0.5 pb-0.5">
+              <button
+                type="button"
+                onClick={() => setIsOnlineExpanded((prev) => !prev)}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer group ${
+                  isOnlineActive
+                    ? 'bg-indigo-600/30 text-white font-bold border border-indigo-500/40 shadow-sm'
+                    : 'text-indigo-200 hover:bg-indigo-900/20 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <ShoppingBag className={`w-4 h-4 shrink-0 transition-colors ${isOnlineActive ? 'text-indigo-400' : 'text-indigo-300 group-hover:text-white'}`} />
+                  <span className="truncate">Online Business</span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0 pl-1">
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-md font-bold bg-indigo-500 text-white uppercase tracking-wider">
+                    ONLINE
+                  </span>
+                  {isOnlineExpanded ? (
+                    <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-white transition-transform" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-white transition-transform" />
+                  )}
+                </div>
+              </button>
+
+              {/* Indented Online Business Child Items */}
+              {isOnlineExpanded && (
+                <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-indigo-500/30 ml-4 my-1">
+                  {onlineChildren.map((child) => {
+                    const ChildIcon = child.icon;
+                    const isChildActive = activeTab === child.id;
+                    return (
+                      <button
+                        key={child.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveTab(child.id);
+                          onClose();
+                        }}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer group ${
+                          isChildActive
+                            ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-sm shadow-indigo-600/30 font-bold'
+                            : 'text-slate-400 hover:bg-white/10 hover:text-white'
+                        }`}
+                      >
+                        <ChildIcon className={`w-3.5 h-3.5 shrink-0 ${isChildActive ? 'text-white' : 'text-slate-400 group-hover:text-white'}`} />
+                        <span className="truncate">{child.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Grouped Parent Menu: Team Management & Payroll */}
           {hasTeamGroup && (

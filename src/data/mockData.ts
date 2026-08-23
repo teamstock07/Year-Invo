@@ -17,6 +17,8 @@ import {
   AuditLogEntry,
   Investment,
   CapitalWithdrawal,
+  OnlineOrder,
+  OnlineCustomer,
 } from '../types';
 
 export const initialCategories: Category[] = [];
@@ -59,4 +61,8 @@ export const initialAuditLogs: AuditLogEntry[] = [];
 export const initialInvestments: Investment[] = [];
 
 export const initialCapitalWithdrawals: CapitalWithdrawal[] = [];
+
+export const initialOnlineOrders: OnlineOrder[] = [];
+
+export const initialOnlineCustomers: OnlineCustomer[] = [];
 

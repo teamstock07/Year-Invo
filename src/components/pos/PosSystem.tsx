@@ -72,6 +72,8 @@ export const PosSystem: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Card' | 'bKash/Mobile' | 'Due/Credit'>('Cash');
   const [paidAmountInput, setPaidAmountInput] = useState<string>('');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [lastScannedProductId, setLastScannedProductId] = useState<string | null>(null);
+  const [lastScannedProduct, setLastScannedProduct] = useState<Product | null>(null);
   const [completedSale, setCompletedSale] = useState<Sale | null>(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [showCustomerDisplay, setShowCustomerDisplay] = useState(false);
@@ -410,13 +412,19 @@ export const PosSystem: React.FC = () => {
             }}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               isPremiumPlan
-                ? 'bg-[#ff5c01] text-white hover:bg-[#e05100] shadow-md shadow-[#ff5c01]/20'
+                ? lastScannedProduct
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 ring-2 ring-emerald-500/30'
+                  : 'bg-[#ff5c01] text-white hover:bg-[#e05100] shadow-md shadow-[#ff5c01]/20'
                 : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700'
             }`}
-            title={isPremiumPlan ? 'Scan Barcode / QR Code' : 'Barcode & QR Scanner (Premium Feature)'}
+            title={isPremiumPlan ? (lastScannedProduct ? 'Scan another product (One scan per session)' : 'Scan Barcode / QR Code') : 'Barcode & QR Scanner (Premium Feature)'}
           >
             {isPremiumPlan ? <Camera className="w-4 h-4" /> : <Lock className="w-4 h-4 text-amber-500" />}
-            <span className="hidden sm:inline">{t('scanBarcode') || 'Scan Barcode / QR'}</span>
+            <span className="hidden sm:inline">
+              {lastScannedProduct
+                ? (language === 'bn' ? 'আরেকটি স্ক্যান করুন (Scan Again)' : 'Scan Again')
+                : (t('scanBarcode') || 'Scan Barcode / QR')}
+            </span>
           </button>
 
           <button
@@ -515,6 +523,7 @@ export const PosSystem: React.FC = () => {
         <div className="flex-1 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 content-start items-start pr-1 custom-scrollbar min-h-80">
           {filteredProducts.map((prod) => {
             const isSelected = selectedProductIds.includes(prod.id);
+            const isLastScanned = prod.id === lastScannedProductId;
             const cartItem = cart.find((item) => item.product.id === prod.id);
             const todayStr = new Date().toISOString().split('T')[0];
             const isExpired = Boolean(prod.expiryDate && prod.expiryDate <= todayStr);
@@ -537,6 +546,8 @@ export const PosSystem: React.FC = () => {
                 className={`group relative p-2.5 rounded-xl border transition-all flex flex-col justify-start hover:shadow-md h-auto ${
                   isExpired
                     ? 'bg-rose-50/80 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 cursor-not-allowed opacity-90'
+                    : isLastScanned
+                    ? 'border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20 ring-2 ring-emerald-500/40 cursor-pointer shadow-md'
                     : isSelected
                     ? 'border-[#ff5c01] bg-[#ff5c01]/5 ring-2 ring-[#ff5c01]/20 cursor-pointer'
                     : 'bg-slate-50/70 dark:bg-slate-800/60 border-slate-200/70 dark:border-slate-700/60 hover:border-[#ff5c01]/60 cursor-pointer'
@@ -565,10 +576,15 @@ export const PosSystem: React.FC = () => {
                   ) : null}
                 </div>
 
-                {/* Status Badges: Expired vs In Cart */}
+                {/* Status Badges: Expired vs Last Scanned vs In Cart */}
                 {isExpired ? (
                   <div className="absolute top-2 right-2 z-10 px-2 py-0.5 rounded-full bg-rose-600 text-white font-black text-[9px] uppercase shadow-sm tracking-wide">
                     EXPIRED
+                  </div>
+                ) : isLastScanned ? (
+                  <div className="absolute top-2 right-2 z-10 px-2 py-0.5 rounded-full bg-emerald-600 text-white font-black text-[9px] uppercase shadow-sm tracking-wide flex items-center gap-1">
+                    <CheckCircle className="w-2.5 h-2.5" />
+                    SCANNED
                   </div>
                 ) : cartItem ? (
                   <div className="absolute top-2 right-2 z-10 px-2 py-0.5 rounded-full bg-emerald-500 text-white font-black text-[10px] shadow-sm">
@@ -628,7 +644,7 @@ export const PosSystem: React.FC = () => {
         </div>
 
         {/* Cart Items List */}
-        <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 pr-1 custom-scrollbar max-h-48">
+        <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar max-h-48 space-y-1">
           {cart.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-slate-400 text-center py-8">
               <ShoppingCart className="w-9 h-9 mb-2 stroke-1 opacity-40" />
@@ -638,14 +654,30 @@ export const PosSystem: React.FC = () => {
             cart.map((item) => {
               const todayStr = new Date().toISOString().split('T')[0];
               const isItemExpired = Boolean(item.product.expiryDate && item.product.expiryDate <= todayStr);
+              const isScannedItem = item.product.id === lastScannedProductId;
 
               return (
-                <div key={item.product.id} className={`py-2 px-1 flex items-center justify-between gap-3 text-xs ${isItemExpired ? 'bg-rose-50/80 dark:bg-rose-950/40 rounded-xl border border-rose-300 dark:border-rose-800 my-1' : ''}`}>
+                <div
+                  key={item.product.id}
+                  className={`py-2 px-2.5 flex items-center justify-between gap-3 text-xs rounded-xl transition-all ${
+                    isItemExpired
+                      ? 'bg-rose-50/80 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800'
+                      : isScannedItem
+                      ? 'bg-emerald-50/90 dark:bg-emerald-950/40 border-2 border-emerald-500 shadow-xs ring-2 ring-emerald-500/20'
+                      : 'bg-slate-50/60 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800'
+                  }`}
+                >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <h5 className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate">
                         {item.product.name}
                       </h5>
+                      {isScannedItem && (
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-emerald-600 text-white uppercase tracking-wider flex items-center gap-0.5">
+                          <CheckCircle className="w-2.5 h-2.5" />
+                          Selected
+                        </span>
+                      )}
                     </div>
                     <span className="text-[10px] text-slate-400">
                       {symbol} {item.product.sellingPrice} × {item.quantity} ={' '}
@@ -658,7 +690,7 @@ export const PosSystem: React.FC = () => {
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => updateCartQuantity(item.product.id, item.quantity - 1)}
-                      className="p-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+                      className="p-1 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600 cursor-pointer"
                     >
                       <Minus className="w-3 h-3" />
                     </button>
@@ -674,7 +706,7 @@ export const PosSystem: React.FC = () => {
                         updateCartQuantity(item.product.id, item.quantity + 1);
                       }}
                       disabled={isItemExpired}
-                      className="p-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 cursor-pointer"
+                      className="p-1 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600 disabled:opacity-40 cursor-pointer"
                     >
                       <Plus className="w-3 h-3" />
                     </button>
@@ -897,11 +929,10 @@ export const PosSystem: React.FC = () => {
         onClose={() => setIsScannerOpen(false)}
         products={products}
         language={language}
-        onProductScanned={(scannedProduct, qty) => {
-          const count = qty && qty > 0 ? qty : 1;
-          for (let i = 0; i < count; i++) {
-            addToCart(scannedProduct);
-          }
+        onProductScanned={(scannedProduct) => {
+          addToCart(scannedProduct);
+          setLastScannedProductId(scannedProduct.id);
+          setLastScannedProduct(scannedProduct);
         }}
       />
 

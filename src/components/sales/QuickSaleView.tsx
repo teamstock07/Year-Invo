@@ -7,6 +7,7 @@ import { DeviceAuthorizationGuard } from '../common/DeviceAuthorizationGuard';
 import { findProductWithStoreCheck } from '../../utils/scanner';
 import { playSuccessSound, playBeepSound } from '../../utils/audio';
 import { SyncStatusIndicator } from '../common/SyncStatusIndicator';
+import { QrScannerModal } from '../pos/QrScannerModal';
 import {
   Zap,
   Search,
@@ -27,6 +28,8 @@ import {
   History,
   ShoppingCart,
   AlertTriangle,
+  Camera,
+  Lock,
 } from 'lucide-react';
 
 interface QuickSaleViewProps {
@@ -47,12 +50,18 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
     checkoutPOS,
     settings,
     setActiveTab,
+    language,
     t,
   } = useApp();
+
+  const plan = user?.subscriptionPlan || 'Free';
+  const isPremiumPlan = plan === 'Premium' || plan === 'Business' || plan === 'Lifetime';
 
   const symbol = settings.currency || '৳';
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [lastScannedProductId, setLastScannedProductId] = useState<string | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [isAddCustModalOpen, setIsAddCustModalOpen] = useState(false);
   const [newCustName, setNewCustName] = useState('');
@@ -239,66 +248,94 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
           {/* Left Column: Product Grid */}
           <div className="lg:col-span-7 xl:col-span-8 flex flex-col bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-sm space-y-4">
           
-          {/* Search Bar */}
-          <div className="relative">
-            <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => {
-                const val = e.target.value;
-                setSearchQuery(val);
-                if (val.trim()) {
-                  const currentStoreId = user?.id || user?.brandName || '';
-                  const result = findProductWithStoreCheck(products, val, currentStoreId);
-                  if (result.product) {
-                    const matched = result.product;
-                    const today = new Date().toISOString().split('T')[0];
-                    if (
-                      (!matched.expiryDate || matched.expiryDate > today) &&
-                      matched.currentStock > 0 &&
-                      matched.status !== 'out_of_stock'
-                    ) {
-                      addToCart(matched);
-                      playBeepSound();
-                      setSearchQuery('');
+          {/* Search Bar & Scanner Actions */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSearchQuery(val);
+                  if (val.trim()) {
+                    const currentStoreId = user?.id || user?.brandName || '';
+                    const result = findProductWithStoreCheck(products, val, currentStoreId);
+                    if (result.product) {
+                      const matched = result.product;
+                      const today = new Date().toISOString().split('T')[0];
+                      if (
+                        (!matched.expiryDate || matched.expiryDate > today) &&
+                        matched.currentStock > 0 &&
+                        matched.status !== 'out_of_stock'
+                      ) {
+                        addToCart(matched);
+                        playBeepSound();
+                        setSearchQuery('');
+                      }
                     }
                   }
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && searchQuery.trim()) {
-                  const currentStoreId = user?.id || user?.brandName || '';
-                  const result = findProductWithStoreCheck(products, searchQuery, currentStoreId);
-                  if (result.error === 'different_store') {
-                    alert(t('productNotFoundStore') || 'Product not found in this store.');
-                  } else if (result.product) {
-                    const matched = result.product;
-                    const today = new Date().toISOString().split('T')[0];
-                    if (matched.expiryDate && matched.expiryDate <= today) {
-                      alert(`"${matched.name}" ${t('expiredProductWarning') || 'has expired and cannot be sold.'}`);
-                    } else if (matched.currentStock <= 0 || matched.status === 'out_of_stock') {
-                      alert(`"${matched.name}" ${t('outOfStock') || 'is out of stock!'}`);
-                    } else {
-                      addToCart(matched);
-                      playBeepSound();
-                      setSearchQuery('');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && searchQuery.trim()) {
+                    const currentStoreId = user?.id || user?.brandName || '';
+                    const result = findProductWithStoreCheck(products, searchQuery, currentStoreId);
+                    if (result.error === 'different_store') {
+                      alert(t('productNotFoundStore') || 'Product not found in this store.');
+                    } else if (result.product) {
+                      const matched = result.product;
+                      const today = new Date().toISOString().split('T')[0];
+                      if (matched.expiryDate && matched.expiryDate <= today) {
+                        alert(`"${matched.name}" ${t('expiredProductWarning') || 'has expired and cannot be sold.'}`);
+                      } else if (matched.currentStock <= 0 || matched.status === 'out_of_stock') {
+                        alert(`"${matched.name}" ${t('outOfStock') || 'is out of stock!'}`);
+                      } else {
+                        addToCart(matched);
+                        playBeepSound();
+                        setSearchQuery('');
+                      }
                     }
                   }
+                }}
+                placeholder={t('searchProductPlaceholder')}
+                className="w-full pl-10 pr-8 py-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 font-medium focus:outline-hidden focus:border-[#ff5c01] transition-all"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (!isPremiumPlan) {
+                  alert('Camera Barcode & QR Scanner is a Premium Plan feature. Please upgrade your subscription.');
+                  return;
                 }
+                setIsScannerOpen(true);
               }}
-              placeholder={t('searchProductPlaceholder')}
-              className="w-full pl-10 pr-4 py-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 font-medium focus:outline-hidden focus:border-[#ff5c01] transition-all"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
+              className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                isPremiumPlan
+                  ? lastScannedProductId
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20'
+                    : 'bg-[#ff5c01] text-white hover:bg-[#e05100] shadow-md shadow-[#ff5c01]/20'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700'
+              }`}
+              title={isPremiumPlan ? (lastScannedProductId ? 'Scan another product' : 'Scan Barcode / QR') : 'Scanner (Premium Feature)'}
+            >
+              {isPremiumPlan ? <Camera className="w-4 h-4" /> : <Lock className="w-4 h-4 text-amber-500" />}
+              <span className="hidden sm:inline">
+                {lastScannedProductId
+                  ? (language === 'bn' ? 'আরেকটি স্ক্যান করুন (Scan Again)' : 'Scan Again')
+                  : (t('scanBarcode') || 'Scan Barcode / QR')}
+              </span>
+            </button>
           </div>
 
           {/* Product Cards Grid with Real Uploaded Images & Restored Controls */}
@@ -901,6 +938,18 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
           </div>
         </div>
       )}
+
+      {/* Camera Barcode / QR Code Scanner Modal */}
+      <QrScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        products={products}
+        language={language}
+        onProductScanned={(scannedProduct) => {
+          addToCart(scannedProduct);
+          setLastScannedProductId(scannedProduct.id);
+        }}
+      />
 
       {/* Order Successful Quick Receipt Modal */}
       <QuickReceiptModal

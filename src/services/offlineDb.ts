@@ -15,7 +15,7 @@
  */
 
 const DB_NAME = 'YearInvo_OfflineDB';
-const DB_VERSION = 2;
+const DB_VERSION = 4;
 
 export interface SyncQueueItem {
   opId: string;
@@ -37,7 +37,15 @@ export interface SyncQueueItem {
     | 'CREATE_CAPITAL_WITHDRAWAL'
     | 'PAYROLL_PAYMENT'
     | 'SALARY_ADJUSTMENT'
-    | 'UPDATE_SETTINGS';
+    | 'UPDATE_SETTINGS'
+    | 'CREATE_ONLINE_ORDER'
+    | 'UPDATE_ONLINE_ORDER'
+    | 'UPDATE_ONLINE_SETTINGS'
+    | 'CREATE_ONLINE_CUSTOMER'
+    | 'UPDATE_ONLINE_CUSTOMER'
+    | 'CREATE_ONLINE_PRODUCT'
+    | 'UPDATE_ONLINE_PRODUCT'
+    | 'DELETE_ONLINE_PRODUCT';
   localTimestamp: string;
   payload: any;
   syncStatus: 'PENDING_SYNC' | 'SYNCING' | 'SYNCED' | 'FAILED';
@@ -100,6 +108,10 @@ class OfflineDatabase {
             'auditLogs',
             'loyalty',
             'settings',
+            'onlineProducts',
+            'onlineOrders',
+            'onlineCustomers',
+            'onlineSettings',
             'syncQueue',
             'syncMetadata',
           ];

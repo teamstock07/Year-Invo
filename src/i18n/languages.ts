@@ -12,6 +12,7 @@ export const SUPPORTED_LANGUAGES: LanguageInfo[] = [
   { code: 'en', name: 'English', nativeName: 'English', flag: '🇬🇧', dir: 'ltr' },
   { code: 'bn', name: 'Bengali', nativeName: 'বাংলা', flag: '🇧🇩', dir: 'ltr' },
   { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी', flag: '🇮🇳', dir: 'ltr' },
+  { code: 'ur', name: 'Urdu', nativeName: 'اردو', flag: '🇵🇰', dir: 'rtl' },
   { code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦', dir: 'rtl' },
   { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸', dir: 'ltr' },
   { code: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷', dir: 'ltr' },
@@ -22,6 +23,10 @@ export const COUNTRY_TO_LANGUAGE_MAP: Record<string, Language> = {
   'Bangladesh': 'bn',
   'BD': 'bn',
   
+  // Pakistan & Urdu
+  'Pakistan': 'ur',
+  'PK': 'ur',
+
   // India
   'India': 'hi',
   'IN': 'hi',
@@ -83,6 +88,7 @@ export const getDefaultLanguageForCountry = (countryStr?: string): Language => {
   for (const [key, lang] of Object.entries(COUNTRY_TO_LANGUAGE_MAP)) {
     if (key.toLowerCase() === lower) return lang;
   }
+  if (lower.includes('pakistan') || lower.includes('اردو')) return 'ur';
   if (lower.includes('bangladesh') || lower.includes('বাংলা')) return 'bn';
   if (lower.includes('india') || lower.includes('bharat') || lower.includes('भारत')) return 'hi';
   if (lower.includes('arab') || lower.includes('saudi') || lower.includes('emirates') || lower.includes('dubai') || lower.includes('egypt') || lower.includes('qatar')) return 'ar';
@@ -92,5 +98,5 @@ export const getDefaultLanguageForCountry = (countryStr?: string): Language => {
 };
 
 export const isRtlLanguage = (lang: Language): boolean => {
-  return lang === 'ar';
+  return lang === 'ar' || lang === 'ur';
 };

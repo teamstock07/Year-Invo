@@ -455,6 +455,142 @@ class SyncQueueService {
         break;
       }
 
+      case 'CREATE_ONLINE_ORDER': {
+        const ordersDocRef = doc(db, 'users', userId, 'businessData', 'onlineOrders');
+        let ordersToSave: any[] = [];
+        if (Array.isArray(op.payload.orders)) {
+          ordersToSave = op.payload.orders;
+        } else if (Array.isArray(op.payload)) {
+          ordersToSave = op.payload;
+        } else {
+          const newOrder = op.payload.order || op.payload;
+          const snap = await getDoc(ordersDocRef);
+          let current: any[] = [];
+          if (snap.exists()) {
+            const d = snap.data();
+            current = Array.isArray(d.items) ? d.items : Array.isArray(d.orders) ? d.orders : [];
+          }
+          ordersToSave = [newOrder, ...current.filter((o) => o.id !== newOrder.id)];
+        }
+
+        const batch = writeBatch(db);
+        const now = new Date().toISOString();
+        batch.set(ordersDocRef, { items: sanitizeForFirestore(ordersToSave), updatedAt: now }, { merge: true });
+
+        if (op.payload.updatedOnlineProducts && Array.isArray(op.payload.updatedOnlineProducts)) {
+          const prodDocRef = doc(db, 'users', userId, 'businessData', 'onlineProducts');
+          batch.set(prodDocRef, { items: sanitizeForFirestore(op.payload.updatedOnlineProducts), updatedAt: now }, { merge: true });
+        }
+        await batch.commit();
+        break;
+      }
+
+      case 'UPDATE_ONLINE_ORDER': {
+        const ordersDocRef = doc(db, 'users', userId, 'businessData', 'onlineOrders');
+        let ordersToSave: any[] = [];
+        if (Array.isArray(op.payload.orders)) {
+          ordersToSave = op.payload.orders;
+        } else if (Array.isArray(op.payload)) {
+          ordersToSave = op.payload;
+        } else {
+          const updatedOrder = op.payload.order || op.payload;
+          const snap = await getDoc(ordersDocRef);
+          let current: any[] = [];
+          if (snap.exists()) {
+            const d = snap.data();
+            current = Array.isArray(d.items) ? d.items : Array.isArray(d.orders) ? d.orders : [];
+          }
+          ordersToSave = current.map((o) => (o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o));
+          if (!ordersToSave.some((o) => o.id === updatedOrder.id)) {
+            ordersToSave = [updatedOrder, ...ordersToSave];
+          }
+        }
+        await setDoc(
+          ordersDocRef,
+          { items: sanitizeForFirestore(ordersToSave), updatedAt: new Date().toISOString() },
+          { merge: true }
+        );
+        break;
+      }
+
+      case 'CREATE_ONLINE_CUSTOMER':
+      case 'UPDATE_ONLINE_CUSTOMER': {
+        const onlineCustDocRef = doc(db, 'users', userId, 'businessData', 'onlineCustomers');
+        let custsToSave: any[] = [];
+        if (Array.isArray(op.payload.customers)) {
+          custsToSave = op.payload.customers;
+        } else if (Array.isArray(op.payload)) {
+          custsToSave = op.payload;
+        } else {
+          const targetCust = op.payload.customer || op.payload;
+          const snap = await getDoc(onlineCustDocRef);
+          let current: any[] = [];
+          if (snap.exists()) {
+            const d = snap.data();
+            current = Array.isArray(d.items) ? d.items : Array.isArray(d.customers) ? d.customers : [];
+          }
+          if (op.operationType === 'CREATE_ONLINE_CUSTOMER') {
+            custsToSave = [targetCust, ...current.filter((c) => c.id !== targetCust.id)];
+          } else {
+            custsToSave = current.map((c) => (c.id === targetCust.id ? { ...c, ...targetCust } : c));
+            if (!custsToSave.some((c) => c.id === targetCust.id)) {
+              custsToSave = [targetCust, ...custsToSave];
+            }
+          }
+        }
+        await setDoc(
+          onlineCustDocRef,
+          { items: sanitizeForFirestore(custsToSave), updatedAt: new Date().toISOString() },
+          { merge: true }
+        );
+        break;
+      }
+
+      case 'CREATE_ONLINE_PRODUCT':
+      case 'UPDATE_ONLINE_PRODUCT':
+      case 'DELETE_ONLINE_PRODUCT': {
+        const onlineProdDocRef = doc(db, 'users', userId, 'businessData', 'onlineProducts');
+        let prodsToSave: any[] = [];
+        if (Array.isArray(op.payload.products)) {
+          prodsToSave = op.payload.products;
+        } else if (Array.isArray(op.payload)) {
+          prodsToSave = op.payload;
+        } else {
+          const snap = await getDoc(onlineProdDocRef);
+          let current: any[] = [];
+          if (snap.exists()) {
+            const d = snap.data();
+            current = Array.isArray(d.items) ? d.items : Array.isArray(d.products) ? d.products : [];
+          }
+          if (op.operationType === 'DELETE_ONLINE_PRODUCT') {
+            const deleteId = op.payload.id || op.payload;
+            prodsToSave = current.filter((p) => p.id !== deleteId);
+          } else if (op.operationType === 'CREATE_ONLINE_PRODUCT') {
+            const newProd = op.payload.product || op.payload;
+            prodsToSave = [newProd, ...current.filter((p) => p.id !== newProd.id)];
+          } else {
+            const updProd = op.payload.product || op.payload;
+            prodsToSave = current.map((p) => (p.id === updProd.id ? { ...p, ...updProd } : p));
+          }
+        }
+        await setDoc(
+          onlineProdDocRef,
+          { items: sanitizeForFirestore(prodsToSave), updatedAt: new Date().toISOString() },
+          { merge: true }
+        );
+        break;
+      }
+
+      case 'UPDATE_ONLINE_SETTINGS': {
+        const onlineSettingsDocRef = doc(db, 'users', userId, 'businessData', 'onlineSettings');
+        await setDoc(
+          onlineSettingsDocRef,
+          { settings: sanitizeForFirestore(op.payload), updatedAt: new Date().toISOString() },
+          { merge: true }
+        );
+        break;
+      }
+
       case 'UPDATE_SETTINGS': {
         const settingsDocRef = doc(db, 'users', userId, 'businessData', 'settings');
         await setDoc(

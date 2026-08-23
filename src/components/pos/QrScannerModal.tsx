@@ -133,6 +133,26 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
       } catch (e) {}
       scannerRef.current = null;
     }
+
+    // Direct hardware stream shutdown: stop all video tracks in the container
+    try {
+      const container = document.getElementById(scannerContainerId);
+      if (container) {
+        const videos = container.querySelectorAll('video');
+        videos.forEach((video) => {
+          if (video.srcObject) {
+            const stream = video.srcObject as MediaStream;
+            stream.getTracks().forEach((track) => {
+              try {
+                track.stop();
+              } catch (_) {}
+            });
+            video.srcObject = null;
+          }
+        });
+      }
+    } catch (_) {}
+
     if (isMountedRef.current) {
       setIsScanning(false);
     }
@@ -141,10 +161,10 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
   /**
    * Core Scan Event Handler:
    * 1. Synchronously locks against repeated callbacks.
-   * 2. Immediately stops the camera scanner.
+   * 2. Immediately stops the camera scanner & hardware stream.
    * 3. Securely looks up product from store database.
-   * 4. Plays exactly ONE beep and adds product to POS cart.
-   * 5. Keeps camera OFF and waits for user.
+   * 4. Plays exactly ONE beep and adds ONE product to POS cart/checkout.
+   * 5. Immediately closes scanner modal and returns to POS Sales screen.
    */
   const handleDecodedCode = useCallback(
     async (decodedText: string) => {
@@ -226,12 +246,14 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
       // 5. AUTOMATICALLY ADD SINGLE PRODUCT ENTRY TO POS CART / CHECKOUT
       onProductScanned(matched, 1);
 
-      // 6. UPDATE STATE TO REFLECT SUCCESSFUL DETECTION
+      // 6. IMMEDIATELY CLOSE THE SCANNER WINDOW & MODAL OVERLAY
+      // The modal disappears completely, camera is already stopped, and control returns to POS Sales screen.
       setDetectedProduct(matched);
       setScanSuccess(true);
       setScannerError(null);
+      onClose();
     },
-    [products, user, isBn, playSuccessBeep, playErrorBeep, onProductScanned, stopCameraScanner]
+    [products, user, isBn, playSuccessBeep, playErrorBeep, onProductScanned, stopCameraScanner, onClose]
   );
 
   /**

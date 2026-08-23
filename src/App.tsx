@@ -37,6 +37,7 @@ import { CustomerLoyaltyView } from './components/customers/CustomerLoyaltyView'
 import { SalesCalendarView } from './components/sales/SalesCalendarView';
 import { AuditLogView } from './components/audit/AuditLogView';
 import { CapitalInvestmentView } from './components/capital/CapitalInvestmentView';
+import { OnlineBusinessModule } from './components/online/OnlineBusinessModule';
 import { BusinessTypeSetupModal } from './components/common/BusinessTypeSetupModal';
 import { EmailVerificationPrompt } from './components/auth/EmailVerificationPrompt';
 import { AcceptInvitationView } from './components/team/AcceptInvitationView';
@@ -140,6 +141,15 @@ const MainLayout: React.FC = () => {
       case 'capital':
       case 'investment':
         return <CapitalInvestmentView />;
+      case 'online-business':
+      case 'online-dashboard':
+      case 'online-orders':
+      case 'online-status':
+      case 'online-customers':
+      case 'online-delivery':
+      case 'online-cod':
+      case 'online-reports':
+        return <OnlineBusinessModule initialTab={activeTab} />;
       case 'team':
       case 'teamManagement':
         return <TeamManagementView />;

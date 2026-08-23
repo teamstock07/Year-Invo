@@ -60,13 +60,10 @@ export const LoginView: React.FC = () => {
   const [storePhone, setStorePhone] = useState('');
   const [affiliateCode, setAffiliateCode] = useState('');
   const [signupCountry, setSignupCountry] = useState('Bangladesh');
-  const [signupLanguage, setSignupLanguage] = useState<Language>(language || 'bn');
+  const [signupLanguage, setSignupLanguage] = useState<Language>(language || 'en');
 
   const handleCountryChange = (cName: string) => {
     setSignupCountry(cName);
-    const mapped = getDefaultLanguageForCountry(cName);
-    setSignupLanguage(mapped);
-    setLanguage(mapped);
   };
 
   const [error, setError] = useState('');

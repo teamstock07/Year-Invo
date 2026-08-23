@@ -43,6 +43,15 @@ export const SUPPORTED_LANGUAGE_CURRENCY_PAIRS: LanguageCurrencyPair[] = [
     currencyLabel: '₹ INR',
   },
   {
+    language: 'ur',
+    languageName: 'Urdu',
+    languageNative: 'اردو',
+    flag: '🇵🇰',
+    currency: 'Rs',
+    currencyCode: 'PKR',
+    currencyLabel: 'Rs PKR',
+  },
+  {
     language: 'ar',
     languageName: 'Arabic',
     languageNative: 'العربية',
@@ -78,6 +87,7 @@ export const LANGUAGE_TO_CURRENCY_MAP: Record<Language, string> = {
   bn: '৳',
   en: '$',
   hi: '₹',
+  ur: 'Rs',
   ar: '﷼',
   fr: '€',
   es: '£',
@@ -98,6 +108,11 @@ export const CURRENCY_TO_LANGUAGE_MAP: Record<string, Language> = {
   // Hindi / INR
   '₹': 'hi',
   'INR': 'hi',
+
+  // Urdu / PKR
+  'Rs': 'ur',
+  'PKR': 'ur',
+  '₨': 'ur',
   
   // Arabic / SAR (and legacy AED alias)
   '﷼': 'ar',

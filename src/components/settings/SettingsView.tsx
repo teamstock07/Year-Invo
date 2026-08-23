@@ -8,15 +8,20 @@ import {
   getMappedCurrencyForLanguage,
   getMappedLanguageForCurrency,
 } from '../../config/languageCurrency';
-import { Settings, Save, Shield, Download, Upload, Store, DollarSign, Receipt, Users, Camera, Trash2, Image, User, SlidersHorizontal } from 'lucide-react';
+import { Settings, Save, Shield, Download, Upload, Store, DollarSign, Receipt, Users, Camera, Trash2, Image, User, SlidersHorizontal, ShoppingBag, Truck, Lock, Crown, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { isOnlineBusinessEligible, defaultOnlineBusinessSettings } from '../../types';
+import { OnlineUpgradeModal } from '../online/OnlineUpgradeModal';
 
 export const SettingsView: React.FC = () => {
-  const { settings, updateSettings, resetAllDataToZero, t, setActiveTab } = useApp();
+  const { settings, updateSettings, resetAllDataToZero, t, setActiveTab, user, toggleOnlineBusinessMode, isOnlineBusinessActive } = useApp();
 
   const [formData, setFormData] = useState(settings);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const siteFileInputRef = useRef<HTMLInputElement>(null);
+
+  const isEligible = isOnlineBusinessEligible(user?.subscriptionPlan);
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -419,6 +424,147 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
 
+        {/* Online Business Mode Configuration Card */}
+        <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-2">
+              <ShoppingBag className="w-4 h-4 text-indigo-600" />
+              <span>Online Business Mode</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                PRO & PREMIUM
+              </span>
+            </h3>
+
+            {/* Toggle Switch */}
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-slate-500">
+                {formData.onlineBusiness?.enabled ? 'ENABLED' : 'DISABLED'}
+              </span>
+              <button
+                type="button"
+                onClick={async () => {
+                  const targetState = !formData.onlineBusiness?.enabled;
+                  if (targetState && !isEligible) {
+                    setShowUpgradeModal(true);
+                    return;
+                  }
+
+                  const updatedOnline = {
+                    ...(formData.onlineBusiness || defaultOnlineBusinessSettings),
+                    enabled: targetState,
+                  };
+                  setFormData({
+                    ...formData,
+                    onlineBusiness: updatedOnline,
+                  });
+                  await toggleOnlineBusinessMode(targetState);
+                }}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                  formData.onlineBusiness?.enabled
+                    ? 'bg-indigo-600'
+                    : 'bg-slate-300 dark:bg-slate-700'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    formData.onlineBusiness?.enabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Enables full online commerce capabilities alongside your existing in-store POS. Includes order fulfillment pipelines, courier tracking, cash-on-delivery (COD) receivables, and delivery rate rules.
+          </p>
+
+          {formData.onlineBusiness?.enabled ? (
+            <div className="space-y-4 pt-2">
+              <div className="p-3.5 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+                  <div className="text-xs">
+                    <span className="font-bold text-slate-900 dark:text-white">Online Business Layer Active: </span>
+                    <span className="text-slate-600 dark:text-slate-300">
+                      Normal business POS & inventory remain 100% active, with online sales synced seamlessly.
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('online-business')}
+                  className="whitespace-nowrap inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-xs"
+                >
+                  <span>Open Hub</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Quick Delivery Rates Configuration in Settings */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Inside City Delivery Fee ({formData.currency || '৳'})
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData.onlineBusiness?.insideCityRate ?? 60}
+                    onChange={(e) => {
+                      const rate = Number(e.target.value) || 0;
+                      setFormData({
+                        ...formData,
+                        onlineBusiness: {
+                          ...(formData.onlineBusiness || defaultOnlineBusinessSettings),
+                          insideCityRate: rate,
+                        },
+                      });
+                    }}
+                    className="w-full px-3.5 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Outside City Delivery Fee ({formData.currency || '৳'})
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData.onlineBusiness?.outsideCityRate ?? 120}
+                    onChange={(e) => {
+                      const rate = Number(e.target.value) || 0;
+                      setFormData({
+                        ...formData,
+                        onlineBusiness: {
+                          ...(formData.onlineBusiness || defaultOnlineBusinessSettings),
+                          outsideCityRate: rate,
+                        },
+                      });
+                    }}
+                    className="w-full px-3.5 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 flex items-center justify-between gap-3 text-xs text-slate-500">
+              <span>Online Business mode is currently OFF. The app operates in Normal Business POS Mode.</span>
+              {!isEligible && (
+                <button
+                  type="button"
+                  onClick={() => setShowUpgradeModal(true)}
+                  className="inline-flex items-center gap-1.5 font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                >
+                  <Crown className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Upgrade to unlock</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Database Backup & Export Card */}
         <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
           <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -474,6 +620,14 @@ export const SettingsView: React.FC = () => {
           </button>
         </div>
       </form>
+
+      {/* Online Business Upgrade Modal */}
+      {showUpgradeModal && (
+        <OnlineUpgradeModal
+          isOpen={showUpgradeModal}
+          onClose={() => setShowUpgradeModal(false)}
+        />
+      )}
     </div>
   );
 };

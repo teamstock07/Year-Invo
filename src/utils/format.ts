@@ -19,6 +19,9 @@ export const convertDigitsInString = (str: string, lang: Language): string => {
   } else if (lang === 'ar') {
     const arDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
     return str.replace(/[0-9]/g, (w) => arDigits[parseInt(w, 10)]);
+  } else if (lang === 'ur') {
+    const urDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+    return str.replace(/[0-9]/g, (w) => urDigits[parseInt(w, 10)]);
   }
   return str;
 };
@@ -37,6 +40,7 @@ export const formatNumber = (
   const localeMap: Record<Language, string> = {
     bn: 'bn-BD',
     hi: 'hi-IN',
+    ur: 'ur-PK',
     ar: 'ar-EG',
     en: 'en-US',
     fr: 'fr-FR',
@@ -84,6 +88,7 @@ export const formatDate = (
   const localeMap: Record<Language, string> = {
     bn: 'bn-BD',
     hi: 'hi-IN',
+    ur: 'ur-PK',
     ar: 'ar-EG',
     en: 'en-US',
     fr: 'fr-FR',

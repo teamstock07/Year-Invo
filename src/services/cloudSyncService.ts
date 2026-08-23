@@ -23,6 +23,10 @@ import {
   CustomerLoyaltySettings,
   BusinessSettings,
   AppNotification,
+  OnlineOrder,
+  OnlineCustomer,
+  OnlineBusinessSettings,
+  OnlineProduct,
 } from '../types';
 
 export interface CloudBusinessDataCallbacks {
@@ -46,6 +50,10 @@ export interface CloudBusinessDataCallbacks {
   onQrTrackingLoaded?: (qr: { generatedCodes: string[]; productQRCounts: Record<string, number> }, fromCloud: boolean) => void;
   onSettingsLoaded?: (settings: Partial<BusinessSettings>, fromCloud: boolean) => void;
   onNotificationsLoaded?: (notifs: { manual: AppNotification[]; readMap: Record<string, boolean> }, fromCloud: boolean) => void;
+  onOnlineProductsLoaded?: (products: OnlineProduct[], fromCloud: boolean) => void;
+  onOnlineOrdersLoaded?: (orders: OnlineOrder[], fromCloud: boolean) => void;
+  onOnlineCustomersLoaded?: (customers: OnlineCustomer[], fromCloud: boolean) => void;
+  onOnlineSettingsLoaded?: (settings: OnlineBusinessSettings, fromCloud: boolean) => void;
   onSyncStatusChanged?: (status: 'synced' | 'syncing' | 'offline' | 'error') => void;
 }
 
@@ -450,6 +458,59 @@ export function subscribeToUserBusinessData(
         },
         true
       );
+    }
+  });
+
+  // 18. Online Orders
+  attachListener('onlineOrders', (data, exists) => {
+    const items = extractItems<OnlineOrder>(data, 'onlineOrders');
+    if (exists && items.length > 0) {
+      offlineDb.setCollection(userId, 'onlineOrders', items).catch(() => {});
+      callbacks.onOnlineOrdersLoaded?.(items, true);
+    } else if (exists && data) {
+      offlineDb.setCollection(userId, 'onlineOrders', items).catch(() => {});
+      callbacks.onOnlineOrdersLoaded?.(items, true);
+    } else {
+      callbacks.onOnlineOrdersLoaded?.([], false);
+    }
+  });
+
+  // 19. Online Customers
+  attachListener('onlineCustomers', (data, exists) => {
+    const items = extractItems<OnlineCustomer>(data, 'onlineCustomers');
+    if (exists && items.length > 0) {
+      offlineDb.setCollection(userId, 'onlineCustomers', items).catch(() => {});
+      callbacks.onOnlineCustomersLoaded?.(items, true);
+    } else if (exists && data) {
+      offlineDb.setCollection(userId, 'onlineCustomers', items).catch(() => {});
+      callbacks.onOnlineCustomersLoaded?.(items, true);
+    } else {
+      callbacks.onOnlineCustomersLoaded?.([], false);
+    }
+  });
+
+  // 20. Online Products
+  attachListener('onlineProducts', (data, exists) => {
+    const items = extractItems<OnlineProduct>(data, 'onlineProducts');
+    if (exists && items.length > 0) {
+      offlineDb.setCollection(userId, 'onlineProducts', items).catch(() => {});
+      callbacks.onOnlineProductsLoaded?.(items, true);
+    } else if (exists && data) {
+      offlineDb.setCollection(userId, 'onlineProducts', items).catch(() => {});
+      callbacks.onOnlineProductsLoaded?.(items, true);
+    } else {
+      callbacks.onOnlineProductsLoaded?.([], false);
+    }
+  });
+
+  // 21. Online Business Settings
+  attachListener('onlineSettings', (data, exists) => {
+    if (exists && data && data.settings) {
+      offlineDb.setCollection(userId, 'onlineSettings', [data.settings]).catch(() => {});
+      callbacks.onOnlineSettingsLoaded?.(data.settings, true);
+    } else if (exists && data && data.enabled !== undefined) {
+      offlineDb.setCollection(userId, 'onlineSettings', [data as OnlineBusinessSettings]).catch(() => {});
+      callbacks.onOnlineSettingsLoaded?.(data as OnlineBusinessSettings, true);
     }
   });
 

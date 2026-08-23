@@ -177,6 +177,30 @@ const NOTIF_STRINGS: Record<
       info: 'Information',
     },
   },
+  ur: {
+    titles: {
+      out_of_stock: 'اسٹاک ختم',
+      low_stock: 'کم اسٹاک',
+      expiring_soon: 'جلد ختم ہونے والی میعاد',
+      expired: 'میعاد ختم شدہ پروڈکٹ',
+      pending_due: 'واجب الادا رقم',
+      overdue_due: 'میعاد گزری رقم',
+      subscription: 'سبسکرپشن الرٹ',
+      system: 'سسٹم نوٹیفکیشن',
+      report: 'کاروباری رپورٹ',
+      due: 'واجب الادا رقم',
+    },
+    types: {
+      critical: 'انتہائی اہم',
+      warning: 'انتباہ',
+      info: 'معلومات',
+    },
+    priorities: {
+      critical: 'انتہائی اہم',
+      warning: 'انتباہ',
+      info: 'معلومات',
+    },
+  },
 };
 
 /**
@@ -217,6 +241,8 @@ export function getNotificationContent(
         message = `उत्पाद "${productName}" का स्टॉक खत्म हो गया है।`;
       } else if (lang === 'ar') {
         message = `المنتج "${productName}" نفد من المخزون تماماً.`;
+      } else if (lang === 'ur') {
+        message = `پروڈکٹ "${productName}" کا اسٹاک ختم ہو چکا ہے۔`;
       } else if (lang === 'es') {
         message = `El producto "${productName}" está completamente agotado.`;
       } else if (lang === 'fr') {
@@ -233,6 +259,8 @@ export function getNotificationContent(
         message = `उत्पाद "${productName}" का स्टॉक कम है (केवल ${stock} / ${threshold} शेष)।`;
       } else if (lang === 'ar') {
         message = `مخزون المنتج "${productName}" منخفض (${stock} / ${threshold} متبقي).`;
+      } else if (lang === 'ur') {
+        message = `پروڈکٹ "${productName}" کا اسٹاک کم ہے (صرف ${stock} / ${threshold} باقی)۔`;
       } else if (lang === 'es') {
         message = `El producto "${productName}" tiene poco stock (${stock} / ${threshold} restantes).`;
       } else if (lang === 'fr') {
@@ -250,6 +278,8 @@ export function getNotificationContent(
         message = `उत्पाद "${productName}" ${diffDays === 0 ? 'आज' : `${diffDays} दिनों में`} समाप्त होगा (${expiryDate})।`;
       } else if (lang === 'ar') {
         message = `المنتج "${productName}" سينتهي ${diffDays === 0 ? 'اليوم' : `خلال ${diffDays} أيام`} (${expiryDate}).`;
+      } else if (lang === 'ur') {
+        message = `پروڈکٹ "${productName}" کی میعاد ${diffDays === 0 ? 'آج' : `${diffDays} دنوں میں`} ختم ہو جائے گی (${expiryDate})۔`;
       } else if (lang === 'es') {
         message = `El producto "${productName}" caducará ${diffDays === 0 ? 'hoy' : `en ${diffDays} días`} (${expiryDate}).`;
       } else if (lang === 'fr') {
@@ -267,6 +297,8 @@ export function getNotificationContent(
         message = `उत्पाद "${productName}" ${expiryDate} को समाप्त हो चुका है।`;
       } else if (lang === 'ar') {
         message = `انتهت صلاحية المنتج "${productName}" بتاريخ ${expiryDate}.`;
+      } else if (lang === 'ur') {
+        message = `پروڈکٹ "${productName}" کی میعاد ${expiryDate} کو ختم ہو چکی ہے۔`;
       } else if (lang === 'es') {
         message = `El producto "${productName}" ha caducado el ${expiryDate}.`;
       } else if (lang === 'fr') {
@@ -284,6 +316,8 @@ export function getNotificationContent(
         message = `ग्राहक "${customerName}" का ${formattedDue} भुगतान लंबित है।`;
       } else if (lang === 'ar') {
         message = `العميل "${customerName}" لديه دفعة معلقة بقيمة ${formattedDue}.`;
+      } else if (lang === 'ur') {
+        message = `گاہک "${customerName}" کے ذمے ${formattedDue} کا بقایا واجب الادا ہے۔`;
       } else if (lang === 'es') {
         message = `El cliente "${customerName}" tiene un pago pendiente de ${formattedDue}.`;
       } else if (lang === 'fr') {
@@ -300,6 +334,8 @@ export function getNotificationContent(
         message = `ग्राहक "${customerName}" का ${formattedDue} अतिदेय भुगतान है।`;
       } else if (lang === 'ar') {
         message = `العميل "${customerName}" لديه دفعة متأخرة بقيمة ${formattedDue}.`;
+      } else if (lang === 'ur') {
+        message = `گاہک "${customerName}" کی ${formattedDue} کی واجب الادا رقم کی تاریخ گزر چکی ہے۔`;
       } else if (lang === 'es') {
         message = `El cliente "${customerName}" tiene un pago vencido de ${formattedDue}.`;
       } else if (lang === 'fr') {

@@ -59,6 +59,15 @@ import {
   EmployeeDevice,
   Investment,
   CapitalWithdrawal,
+  OnlineOrder,
+  OnlineOrderItem,
+  OnlineCustomer,
+  OnlineBusinessSettings,
+  OnlineOrderStatus,
+  DeliveryPayer,
+  defaultOnlineBusinessSettings,
+  isOnlineBusinessEligible,
+  OnlineProduct,
 } from '../types';
 import {
   getCurrentDeviceInfo,
@@ -345,6 +354,25 @@ interface AppContextType {
   saveLoyaltySettings: (updated: CustomerLoyaltySettings) => void;
   isCloudSynced: boolean;
 
+  // Online Business Mode
+  onlineProducts: OnlineProduct[];
+  onlineOrders: OnlineOrder[];
+  onlineCustomers: OnlineCustomer[];
+  onlineSettings: OnlineBusinessSettings;
+  isOnlineBusinessActive: boolean;
+  toggleOnlineBusinessMode: (enabled: boolean) => Promise<{ success: boolean; error?: string; reason?: 'free' | 'expired' | 'unauthorized' }>;
+  updateOnlineSettings: (newSettings: Partial<OnlineBusinessSettings>) => Promise<void>;
+  createOnlineProduct: (productData: Partial<OnlineProduct> & { name: string; sellingPrice: number }) => Promise<OnlineProduct>;
+  updateOnlineProduct: (productIdOrData: string | OnlineProduct, updates?: Partial<OnlineProduct>) => Promise<void>;
+  deleteOnlineProduct: (productId: string) => Promise<void>;
+  createOnlineOrder: (orderData: Partial<OnlineOrder>) => Promise<OnlineOrder>;
+  updateOnlineOrder: (orderId: string, updates: Partial<OnlineOrder>) => Promise<void>;
+  updateOnlineOrderStatus: (orderId: string, status: OnlineOrderStatus, notesOrReason?: string) => Promise<void>;
+  deleteOnlineOrder: (orderId: string) => Promise<void>;
+  recordCodCollection: (orderId: string, amount: number, courierNote?: string) => Promise<void>;
+  createOnlineCustomer: (customerData: Partial<OnlineCustomer>) => Promise<OnlineCustomer>;
+  updateOnlineCustomer: (customerId: string, updates: Partial<OnlineCustomer>) => Promise<void>;
+
   // Calculated Business Metrics
   metrics: {
     todaySales: number;
@@ -462,6 +490,7 @@ const defaultSettings: BusinessSettings = {
     accountName: 'YearInvo Store',
     accountNumber: '01700000000',
   },
+  onlineBusiness: defaultOnlineBusinessSettings,
 };
 
 const initialRegisteredUsers: UserProfile[] = [
@@ -1169,6 +1198,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
+  // Online Business Mode State
+  const [onlineProducts, setOnlineProducts] = useState<OnlineProduct[]>(() => {
+    try {
+      const saved = localStorage.getItem(`biz_online_products_${user?.id || 'default'}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [onlineOrders, setOnlineOrders] = useState<OnlineOrder[]>(() => {
+    try {
+      const saved = localStorage.getItem(`biz_online_orders_${user?.id || 'default'}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [onlineCustomers, setOnlineCustomers] = useState<OnlineCustomer[]>(() => {
+    try {
+      const saved = localStorage.getItem(`biz_online_customers_${user?.id || 'default'}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
   const [isCloudSynced, setIsCloudSynced] = useState<boolean>(false);
 
   // Real-time Cloud Synchronization (Single Account = Single Cloud Data across all PC & Mobile devices)
@@ -1192,6 +1249,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setPayrollPayments([]);
       setSalaryAdjustments([]);
       setAuditLogs([]);
+      setOnlineProducts([]);
+      setOnlineOrders([]);
+      setOnlineCustomers([]);
       return;
     }
 
@@ -1558,6 +1618,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               return merged;
             });
           }
+        }
+      },
+
+      onOnlineProductsLoaded: (cloudOnlineProducts, fromCloud) => {
+        if (fromCloud) {
+          setOnlineProducts(cloudOnlineProducts);
+          try {
+            localStorage.setItem(`biz_online_products_${currentUserId}`, JSON.stringify(cloudOnlineProducts));
+          } catch (e) {}
+        }
+      },
+
+      onOnlineOrdersLoaded: (cloudOrders, fromCloud) => {
+        if (fromCloud) {
+          setOnlineOrders(cloudOrders);
+          try {
+            localStorage.setItem(`biz_online_orders_${currentUserId}`, JSON.stringify(cloudOrders));
+          } catch (e) {}
+        }
+      },
+
+      onOnlineCustomersLoaded: (cloudCustomers, fromCloud) => {
+        if (fromCloud) {
+          setOnlineCustomers(cloudCustomers);
+          try {
+            localStorage.setItem(`biz_online_customers_${currentUserId}`, JSON.stringify(cloudCustomers));
+          } catch (e) {}
+        }
+      },
+
+      onOnlineSettingsLoaded: (cloudOnlineSettings, fromCloud) => {
+        if (fromCloud && cloudOnlineSettings) {
+          setSettings((prev) => ({
+            ...prev,
+            onlineBusiness: {
+              ...(prev.onlineBusiness || defaultOnlineBusinessSettings),
+              ...cloudOnlineSettings,
+            },
+          }));
         }
       },
 
@@ -4972,6 +5071,464 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // ==========================================
+  // ONLINE BUSINESS MODE HANDLERS & LOGIC
+  // ==========================================
+  const onlineSettings = settings.onlineBusiness || defaultOnlineBusinessSettings;
+  const isOnlineBusinessActive = Boolean(
+    onlineSettings.enabled && isOnlineBusinessEligible(user).eligible
+  );
+
+  const toggleOnlineBusinessMode = async (
+    enabled: boolean
+  ): Promise<{ success: boolean; error?: string; reason?: 'free' | 'expired' | 'unauthorized' }> => {
+    if (enabled) {
+      const eligibility = isOnlineBusinessEligible(user);
+      if (!eligibility.eligible) {
+        return {
+          success: false,
+          reason: eligibility.reason,
+          error:
+            eligibility.reason === 'free'
+              ? 'Online Business Mode requires a Pro or Premium subscription plan.'
+              : 'Your active subscription does not permit Online Business Mode.',
+        };
+      }
+    }
+
+    const updatedOnlineSettings: OnlineBusinessSettings = {
+      ...onlineSettings,
+      enabled,
+    };
+
+    const updatedSettings = {
+      ...settings,
+      onlineBusiness: updatedOnlineSettings,
+    };
+
+    setSettings(updatedSettings);
+    localStorage.setItem('biz_settings', JSON.stringify(updatedSettings));
+
+    const currentUserId = user?.id || auth.currentUser?.uid;
+    if (currentUserId) {
+      localStorage.setItem(`biz_settings_${currentUserId}`, JSON.stringify(updatedSettings));
+      try {
+        await saveUserCloudCollection(currentUserId, 'onlineSettings', updatedOnlineSettings);
+      } catch (err) {
+        console.warn('Could not push onlineSettings to cloud immediately, queuing offline sync:', err);
+      }
+
+      await syncQueueService.enqueue('UPDATE_ONLINE_SETTINGS', updatedOnlineSettings);
+    }
+
+    return { success: true };
+  };
+
+  const updateOnlineSettings = async (newSettings: Partial<OnlineBusinessSettings>) => {
+    const updatedOnlineSettings: OnlineBusinessSettings = {
+      ...onlineSettings,
+      ...newSettings,
+    };
+
+    const updatedSettings = {
+      ...settings,
+      onlineBusiness: updatedOnlineSettings,
+    };
+
+    setSettings(updatedSettings);
+    localStorage.setItem('biz_settings', JSON.stringify(updatedSettings));
+
+    const currentUserId = user?.id || auth.currentUser?.uid;
+    if (currentUserId) {
+      localStorage.setItem(`biz_settings_${currentUserId}`, JSON.stringify(updatedSettings));
+      try {
+        await saveUserCloudCollection(currentUserId, 'onlineSettings', updatedOnlineSettings);
+      } catch (err) {
+        console.warn('Cloud sync offline queue used for onlineSettings');
+      }
+
+      await syncQueueService.enqueue('UPDATE_ONLINE_SETTINGS', updatedOnlineSettings);
+    }
+  };
+
+  const createOnlineCustomer = async (
+    customerData: Partial<OnlineCustomer>
+  ): Promise<OnlineCustomer> => {
+    const currentUserId = user?.id || auth.currentUser?.uid || 'default';
+    const newCustomer: OnlineCustomer = {
+      id: `cust_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      name: customerData.name || 'Unnamed Customer',
+      phone: customerData.phone || '',
+      email: customerData.email,
+      address: customerData.address || '',
+      city: customerData.city || 'Inside City',
+      totalOrders: customerData.totalOrders || 0,
+      totalSpent: customerData.totalSpent || 0,
+      lastOrderDate: customerData.lastOrderDate,
+      createdAt: new Date().toISOString(),
+    };
+
+    const updated = [newCustomer, ...onlineCustomers];
+    setOnlineCustomers(updated);
+    localStorage.setItem(`biz_online_customers_${currentUserId}`, JSON.stringify(updated));
+
+    try {
+      await offlineDb.setCollection(currentUserId, 'onlineCustomers', updated);
+    } catch (e) {}
+
+    if (currentUserId !== 'default') {
+      try {
+        await saveUserCloudCollection(currentUserId, 'onlineCustomers', { items: updated });
+      } catch (e) {}
+
+      await syncQueueService.enqueue('CREATE_ONLINE_CUSTOMER', newCustomer);
+    }
+
+    return newCustomer;
+  };
+
+  const updateOnlineCustomer = async (
+    customerId: string,
+    updates: Partial<OnlineCustomer>
+  ) => {
+    const currentUserId = user?.id || auth.currentUser?.uid || 'default';
+    const updated = onlineCustomers.map((c) =>
+      c.id === customerId ? { ...c, ...updates } : c
+    );
+    setOnlineCustomers(updated);
+    localStorage.setItem(`biz_online_customers_${currentUserId}`, JSON.stringify(updated));
+
+    try {
+      await offlineDb.setCollection(currentUserId, 'onlineCustomers', updated);
+    } catch (e) {}
+
+    if (currentUserId !== 'default') {
+      try {
+        await saveUserCloudCollection(currentUserId, 'onlineCustomers', { items: updated });
+      } catch (e) {}
+    }
+  };
+
+  const createOnlineOrder = async (
+    orderData: Partial<OnlineOrder>
+  ): Promise<OnlineOrder> => {
+    const currentUserId = user?.id || auth.currentUser?.uid || 'default';
+    const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
+
+    // Normalize and compute items list with valid numbers
+    const items: OnlineOrderItem[] = (orderData.items || []).map((item) => {
+      const buyingPrice = Number(item.buyingPrice) || 0;
+      const sellingPrice = Number(item.sellingPrice) || 0;
+      const quantity = Math.max(1, Number(item.quantity) || 1);
+      const total = Number(item.total) > 0 ? Number(item.total) : sellingPrice * quantity;
+      return {
+        ...item,
+        buyingPrice,
+        sellingPrice,
+        quantity,
+        total,
+      };
+    });
+
+    const itemsSum = items.reduce((sum, item) => sum + item.total, 0);
+    const subtotal = orderData.subtotal !== undefined && Number(orderData.subtotal) > 0
+      ? Number(orderData.subtotal)
+      : itemsSum;
+
+    const deliveryCharge = Number(orderData.deliveryCharge) || 0;
+    const deliveryPayer = orderData.deliveryPayer || 'Customer';
+    const discount = Number(orderData.discount) || 0;
+
+    // Strict Calculation:
+    // When delivery is paid by Customer: Grand Total = Subtotal + Delivery Charge - Discount
+    // When delivery is paid by Owner: Grand Total = Subtotal - Discount
+    const calculatedGrandTotal = deliveryPayer === 'Customer'
+      ? Math.max(0, subtotal + deliveryCharge - discount)
+      : Math.max(0, subtotal - discount);
+
+    const grandTotal = calculatedGrandTotal;
+    const ownerDeliveryExpense = deliveryPayer === 'Owner' ? deliveryCharge : 0;
+    const codAmount = orderData.paymentMethod === 'COD' || !orderData.paymentMethod ? grandTotal : 0;
+
+    const newOrder: OnlineOrder = {
+      id: `ord_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      orderNo: orderData.orderNo || orderNumber,
+      userId: currentUserId,
+      customerName: orderData.customerName || 'Customer',
+      customerPhone: orderData.customerPhone || '',
+      customerEmail: orderData.customerEmail,
+      deliveryAddress: orderData.deliveryAddress || '',
+      deliveryCity: orderData.deliveryCity || 'Inside City',
+      items,
+      subtotal,
+      deliveryCharge,
+      deliveryPayer,
+      discount,
+      grandTotal,
+      ownerDeliveryExpense,
+      paymentMethod: orderData.paymentMethod || 'COD',
+      paymentStatus: orderData.paymentStatus || 'Pending',
+      status: orderData.status || 'Pending',
+      courierName: orderData.courierName,
+      trackingNumber: orderData.trackingNumber,
+      notes: orderData.notes,
+      codAmount: orderData.codAmount !== undefined ? Number(orderData.codAmount) : codAmount,
+      codCollected: orderData.codCollected || false,
+      codCollectedAt: orderData.codCollectedAt,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    // 1. Update product inventory stocks for each item sold
+    if (newOrder.items && newOrder.items.length > 0) {
+      // Deduct from online products catalog
+      const updatedOnlineProducts = onlineProducts.map((prod) => {
+        const itemSold = newOrder.items.find((it) => it.productId === prod.id);
+        if (itemSold) {
+          const newStock = Math.max(0, (prod.stock || 0) - itemSold.quantity);
+          return { ...prod, stock: newStock };
+        }
+        return prod;
+      });
+      setOnlineProducts(updatedOnlineProducts);
+      localStorage.setItem(`biz_online_products_${currentUserId}`, JSON.stringify(updatedOnlineProducts));
+      if (currentUserId !== 'default') {
+        saveUserCloudCollection(currentUserId, 'onlineProducts', { items: updatedOnlineProducts }).catch(() => {});
+      }
+
+      // Deduct from offline POS products if matching ID exists
+      const updatedProducts = products.map((prod) => {
+        const itemSold = newOrder.items.find((it) => it.productId === prod.id);
+        if (itemSold) {
+          const newQty = Math.max(0, prod.currentStock - itemSold.quantity);
+          return { ...prod, currentStock: newQty };
+        }
+        return prod;
+      });
+      setProducts(updatedProducts);
+      localStorage.setItem(`biz_products_${currentUserId}`, JSON.stringify(updatedProducts));
+      if (currentUserId !== 'default') {
+        saveUserCloudCollection(currentUserId, 'products', { items: updatedProducts }).catch(() => {});
+      }
+    }
+
+    // 2. Auto catalog customer in onlineCustomers if not present or update stats
+    const existingCustomer = onlineCustomers.find((c) => c.phone === newOrder.customerPhone);
+    if (existingCustomer) {
+      await updateOnlineCustomer(existingCustomer.id, {
+        totalOrders: existingCustomer.totalOrders + 1,
+        totalSpent: existingCustomer.totalSpent + newOrder.grandTotal,
+        lastOrderDate: new Date().toISOString(),
+        address: newOrder.deliveryAddress || existingCustomer.address,
+        city: newOrder.deliveryCity || existingCustomer.city,
+      });
+    } else if (newOrder.customerName && newOrder.customerPhone) {
+      await createOnlineCustomer({
+        name: newOrder.customerName,
+        phone: newOrder.customerPhone,
+        email: newOrder.customerEmail,
+        address: newOrder.deliveryAddress,
+        city: newOrder.deliveryCity,
+        totalOrders: 1,
+        totalSpent: newOrder.grandTotal,
+        lastOrderDate: new Date().toISOString(),
+      });
+    }
+
+    // 3. Save Order in state, IndexedDB, and Cloud Sync
+    const updatedOrders = [newOrder, ...onlineOrders];
+    setOnlineOrders(updatedOrders);
+    localStorage.setItem(`biz_online_orders_${currentUserId}`, JSON.stringify(updatedOrders));
+
+    try {
+      await offlineDb.setCollection(currentUserId, 'onlineOrders', updatedOrders);
+    } catch (e) {}
+
+    if (currentUserId !== 'default') {
+      try {
+        await saveUserCloudCollection(currentUserId, 'onlineOrders', { items: updatedOrders });
+      } catch (e) {}
+
+      await syncQueueService.enqueue('CREATE_ONLINE_ORDER', newOrder);
+    }
+
+    return newOrder;
+  };
+
+  const updateOnlineOrder = async (
+    orderId: string,
+    updates: Partial<OnlineOrder>
+  ) => {
+    const currentUserId = user?.id || auth.currentUser?.uid || 'default';
+    const updated = onlineOrders.map((o) =>
+      o.id === orderId ? { ...o, ...updates, updatedAt: new Date().toISOString() } : o
+    );
+    setOnlineOrders(updated);
+    localStorage.setItem(`biz_online_orders_${currentUserId}`, JSON.stringify(updated));
+
+    try {
+      await offlineDb.setCollection(currentUserId, 'onlineOrders', updated);
+    } catch (e) {}
+
+    const targetOrder = updated.find((o) => o.id === orderId);
+    if (currentUserId !== 'default') {
+      try {
+        await saveUserCloudCollection(currentUserId, 'onlineOrders', { items: updated });
+      } catch (e) {}
+
+      if (targetOrder) {
+        await syncQueueService.enqueue('UPDATE_ONLINE_ORDER', targetOrder);
+      }
+    }
+  };
+
+  const updateOnlineOrderStatus = async (
+    orderId: string,
+    status: OnlineOrderStatus,
+    notesOrReason?: string
+  ) => {
+    const existing = onlineOrders.find((o) => o.id === orderId);
+    if (!existing) return;
+
+    const updates: Partial<OnlineOrder> = {
+      status,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (status === 'Delivered') {
+      updates.deliveredAt = new Date().toISOString();
+      if (existing.paymentMethod !== 'COD') {
+        updates.paymentStatus = 'Paid';
+      }
+    } else if (status === 'Shipped') {
+      updates.shippedAt = new Date().toISOString();
+    } else if (status === 'Cancelled') {
+      updates.cancelledAt = new Date().toISOString();
+      if (notesOrReason) {
+        updates.cancellationReason = notesOrReason;
+      }
+    } else if (status === 'Returned') {
+      updates.returnedAt = new Date().toISOString();
+      if (notesOrReason) {
+        updates.returnReason = notesOrReason;
+      }
+    }
+
+    await updateOnlineOrder(orderId, updates);
+  };
+
+  const deleteOnlineOrder = async (orderId: string) => {
+    const currentUserId = user?.id || auth.currentUser?.uid || 'default';
+    const updated = onlineOrders.filter((o) => o.id !== orderId);
+    setOnlineOrders(updated);
+    localStorage.setItem(`biz_online_orders_${currentUserId}`, JSON.stringify(updated));
+
+    try {
+      await offlineDb.setCollection(currentUserId, 'onlineOrders', updated);
+    } catch (e) {}
+
+    if (currentUserId !== 'default') {
+      try {
+        await saveUserCloudCollection(currentUserId, 'onlineOrders', { items: updated });
+      } catch (e) {}
+    }
+  };
+
+  const recordCodCollection = async (
+    orderId: string,
+    amount: number,
+    courierNote?: string
+  ) => {
+    await updateOnlineOrder(orderId, {
+      codCollected: true,
+      codAmount: amount,
+      codCollectedAt: new Date().toISOString(),
+      paymentStatus: 'Paid',
+      notes: courierNote || undefined,
+    });
+  };
+
+  const createOnlineProduct = async (
+    productData: Partial<OnlineProduct> & { name: string; sellingPrice: number }
+  ): Promise<OnlineProduct> => {
+    const currentUserId = user?.id || auth.currentUser?.uid || 'default';
+    const newProduct: OnlineProduct = {
+      id: `onl_prod_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      name: productData.name,
+      sku: productData.sku || `ONL-${Math.floor(1000 + Math.random() * 9000)}`,
+      barcode: productData.barcode,
+      category: productData.category || 'General',
+      buyingPrice: Number(productData.buyingPrice) || 0,
+      sellingPrice: Number(productData.sellingPrice),
+      stock: Number(productData.stock) || 0,
+      minStockAlert: Number(productData.minStockAlert) || 3,
+      unit: productData.unit || 'Piece',
+      description: productData.description,
+      imageUrl: productData.imageUrl,
+      status: productData.status || 'active',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const updated = [newProduct, ...onlineProducts];
+    setOnlineProducts(updated);
+    localStorage.setItem(`biz_online_products_${currentUserId}`, JSON.stringify(updated));
+
+    try {
+      await offlineDb.setCollection(currentUserId, 'onlineProducts', updated);
+    } catch (e) {}
+
+    if (currentUserId !== 'default') {
+      try {
+        await saveUserCloudCollection(currentUserId, 'onlineProducts', { items: updated });
+      } catch (e) {}
+    }
+
+    return newProduct;
+  };
+
+  const updateOnlineProduct = async (
+    productIdOrData: string | OnlineProduct,
+    updates?: Partial<OnlineProduct>
+  ) => {
+    const currentUserId = user?.id || auth.currentUser?.uid || 'default';
+    const targetId = typeof productIdOrData === 'string' ? productIdOrData : productIdOrData.id;
+    const targetUpdates = typeof productIdOrData === 'string' ? (updates || {}) : productIdOrData;
+
+    const updated = onlineProducts.map((p) =>
+      p.id === targetId ? { ...p, ...targetUpdates, updatedAt: new Date().toISOString() } : p
+    );
+    setOnlineProducts(updated);
+    localStorage.setItem(`biz_online_products_${currentUserId}`, JSON.stringify(updated));
+
+    try {
+      await offlineDb.setCollection(currentUserId, 'onlineProducts', updated);
+    } catch (e) {}
+
+    if (currentUserId !== 'default') {
+      try {
+        await saveUserCloudCollection(currentUserId, 'onlineProducts', { items: updated });
+      } catch (e) {}
+    }
+  };
+
+  const deleteOnlineProduct = async (productId: string) => {
+    const currentUserId = user?.id || auth.currentUser?.uid || 'default';
+    const updated = onlineProducts.filter((p) => p.id !== productId);
+    setOnlineProducts(updated);
+    localStorage.setItem(`biz_online_products_${currentUserId}`, JSON.stringify(updated));
+
+    try {
+      await offlineDb.setCollection(currentUserId, 'onlineProducts', updated);
+    } catch (e) {}
+
+    if (currentUserId !== 'default') {
+      try {
+        await saveUserCloudCollection(currentUserId, 'onlineProducts', { items: updated });
+      } catch (e) {}
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -5112,6 +5669,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         loyaltySettings,
         saveLoyaltySettings,
         isCloudSynced,
+        onlineProducts,
+        onlineOrders,
+        onlineCustomers,
+        onlineSettings,
+        isOnlineBusinessActive,
+        toggleOnlineBusinessMode,
+        updateOnlineSettings,
+        createOnlineProduct,
+        updateOnlineProduct,
+        deleteOnlineProduct,
+        createOnlineOrder,
+        updateOnlineOrder,
+        updateOnlineOrderStatus,
+        deleteOnlineOrder,
+        recordCodCollection,
+        createOnlineCustomer,
+        updateOnlineCustomer,
         metrics: {
           todaySales,
           todayExpense,
