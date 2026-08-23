@@ -34,10 +34,12 @@ import {
   Activity,
   ChevronDown,
   ChevronRight,
+  BookOpen,
+  LayoutDashboard,
 } from 'lucide-react';
 
 export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSidebar }) => {
-  const { activeTab, setActiveTab, user, t, dashboardPreferences } = useApp();
+  const { activeTab, setActiveTab, user, t, dashboardPreferences, settings } = useApp();
   const [showAllMenuSheet, setShowAllMenuSheet] = useState(false);
 
   const handleSelectTab = (tabId: string) => {
@@ -188,6 +190,57 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
           : []),
       ],
     },
+    ...(settings.onlineBusiness?.enabled
+      ? [
+          {
+            title: t('onlineBusiness') || 'Online Business',
+            items: [
+              {
+                id: 'online-dashboard',
+                name: t('onlineDashboard') || 'Online Dashboard',
+                icon: LayoutDashboard,
+                color: 'bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400',
+              },
+              {
+                id: 'online-orders',
+                name: t('onlineOrders') || 'Online Orders',
+                icon: ShoppingBag,
+                color: 'bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400',
+              },
+              {
+                id: 'online-status',
+                name: t('orderStatus') || 'Order Status',
+                icon: Truck,
+                color: 'bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400',
+              },
+              {
+                id: 'online-customers',
+                name: t('onlineCustomers') || 'Online Customers',
+                icon: Users,
+                color: 'bg-teal-500/10 text-teal-600 dark:bg-teal-500/20 dark:text-teal-400',
+              },
+              {
+                id: 'online-delivery',
+                name: t('deliveryAndRates') || 'Delivery & Rates',
+                icon: Settings,
+                color: 'bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400',
+              },
+              {
+                id: 'online-cod',
+                name: t('codManagement') || 'COD Management',
+                icon: Banknote,
+                color: 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400',
+              },
+              {
+                id: 'online-reports',
+                name: t('onlineReports') || 'Online Reports',
+                icon: TrendingUp,
+                color: 'bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400',
+              },
+            ],
+          },
+        ]
+      : []),
     {
       title: t('inventoryManagement') || 'Inventory & Stock',
       items: [
@@ -273,6 +326,17 @@ export const MobileNav: React.FC<{ onOpenSidebar: () => void }> = ({ onOpenSideb
                 name: t('navCustomers') || 'Customers',
                 icon: Users,
                 color: 'bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400',
+              },
+            ]
+          : []),
+        ...(dashboardPreferences?.personalLedger !== false
+          ? [
+              {
+                id: 'personal-ledger',
+                name: t('navPersonalLedger') || 'Personal Ledger',
+                desc: 'ব্যক্তিগত খাতা (স্বাধীন ঋণ ও দেনা-পাওনা)',
+                icon: BookOpen,
+                color: 'bg-orange-500/10 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400',
               },
             ]
           : []),

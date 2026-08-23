@@ -33,6 +33,7 @@ import {
   Activity,
   ChevronDown,
   ChevronRight,
+  BookOpen,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -41,7 +42,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
-  const { activeTab, setActiveTab, t, user, settings, updateSettings, dashboardPreferences } = useApp();
+  const { activeTab, setActiveTab, t, user, settings, updateSettings, dashboardPreferences, language } = useApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -144,13 +145,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   }, [isOnlineActive]);
 
   const onlineChildren = [
-    { id: 'online-business', label: 'Online Dashboard', icon: LayoutDashboard },
-    { id: 'online-orders', label: 'Online Orders', icon: ShoppingBag },
-    { id: 'online-status', label: 'Order Status', icon: Truck },
-    { id: 'online-customers', label: 'Online Customers', icon: Users },
-    { id: 'online-delivery', label: 'Delivery & Rates', icon: Settings },
-    { id: 'online-cod', label: 'COD Management', icon: Banknote },
-    { id: 'online-reports', label: 'Online Reports', icon: TrendingUp },
+    { id: 'online-dashboard', label: t('onlineDashboard') || 'Online Dashboard', icon: LayoutDashboard },
+    { id: 'online-orders', label: t('onlineOrders') || 'Online Orders', icon: ShoppingBag },
+    { id: 'online-status', label: t('orderStatus') || 'Order Status', icon: Truck },
+    { id: 'online-customers', label: t('onlineCustomers') || 'Online Customers', icon: Users },
+    { id: 'online-delivery', label: t('deliveryAndRates') || 'Delivery & Rates', icon: Settings },
+    { id: 'online-cod', label: t('codManagement') || 'COD Management', icon: Banknote },
+    { id: 'online-reports', label: t('onlineReports') || 'Online Reports', icon: TrendingUp },
   ];
 
   // Primary menu items before the Team & Payroll group
@@ -178,6 +179,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     ...(dashboardPreferences?.customerLoyalty !== false && canAccessSales ? [{ id: 'loyalty', label: t('modCustomerLoyalty') || 'Customer Loyalty', icon: Award }] : []),
     ...(dashboardPreferences?.suppliers !== false && canAccessInventory ? [{ id: 'suppliers', label: t('navSuppliers') || 'Suppliers', icon: Truck }] : []),
     ...(dashboardPreferences?.dueManagement !== false && (canAccessSales || canAccessFinance) ? [{ id: 'due', label: t('navDue') || 'Due Management', icon: CreditCard }] : []),
+    ...(dashboardPreferences?.personalLedger !== false ? [{ id: 'personal-ledger', label: t('navPersonalLedger') || (language === 'bn' ? 'ব্যক্তিগত খাতা' : 'Personal Ledger'), icon: BookOpen }] : []),
     ...(dashboardPreferences?.expenses !== false && canAccessFinance ? [{ id: 'expenses', label: t('navExpenses') || 'Expenses', icon: Receipt }] : []),
     ...(dashboardPreferences?.capitalInvestment !== false && canAccessFinance ? [{ id: 'capital-investment', label: t('navCapitalInvestment') || 'Capital & Investment', icon: Coins }] : []),
   ];
@@ -325,7 +327,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-indigo-500/30 ml-4 my-1">
                   {onlineChildren.map((child) => {
                     const ChildIcon = child.icon;
-                    const isChildActive = activeTab === child.id;
+                    const isChildActive =
+                      activeTab === child.id ||
+                      (child.id === 'online-dashboard' && (activeTab === 'online-business' || activeTab === 'online' || activeTab === 'onlineDashboard' || activeTab === 'online_dashboard')) ||
+                      (child.id === 'online-orders' && (activeTab === 'online-order' || activeTab === 'onlineOrders' || activeTab === 'onlineOrder' || activeTab === 'online_orders' || activeTab === 'online_order')) ||
+                      (child.id === 'online-status' && (activeTab === 'onlineStatus' || activeTab === 'online_status' || activeTab === 'order-status' || activeTab === 'orderStatus')) ||
+                      (child.id === 'online-customers' && (activeTab === 'online-customer' || activeTab === 'onlineCustomers' || activeTab === 'onlineCustomer' || activeTab === 'online_customers')) ||
+                      (child.id === 'online-delivery' && (activeTab === 'onlineDelivery' || activeTab === 'online_delivery' || activeTab === 'online-delivery-review' || activeTab === 'onlineDeliveryReview' || activeTab === 'delivery' || activeTab === 'delivery-settings' || activeTab === 'deliverySettings')) ||
+                      (child.id === 'online-cod' && (activeTab === 'onlineCod' || activeTab === 'online_cod' || activeTab === 'cod' || activeTab === 'cod-management' || activeTab === 'codManagement')) ||
+                      (child.id === 'online-reports' && (activeTab === 'online-report' || activeTab === 'onlineReports' || activeTab === 'onlineReport' || activeTab === 'online_reports' || activeTab === 'online_report'));
                     return (
                       <button
                         key={child.id}

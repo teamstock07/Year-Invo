@@ -1,24 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useApp } from '../../context/AppContext';
 import { getDisplayBrandName } from '../../utils/brand';
 import JsBarcode from 'jsbarcode';
 import QRCode from 'qrcode';
+import { jsPDF } from 'jspdf';
 import {
   QrCode,
   Printer,
   Sparkles,
-  Lock,
-  CheckCircle,
   Tag,
-  Copy,
   Sliders,
-  RotateCcw,
   Barcode,
   Search,
   Check,
-  AlertTriangle,
-  Plus,
+  Download,
+  Eye,
+  X,
+  FileText,
+  Layers,
+  Settings2,
+  Copy,
+  CheckCheck,
 } from 'lucide-react';
+
+export type PrintLayoutType =
+  | 'a4'
+  | 'thermal-50x30'
+  | 'thermal-40x30'
+  | 'thermal-30x20'
+  | 'thermal-15x30';
 
 interface GeneratedLabelConfig {
   productId: string;
@@ -38,25 +48,20 @@ interface GeneratedLabelConfig {
 export const BarcodeGeneratorView: React.FC = () => {
   const {
     user,
-    setActiveTab,
     products,
     settings,
-    t,
+    language,
     generatedProductCodes,
-    recordGeneratedCode,
     isCodeGenerated,
     getGeneratedQRCount,
     recordGeneratedQRCodes,
   } = useApp();
-  const symbol = settings.currency || '৳';
-  const plan = user?.subscriptionPlan || 'Free';
-  const isPremiumPlan =
-    plan === 'Premium' || plan === 'Business' || plan === 'Lifetime';
 
-  const [selectedProductId, setSelectedProductId] = useState<string>(
-    products[0]?.id || ''
-  );
-  const [copiesInput, setCopiesInput] = useState<number>(1);
+  const symbol = settings.currency || '৳';
+  const brandName = getDisplayBrandName(settings.brandName) || user?.brandName || 'My Store';
+
+  const [selectedProductId, setSelectedProductId] = useState<string>(products[0]?.id || '');
+  const [copiesInput, setCopiesInput] = useState<number>(12);
   const [codeType, setCodeType] = useState<'barcode' | 'qrcode' | 'both'>('both');
   const [showPrice, setShowPrice] = useState<boolean>(true);
   const [showSKU, setShowSKU] = useState<boolean>(true);
@@ -65,586 +70,825 @@ export const BarcodeGeneratorView: React.FC = () => {
 
   const [generatedConfig, setGeneratedConfig] = useState<GeneratedLabelConfig | null>(null);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [activePrintLayout, setActivePrintLayout] = useState<PrintLayoutType>('a4');
+  const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
+  const [copiedNotification, setCopiedNotification] = useState<string | null>(null);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false);
 
-  const selectedProduct =
-    products.find((p) => p.id === selectedProductId) || products[0];
+  const selectedProduct = useMemo(
+    () => products.find((p) => p.id === selectedProductId) || products[0],
+    [products, selectedProductId]
+  );
 
   const totalProductsCount = products.length;
   const usedCodesCount = generatedProductCodes.length;
-  const isLimitReached = usedCodesCount >= totalProductsCount;
   const isSelectedProductGenerated = selectedProduct ? isCodeGenerated(selectedProduct.id) : false;
-
-  const currentStock = selectedProduct ? (selectedProduct.currentStock ?? (selectedProduct as any).stock ?? 0) : 0;
+  const currentStock = selectedProduct
+    ? selectedProduct.currentStock ?? (selectedProduct as any).stock ?? 0
+    : 0;
   const alreadyGenerated = selectedProduct ? getGeneratedQRCount(selectedProduct.id) : 0;
   const availableCapacity = Math.max(0, currentStock - alreadyGenerated);
 
-  const filteredProducts = products.filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
-      p.sku.toLowerCase().includes(searchFilter.toLowerCase())
+  const filteredProducts = useMemo(
+    () =>
+      products.filter(
+        (p) =>
+          p.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
+          (p.sku && p.sku.toLowerCase().includes(searchFilter.toLowerCase())) ||
+          (p.barcode && p.barcode.toLowerCase().includes(searchFilter.toLowerCase()))
+      ),
+    [products, searchFilter]
   );
 
-  // Auto-select first product if non-selected
+  // Auto-select first product if empty
   useEffect(() => {
     if (!selectedProductId && products.length > 0) {
       setSelectedProductId(products[0].id);
     }
   }, [products, selectedProductId]);
 
-  const handleGenerate = async () => {
+  // Generate barcodes & QR codes helper
+  const generateLabelData = useCallback(
+    async (
+      prod = selectedProduct,
+      numCopies = copiesInput,
+      cType = codeType,
+      sPrice = showPrice,
+      sSKU = showSKU,
+      sBrand = showBrand
+    ): Promise<GeneratedLabelConfig | null> => {
+      if (!prod) return null;
+
+      const copies = Math.max(1, Number(numCopies) || 1);
+      const barcodeValue = prod.sku || prod.barcode || prod.id;
+
+      let barcodeDataUrl = '';
+      if (cType === 'barcode' || cType === 'both') {
+        try {
+          const canvas = document.createElement('canvas');
+          JsBarcode(canvas, barcodeValue, {
+            format: 'CODE128',
+            width: 2,
+            height: 55,
+            displayValue: true,
+            fontSize: 13,
+            margin: 6,
+            background: '#ffffff',
+            lineColor: '#000000',
+          });
+          barcodeDataUrl = canvas.toDataURL('image/png');
+        } catch (err) {
+          console.warn('JsBarcode CODE128 error fallback to CODE39:', err);
+          try {
+            const canvas = document.createElement('canvas');
+            JsBarcode(canvas, barcodeValue.replace(/[^0-9A-Za-z\-]/g, ''), {
+              format: 'CODE39',
+              width: 1.8,
+              height: 50,
+              displayValue: true,
+              fontSize: 12,
+              margin: 6,
+            });
+            barcodeDataUrl = canvas.toDataURL('image/png');
+          } catch (e2) {
+            console.error('Failed to generate barcode image:', e2);
+          }
+        }
+      }
+
+      let qrDataUrl = '';
+      if (cType === 'qrcode' || cType === 'both') {
+        try {
+          const currentStoreId = user?.id || user?.brandName || '';
+          const qrPayload = JSON.stringify({
+            type: 'yearinvo_product',
+            productId: prod.id,
+            sku: prod.sku || '',
+            barcode: prod.barcode || '',
+            price: prod.sellingPrice,
+            storeId: currentStoreId,
+          });
+
+          qrDataUrl = await QRCode.toDataURL(qrPayload, {
+            width: 200,
+            margin: 1,
+            color: {
+              dark: '#000000',
+              light: '#ffffff',
+            },
+            errorCorrectionLevel: 'M',
+          });
+        } catch (err) {
+          console.error('Failed to generate QR code:', err);
+        }
+      }
+
+      const config: GeneratedLabelConfig = {
+        productId: prod.id,
+        productName: prod.name,
+        sku: prod.sku || prod.id.slice(0, 8),
+        barcode: barcodeValue,
+        sellingPrice: prod.sellingPrice || 0,
+        copies,
+        barcodeDataUrl,
+        qrDataUrl,
+        codeType: cType,
+        showPrice: sPrice,
+        showSKU: sSKU,
+        showBrand: sBrand,
+      };
+
+      return config;
+    },
+    [selectedProduct, copiesInput, codeType, showPrice, showSKU, showBrand, user]
+  );
+
+  // Auto-generate on product selection or option toggle so preview & print are instantly available
+  useEffect(() => {
+    let isCancelled = false;
+    if (selectedProduct) {
+      generateLabelData().then((config) => {
+        if (!isCancelled && config) {
+          setGeneratedConfig(config);
+        }
+      });
+    }
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedProduct, copiesInput, codeType, showPrice, showSKU, showBrand, generateLabelData]);
+
+  const handleManualGenerate = async () => {
     if (!selectedProduct) {
       alert('Please select a product first.');
       return;
     }
-
-    const numCopies = Math.max(1, Number(copiesInput) || 1);
-
-    // Record POS / QR Code generation count for tracking
-    recordGeneratedQRCodes(selectedProduct.id, numCopies);
-
     setIsGenerating(true);
-
     try {
-      // 1. Generate Barcode PNG Data URL (CODE128 encoding product SKU / barcode)
-      let barcodeDataUrl = '';
-      const barcodeValue = selectedProduct.sku || selectedProduct.barcode || selectedProduct.id;
-
-      if (codeType === 'barcode' || codeType === 'both') {
-        const canvas = document.createElement('canvas');
-        JsBarcode(canvas, barcodeValue, {
-          format: 'CODE128',
-          width: 2,
-          height: 60,
-          displayValue: true,
-          fontSize: 14,
-          margin: 10,
-          background: '#ffffff',
-          lineColor: '#000000',
-        });
-        barcodeDataUrl = canvas.toDataURL('image/png');
+      const numCopies = Math.max(1, Number(copiesInput) || 1);
+      recordGeneratedQRCodes(selectedProduct.id, numCopies);
+      const config = await generateLabelData();
+      if (config) {
+        setGeneratedConfig(config);
       }
-
-      // 2. Generate QR Code PNG Data URL (encoding structured YearInvo payload with productId)
-      let qrDataUrl = '';
-      if (codeType === 'qrcode' || codeType === 'both') {
-        const currentStoreId = user?.id || user?.brandName || '';
-        const qrPayload = JSON.stringify({
-          type: 'yearinvo_product',
-          productId: selectedProduct.id,
-          sku: selectedProduct.sku || '',
-          barcode: selectedProduct.barcode || '',
-          storeId: currentStoreId,
-        });
-
-        qrDataUrl = await QRCode.toDataURL(qrPayload, {
-          width: 200,
-          margin: 2,
-          color: {
-            dark: '#000000',
-            light: '#ffffff',
-          },
-          errorCorrectionLevel: 'M',
-        });
-      }
-
-      setGeneratedConfig({
-        productId: selectedProduct.id,
-        productName: selectedProduct.name,
-        sku: selectedProduct.sku,
-        barcode: barcodeValue,
-        sellingPrice: selectedProduct.sellingPrice,
-        copies: numCopies,
-        barcodeDataUrl,
-        qrDataUrl,
-        codeType,
-        showPrice,
-        showSKU,
-        showBrand,
-      });
-    } catch (err) {
-      console.error('Error generating barcode/QR code:', err);
-      alert('Failed to generate label images. Please check product details.');
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const [printLayout, setPrintLayout] = useState<'a4' | 'thermal'>('a4');
+  // Direct Browser Print with injected dynamic layout styles
+  const triggerDirectPrint = (layout: PrintLayoutType = 'a4') => {
+    setActivePrintLayout(layout);
 
-  const handlePrint = (layout: 'a4' | 'thermal' = printLayout) => {
-    if (!generatedConfig) {
-      alert('Please click Generate to prepare labels before printing.');
+    // If config not ready, generate immediately
+    if (!generatedConfig && selectedProduct) {
+      generateLabelData().then((cfg) => {
+        if (cfg) {
+          setGeneratedConfig(cfg);
+          setTimeout(() => {
+            window.print();
+          }, 150);
+        }
+      });
       return;
     }
 
-    const brandName = getDisplayBrandName(settings.brandName);
-    const isThermal = layout === 'thermal';
-
-    // Create an isolated printable iframe for reliable printing across all browsers and iframes
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    iframe.setAttribute('title', 'Barcode Label Print Frame');
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document || iframe.contentDocument;
-    if (!doc) {
-      window.print();
-      return;
-    }
-
-    // Generate cards HTML
-    const cardsHtml = Array.from({ length: generatedConfig.copies })
-      .map(
-        (_, index) => `
-        <div class="sticker-card">
-          ${generatedConfig.showBrand ? `<div class="brand-name">${brandName || 'My Store'}</div>` : ''}
-          <div class="product-name">${generatedConfig.productName}</div>
-          ${
-            (generatedConfig.codeType === 'barcode' || generatedConfig.codeType === 'both') && generatedConfig.barcodeDataUrl
-              ? `<div class="barcode-wrap"><img src="${generatedConfig.barcodeDataUrl}" alt="Barcode" /></div>`
-              : ''
-          }
-          ${
-            (generatedConfig.codeType === 'qrcode' || generatedConfig.codeType === 'both') && generatedConfig.qrDataUrl
-              ? `<div class="qr-wrap"><img src="${generatedConfig.qrDataUrl}" alt="QR Code" /></div>`
-              : ''
-          }
-          <div class="footer-row">
-            ${generatedConfig.showSKU ? `<span class="sku-code">#${generatedConfig.sku}</span>` : ''}
-            ${generatedConfig.showPrice ? `<span class="price-tag">${symbol}${generatedConfig.sellingPrice}</span>` : ''}
-          </div>
-        </div>
-      `
-      )
-      .join('');
-
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <title>Print Labels - ${generatedConfig.productName}</title>
-          <style>
-            @page {
-              ${isThermal ? 'size: 50mm 30mm; margin: 1.5mm;' : 'size: A4 portrait; margin: 8mm;'}
-            }
-            * {
-              box-sizing: border-box;
-              margin: 0;
-              padding: 0;
-            }
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-              background: #fff;
-              color: #000;
-              padding: ${isThermal ? '0' : '4mm'};
-            }
-            .grid-container {
-              display: ${isThermal ? 'block' : 'grid'};
-              ${!isThermal ? 'grid-template-columns: repeat(3, 1fr); gap: 4mm;' : ''}
-            }
-            .sticker-card {
-              border: ${isThermal ? 'none' : '1px dashed #777'};
-              border-radius: 4px;
-              padding: ${isThermal ? '1.5mm' : '3mm'};
-              text-align: center;
-              background: #fff;
-              color: #000;
-              page-break-inside: avoid;
-              break-inside: avoid;
-              ${isThermal ? 'page-break-after: always; height: 27mm; display: flex; flex-direction: column; justify-content: space-between;' : ''}
-              margin-bottom: ${isThermal ? '2mm' : '0'};
-            }
-            .brand-name {
-              font-size: 8.5px;
-              font-weight: 800;
-              text-transform: uppercase;
-              letter-spacing: 0.5px;
-              border-bottom: 1px solid #ddd;
-              padding-bottom: 1px;
-              margin-bottom: 2px;
-              white-space: nowrap;
-              overflow: hidden;
-              text-overflow: ellipsis;
-            }
-            .product-name {
-              font-size: 10.5px;
-              font-weight: 700;
-              margin-bottom: 2px;
-              line-height: 1.2;
-              white-space: nowrap;
-              overflow: hidden;
-              text-overflow: ellipsis;
-            }
-            .barcode-wrap {
-              margin: 2px 0;
-              display: flex;
-              justify-content: center;
-            }
-            .barcode-wrap img {
-              max-height: ${isThermal ? '30px' : '42px'};
-              max-width: 96%;
-              object-fit: contain;
-            }
-            .qr-wrap {
-              margin: 2px 0;
-              display: flex;
-              justify-content: center;
-            }
-            .qr-wrap img {
-              width: ${isThermal ? '38px' : '52px'};
-              height: ${isThermal ? '38px' : '52px'};
-              object-fit: contain;
-            }
-            .footer-row {
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              border-top: 1px solid #ddd;
-              padding-top: 2px;
-              margin-top: 2px;
-              font-size: 9px;
-            }
-            .sku-code {
-              font-family: monospace;
-              font-weight: 700;
-              color: #444;
-            }
-            .price-tag {
-              font-size: 11.5px;
-              font-weight: 900;
-              color: #000;
-              margin-left: auto;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="grid-container">
-            ${cardsHtml}
-          </div>
-        </body>
-      </html>
-    `;
-
-    doc.open();
-    doc.write(htmlContent);
-    doc.close();
-
+    // Small timeout ensures the DOM has updated activePrintLayout class
     setTimeout(() => {
-      try {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-      } catch (e) {
-        console.warn('Iframe print fallback to window.print:', e);
-        window.print();
-      } finally {
-        setTimeout(() => {
-          try {
-            document.body.removeChild(iframe);
-          } catch (_) {}
-        }, 3000);
+      window.print();
+    }, 100);
+  };
+
+  // Download PDF file for external thermal printers or A4 sticker papers
+  const handleDownloadPDF = async (layout: PrintLayoutType = activePrintLayout) => {
+    const config = generatedConfig || (await generateLabelData());
+    if (!config) {
+      alert('Please select a product to download label PDF.');
+      return;
+    }
+
+    setIsDownloadingPdf(true);
+
+    try {
+      if (layout === 'a4') {
+        // Standard A4: 210mm x 297mm (3 columns x 8 rows = 24 stickers per sheet)
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const pageWidth = 210;
+        const pageHeight = 297;
+        const marginX = 8;
+        const marginY = 10;
+        const cols = 3;
+        const rows = 8;
+        const cellWidth = (pageWidth - marginX * 2 - (cols - 1) * 3) / cols; // ~62mm
+        const cellHeight = (pageHeight - marginY * 2 - (rows - 1) * 2.5) / rows; // ~32mm
+
+        let currentCopy = 0;
+        const totalCopies = config.copies;
+
+        while (currentCopy < totalCopies) {
+          if (currentCopy > 0) {
+            pdf.addPage();
+          }
+
+          for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+              if (currentCopy >= totalCopies) break;
+
+              const x = marginX + c * (cellWidth + 3);
+              const y = marginY + r * (cellHeight + 2.5);
+
+              // Border outline
+              pdf.setDrawColor(180, 180, 180);
+              pdf.setLineWidth(0.2);
+              pdf.roundedRect(x, y, cellWidth, cellHeight, 1.5, 1.5);
+
+              let cursorY = y + 3.5;
+
+              // Store Name
+              if (config.showBrand) {
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFontSize(7.5);
+                pdf.setTextColor(40, 40, 40);
+                pdf.text(brandName.toUpperCase().slice(0, 26), x + cellWidth / 2, cursorY, {
+                  align: 'center',
+                });
+                cursorY += 3.2;
+              }
+
+              // Product Name
+              pdf.setFont('helvetica', 'bold');
+              pdf.setFontSize(8.5);
+              pdf.setTextColor(15, 15, 15);
+              const cleanName = config.productName.slice(0, 28);
+              pdf.text(cleanName, x + cellWidth / 2, cursorY, { align: 'center' });
+              cursorY += 1.5;
+
+              // Images
+              if (config.codeType === 'barcode' && config.barcodeDataUrl) {
+                const imgW = Math.min(cellWidth - 4, 52);
+                const imgH = 14;
+                pdf.addImage(
+                  config.barcodeDataUrl,
+                  'PNG',
+                  x + (cellWidth - imgW) / 2,
+                  cursorY,
+                  imgW,
+                  imgH
+                );
+                cursorY += imgH + 1.5;
+              } else if (config.codeType === 'qrcode' && config.qrDataUrl) {
+                const qrSize = 15;
+                pdf.addImage(
+                  config.qrDataUrl,
+                  'PNG',
+                  x + (cellWidth - qrSize) / 2,
+                  cursorY,
+                  qrSize,
+                  qrSize
+                );
+                cursorY += qrSize + 1.5;
+              } else if (config.codeType === 'both') {
+                // Side by side or stacked
+                if (config.barcodeDataUrl && config.qrDataUrl) {
+                  const qrSize = 13;
+                  const barW = cellWidth - qrSize - 6;
+                  const barH = 12;
+                  pdf.addImage(config.qrDataUrl, 'PNG', x + 2, cursorY, qrSize, qrSize);
+                  pdf.addImage(
+                    config.barcodeDataUrl,
+                    'PNG',
+                    x + qrSize + 3,
+                    cursorY + 0.5,
+                    barW,
+                    barH
+                  );
+                  cursorY += qrSize + 1.5;
+                }
+              }
+
+              // Footer row
+              cursorY = y + cellHeight - 2.5;
+              if (config.showSKU) {
+                pdf.setFont('courier', 'bold');
+                pdf.setFontSize(7.5);
+                pdf.setTextColor(60, 60, 60);
+                pdf.text(`#${config.sku.slice(0, 14)}`, x + 3, cursorY);
+              }
+
+              if (config.showPrice) {
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFontSize(9);
+                pdf.setTextColor(230, 80, 0);
+                pdf.text(
+                  `${symbol}${config.sellingPrice}`,
+                  x + cellWidth - 3,
+                  cursorY,
+                  { align: 'right' }
+                );
+              }
+
+              currentCopy++;
+            }
+          }
+        }
+
+        pdf.save(`Labels_${config.sku || 'A4'}_Sheet.pdf`);
+      } else {
+        // Thermal Roll Label: exact dimensions per page
+        let widthMm = 50;
+        let heightMm = 30;
+
+        if (layout === 'thermal-40x30') {
+          widthMm = 40;
+          heightMm = 30;
+        } else if (layout === 'thermal-30x20') {
+          widthMm = 30;
+          heightMm = 20;
+        } else if (layout === 'thermal-15x30') {
+          widthMm = 30;
+          heightMm = 15;
+        }
+
+        const pdf = new jsPDF({
+          orientation: widthMm >= heightMm ? 'landscape' : 'portrait',
+          unit: 'mm',
+          format: [heightMm, widthMm],
+        });
+
+        for (let i = 0; i < config.copies; i++) {
+          if (i > 0) {
+            pdf.addPage([heightMm, widthMm], widthMm >= heightMm ? 'landscape' : 'portrait');
+          }
+
+          let cursorY = 3;
+
+          // Store Name
+          if (config.showBrand && heightMm >= 20) {
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(heightMm <= 20 ? 6 : 7.5);
+            pdf.text(brandName.toUpperCase().slice(0, 22), widthMm / 2, cursorY, {
+              align: 'center',
+            });
+            cursorY += heightMm <= 20 ? 2.5 : 3.2;
+          }
+
+          // Product Name
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(heightMm <= 20 ? 7 : 8.5);
+          pdf.text(config.productName.slice(0, 24), widthMm / 2, cursorY, { align: 'center' });
+          cursorY += heightMm <= 20 ? 1.5 : 2;
+
+          // Barcode or QR
+          if (
+            (config.codeType === 'barcode' || config.codeType === 'both') &&
+            config.barcodeDataUrl
+          ) {
+            const barW = widthMm - 4;
+            const barH = heightMm <= 20 ? 8 : 13;
+            pdf.addImage(
+              config.barcodeDataUrl,
+              'PNG',
+              (widthMm - barW) / 2,
+              cursorY,
+              barW,
+              barH
+            );
+            cursorY += barH + 1;
+          } else if (config.codeType === 'qrcode' && config.qrDataUrl) {
+            const qrSize = heightMm <= 20 ? 11 : 16;
+            pdf.addImage(
+              config.qrDataUrl,
+              'PNG',
+              (widthMm - qrSize) / 2,
+              cursorY,
+              qrSize,
+              qrSize
+            );
+            cursorY += qrSize + 1;
+          }
+
+          // Footer
+          const footerY = heightMm - 1.8;
+          if (config.showSKU) {
+            pdf.setFont('courier', 'bold');
+            pdf.setFontSize(heightMm <= 20 ? 6 : 7);
+            pdf.text(`#${config.sku.slice(0, 12)}`, 2, footerY);
+          }
+
+          if (config.showPrice) {
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(heightMm <= 20 ? 7.5 : 9);
+            pdf.text(`${symbol}${config.sellingPrice}`, widthMm - 2, footerY, {
+              align: 'right',
+            });
+          }
+        }
+
+        pdf.save(`Thermal_Labels_${widthMm}x${heightMm}mm_${config.sku}.pdf`);
       }
-    }, 300);
+    } catch (err) {
+      console.error('Error generating PDF labels:', err);
+      alert('Failed to generate PDF. Please use browser print instead.');
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
+  const copyImageToClipboard = async (dataUrl: string, label: string) => {
+    try {
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          [blob.type]: blob,
+        }),
+      ]);
+      setCopiedNotification(`${label} copied to clipboard!`);
+      setTimeout(() => setCopiedNotification(null), 2500);
+    } catch (err) {
+      console.warn('Clipboard write error:', err);
+      setCopiedNotification('Right click the image to copy.');
+      setTimeout(() => setCopiedNotification(null), 2500);
+    }
   };
 
   return (
-    <div className="space-y-6 pb-16">
-      {/* Print CSS Styles */}
+    <div className="space-y-6 pb-20">
+      {/* Dynamic Print Styles for exact layout printing */}
       <style>{`
         @media print {
           @page {
-            size: A4 portrait;
-            margin: 8mm;
+            ${
+              activePrintLayout === 'a4'
+                ? 'size: A4 portrait; margin: 6mm;'
+                : activePrintLayout === 'thermal-50x30'
+                ? 'size: 50mm 30mm; margin: 0;'
+                : activePrintLayout === 'thermal-40x30'
+                ? 'size: 40mm 30mm; margin: 0;'
+                : activePrintLayout === 'thermal-30x20'
+                ? 'size: 30mm 20mm; margin: 0;'
+                : 'size: 30mm 15mm; margin: 0;'
+            }
           }
+
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
           body * {
             visibility: hidden !important;
           }
-          #printable-sticker-section, #printable-sticker-section * {
+
+          #print-standalone-container, #print-standalone-container * {
             visibility: visible !important;
           }
-          #printable-sticker-section {
+
+          #print-standalone-container {
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
             width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
-            background: white !important;
-            color: black !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            display: block !important;
           }
-          .no-print {
+
+          .no-print, .no-print * {
             display: none !important;
           }
-          .print-sticker-grid {
+
+          /* A4 Sheet Print Grid */
+          .print-layout-a4 {
             display: grid !important;
             grid-template-columns: repeat(3, 1fr) !important;
-            gap: 5mm !important;
+            gap: 3mm !important;
+            padding: 4mm !important;
+            width: 100% !important;
           }
-          .print-sticker-card {
-            border: 1px dashed #666 !important;
-            padding: 3mm !important;
+
+          .print-layout-a4 .label-sticker-card {
+            border: 1px dashed #888888 !important;
+            padding: 2.5mm !important;
             border-radius: 4px !important;
             text-align: center !important;
-            background: white !important;
-            color: black !important;
-            box-shadow: none !important;
+            background: #ffffff !important;
+            color: #000000 !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
+            min-height: 29mm !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+            box-sizing: border-box !important;
+          }
+
+          /* Thermal Roll Label Print */
+          .print-layout-thermal {
+            display: block !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+
+          .print-layout-thermal .label-sticker-card {
+            border: none !important;
+            border-radius: 0 !important;
+            padding: 1.5mm !important;
+            text-align: center !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            box-sizing: border-box !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            overflow: hidden !important;
+          }
+
+          .print-layout-thermal.thermal-50x30 .label-sticker-card {
+            width: 50mm !important;
+            height: 30mm !important;
+          }
+
+          .print-layout-thermal.thermal-40x30 .label-sticker-card {
+            width: 40mm !important;
+            height: 30mm !important;
+          }
+
+          .print-layout-thermal.thermal-30x20 .label-sticker-card {
+            width: 30mm !important;
+            height: 20mm !important;
+          }
+
+          .print-layout-thermal.thermal-15x30 .label-sticker-card {
+            width: 30mm !important;
+            height: 15mm !important;
           }
         }
       `}</style>
 
-      {/* Header */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
+      {/* Floating Copy Feedback */}
+      {copiedNotification && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-xl border border-slate-700 text-xs font-bold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
+          <CheckCheck className="w-4 h-4 text-emerald-400" />
+          <span>{copiedNotification}</span>
+        </div>
+      )}
+
+      {/* Header Banner */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4 no-print">
         <div>
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-[#ff5c01]/10 text-[#ff5c01] rounded-xl">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-[#ff5c01]/10 text-[#ff5c01] rounded-2xl shadow-xs">
               <QrCode className="w-6 h-6" />
             </div>
-            <h1 className="text-xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
-              Barcode & QR Code Generator
-            </h1>
+            <div>
+              <h1 className="text-xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+                {language === 'bn' ? 'বারকোড ও কিউআর কোড প্রিন্টার' : 'Barcode & QR Code Generator'}
+              </h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                {language === 'bn'
+                  ? 'প্রোডাক্ট সিলেক্ট করে A4 স্টিকার শিট অথবা থার্মাল রোল (15-30mm / 50×30mm) লেবেল প্রিন্ট করুন।'
+                  : 'Select product, choose label format (A4 sheet or 15–30mm / 50×30mm thermal rolls), and print instantly.'}
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Select a product, choose the number of sticker copies, generate, and print ready-to-stick price labels.
-          </p>
         </div>
 
-        {generatedConfig && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => handlePrint('a4')}
-              className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
-            >
-              <Printer className="w-4 h-4" />
-              <span>Print A4 Sheet ({generatedConfig.copies})</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handlePrint('thermal')}
-              className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-black text-slate-900 dark:text-white bg-amber-400 hover:bg-amber-500 rounded-xl shadow-md shadow-amber-400/20 transition-all cursor-pointer"
-            >
-              <Tag className="w-4 h-4" />
-              <span>Thermal Roll (50×30mm)</span>
-            </button>
-          </div>
-        )}
-      </div>
+        {/* Top Print Actions */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            type="button"
+            onClick={() => triggerDirectPrint('a4')}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer hover:scale-[1.02]"
+            title="Print ready A4 sticker sheet (3 columns x 8 rows)"
+          >
+            <Printer className="w-4 h-4" />
+            <span>{language === 'bn' ? 'A4 শিট প্রিন্ট' : 'Print A4 Sheet'}</span>
+            <span className="bg-emerald-700 px-1.5 py-0.5 rounded text-[10px]">
+              {copiesInput}
+            </span>
+          </button>
 
-      {/* Usage Limit Summary Banner */}
-      <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
-        <div className="flex items-center gap-3">
-          <div className="p-3 rounded-2xl bg-[#ff5c01]/10 text-[#ff5c01]">
-            <QrCode className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-extrabold text-sm text-slate-800 dark:text-slate-200">
-                Product Codes Overview
-              </h3>
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                {usedCodesCount} / {totalProductsCount} Products with Generated Codes
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              {totalProductsCount === 0
-                ? 'No products found in store. Add products to enable code generation.'
-                : 'You can generate and print barcode or QR code labels anytime for any product.'}
-            </p>
-          </div>
+          <button
+            type="button"
+            onClick={() => triggerDirectPrint('thermal-50x30')}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-black text-slate-900 bg-amber-400 hover:bg-amber-500 rounded-xl shadow-md shadow-amber-400/20 transition-all cursor-pointer hover:scale-[1.02]"
+            title="Print standard 50x30mm thermal roll sticker labels"
+          >
+            <Tag className="w-4 h-4" />
+            <span>{language === 'bn' ? 'থার্মাল লেবেল (50×30)' : 'Print Thermal (50×30mm)'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => triggerDirectPrint('thermal-30x20')}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-600/20 transition-all cursor-pointer hover:scale-[1.02]"
+            title="Print mini thermal label 15 to 30 mm"
+          >
+            <Tag className="w-4 h-4" />
+            <span>{language === 'bn' ? 'মিনি থার্মাল (15-30mm)' : 'Thermal (15–30mm)'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowPrintModal(true)}
+            className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl transition-all cursor-pointer"
+          >
+            <Settings2 className="w-4 h-4 text-slate-500" />
+            <span>{language === 'bn' ? 'প্রিন্ট প্রিভিউ ও কাস্টমাইজ' : 'Preview & PDF'}</span>
+          </button>
         </div>
       </div>
 
       {/* Main Controls Card */}
       <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-6 no-print">
-        <h2 className="text-sm font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-          <Sliders className="w-4 h-4 text-[#ff5c01]" />
-          <span>Label Generation Settings</span>
-        </h2>
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+          <h2 className="text-sm font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+            <Sliders className="w-4 h-4 text-[#ff5c01]" />
+            <span>
+              {language === 'bn' ? 'লেবেল জেনারেটর কনফিগারেশন' : 'Label Generation & Print Options'}
+            </span>
+          </h2>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
+              ✓ {usedCodesCount} / {totalProductsCount} {language === 'bn' ? 'কোড প্রস্তুত' : 'Codes Ready'}
+            </span>
+          </div>
+        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
-          {/* Product Selector */}
-          <div className="md:col-span-5 space-y-2">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* 1. Product Selector */}
+          <div className="lg:col-span-5 space-y-3">
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-              1. Select Product
+              1. {language === 'bn' ? 'পণ্য নির্বাচন করুন' : 'Select Product'}
             </label>
-            <div className="relative mb-1">
+
+            <div className="relative">
               <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
               <input
                 type="text"
-                placeholder="Filter products..."
+                placeholder={language === 'bn' ? 'পণ্য খুঁজুন...' : 'Search product or SKU...'}
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 font-medium focus:outline-none focus:border-[#ff5c01]"
+                className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 font-medium focus:outline-none focus:border-[#ff5c01]"
               />
             </div>
+
             <select
               value={selectedProductId}
               onChange={(e) => setSelectedProductId(e.target.value)}
-              className="w-full px-3 py-2 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 focus:outline-none focus:border-[#ff5c01]"
+              className="w-full px-3 py-2.5 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 focus:outline-none focus:border-[#ff5c01]"
             >
               {filteredProducts.map((p) => {
                 const hasCode = isCodeGenerated(p.id);
                 return (
                   <option key={p.id} value={p.id}>
-                    {p.name} — SKU: {p.sku} ({symbol}{p.sellingPrice}) {hasCode ? '✓ [Code Generated]' : '⚪ [Not Generated]'}
+                    {p.name} — SKU: {p.sku || p.id.slice(0, 6)} ({symbol}
+                    {p.sellingPrice}) {hasCode ? '✓ [Ready]' : ''}
                   </option>
                 );
               })}
             </select>
 
             {selectedProduct && (
-              <div className="space-y-2">
-                <div className="p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200/60 dark:border-slate-700/60 text-[11px] space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Selected Product:</span>
-                    <strong className="text-slate-800 dark:text-slate-200">{selectedProduct.name}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">SKU / Code:</span>
-                    <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{selectedProduct.sku}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Price:</span>
-                    <strong className="text-[#ff5c01]">{symbol}{selectedProduct.sellingPrice}</strong>
-                  </div>
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 text-xs space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500">{language === 'bn' ? 'পণ্য:' : 'Product:'}</span>
+                  <strong className="text-slate-800 dark:text-slate-200 font-bold truncate max-w-[200px]">
+                    {selectedProduct.name}
+                  </strong>
                 </div>
-
-                {/* Stock vs QR Capacity Card (Informational Only) */}
-                <div className="p-3 bg-purple-50 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-800/50 space-y-2 text-xs">
-                  <div className="font-extrabold text-purple-900 dark:text-purple-200 flex items-center justify-between border-b border-purple-200/80 dark:border-purple-800/80 pb-1.5">
-                    <span>Stock & QR Code Capacity</span>
-                    <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-purple-200/60 dark:bg-purple-900/60 text-purple-800 dark:text-purple-200 font-bold">
-                      Current Stock: {currentStock}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="p-2 bg-white dark:bg-slate-900 rounded-lg border border-purple-100 dark:border-purple-900/40">
-                      <span className="text-[10px] text-slate-500 block">Current Stock</span>
-                      <span className="font-extrabold text-slate-800 dark:text-slate-100">{currentStock}</span>
-                    </div>
-                    <div className="p-2 bg-white dark:bg-slate-900 rounded-lg border border-purple-100 dark:border-purple-900/40">
-                      <span className="text-[10px] text-slate-500 block">Generated QR Codes</span>
-                      <span className="font-extrabold text-purple-600 dark:text-purple-400">{alreadyGenerated}</span>
-                    </div>
-                    <div className="p-2 bg-white dark:bg-slate-900 rounded-lg border border-purple-100 dark:border-purple-900/40">
-                      <span className="text-[10px] text-slate-500 block">Available QR Capacity</span>
-                      <span className="font-extrabold text-purple-600 dark:text-purple-400">
-                        {availableCapacity}
-                      </span>
-                    </div>
-                  </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500">{language === 'bn' ? 'এসকেইউ:' : 'SKU / Barcode:'}</span>
+                  <span className="font-mono font-bold text-slate-700 dark:text-slate-300">
+                    {selectedProduct.sku || selectedProduct.barcode || selectedProduct.id.slice(0, 8)}
+                  </span>
                 </div>
-
-                {/* Status indicator badge */}
-                {isSelectedProductGenerated ? (
-                  <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold border border-emerald-200 dark:border-emerald-800/60">
-                    <Check className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
-                    <span>POS / QR code generated for this product. You can regenerate or print labels anytime.</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[11px] font-medium border border-slate-200 dark:border-slate-700">
-                    <span>⚪ Ready to generate new code for this product ({usedCodesCount + 1} of {totalProductsCount} available).</span>
-                  </div>
-                )}
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500">{language === 'bn' ? 'মূল্য:' : 'Price:'}</span>
+                  <strong className="text-[#ff5c01] font-black">
+                    {symbol}{selectedProduct.sellingPrice}
+                  </strong>
+                </div>
+                <div className="flex justify-between items-center pt-1 border-t border-slate-200/50 dark:border-slate-700/50 text-[11px]">
+                  <span className="text-slate-500">{language === 'bn' ? 'বর্তমান স্টক:' : 'Current Stock:'}</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                    {currentStock} {selectedProduct.unit || 'pcs'}
+                  </span>
+                </div>
               </div>
             )}
           </div>
 
-          {/* Number of Copies */}
-          <div className="md:col-span-3 space-y-2">
+          {/* 2. Number of Copies */}
+          <div className="lg:col-span-3 space-y-3">
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-              2. Number of Copies
+              2. {language === 'bn' ? 'স্টিকার সংখ্যা (কপি)' : 'Number of Copies'}
             </label>
+
             <div className="relative">
               <input
                 type="number"
                 min="1"
-                max="200"
+                max="500"
                 value={copiesInput}
-                onChange={(e) => setCopiesInput(Number(e.target.value))}
-                placeholder="e.g. 20"
+                onChange={(e) => setCopiesInput(Math.max(1, Number(e.target.value) || 1))}
                 className="w-full px-4 py-2.5 text-sm font-black bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 focus:outline-none focus:border-[#ff5c01]"
               />
-              <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-semibold">Labels</span>
+              <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">
+                {language === 'bn' ? 'কপি' : 'Labels'}
+              </span>
             </div>
-            <div className="flex gap-1">
-              {[6, 12, 20, 50].map((num) => (
+
+            <div className="grid grid-cols-4 gap-1.5">
+              {[6, 12, 24, 48].map((num) => (
                 <button
                   key={num}
                   type="button"
                   onClick={() => setCopiesInput(num)}
-                  className={`px-2 py-1 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                  className={`py-1.5 text-xs font-black rounded-xl border transition-all cursor-pointer ${
                     copiesInput === num
-                      ? 'bg-[#ff5c01] text-white border-[#ff5c01]'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                      ? 'bg-[#ff5c01] text-white border-[#ff5c01] shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}
                 >
                   {num}
                 </button>
               ))}
             </div>
+
+            <p className="text-[11px] text-slate-400">
+              {language === 'bn'
+                ? '💡 ১টি A4 পেজে সাধারণত ২৪টি স্টিকার ধরে (৩×৮ গ্রিড)।'
+                : '💡 Standard A4 sheet fits 24 labels (3×8 grid).'}
+            </p>
           </div>
 
-          {/* Code Type & Options */}
-          <div className="md:col-span-4 space-y-2">
+          {/* 3. Code Style & Options */}
+          <div className="lg:col-span-4 space-y-3">
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-              3. Code Style & Display
+              3. {language === 'bn' ? 'কোড ও তথ্যের ধরন' : 'Code Type & Display Info'}
             </label>
 
             <div className="grid grid-cols-3 gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl">
               <button
                 type="button"
                 onClick={() => setCodeType('barcode')}
-                className={`py-1.5 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
+                className={`py-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
                   codeType === 'barcode'
-                    ? 'bg-white dark:bg-slate-900 text-[#ff5c01] shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400'
+                    ? 'bg-[#ff5c01] text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                 }`}
               >
-                Barcode Only
+                Barcode
               </button>
               <button
                 type="button"
                 onClick={() => setCodeType('qrcode')}
-                className={`py-1.5 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
+                className={`py-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
                   codeType === 'qrcode'
-                    ? 'bg-white dark:bg-slate-900 text-[#ff5c01] shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400'
+                    ? 'bg-[#ff5c01] text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                 }`}
               >
-                QR Code Only
+                QR Code
               </button>
               <button
                 type="button"
                 onClick={() => setCodeType('both')}
-                className={`py-1.5 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
+                className={`py-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
                   codeType === 'both'
                     ? 'bg-[#ff5c01] text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                 }`}
               >
                 Both
               </button>
             </div>
 
-            <div className="flex items-center gap-4 pt-1">
-              <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 cursor-pointer">
+            <div className="flex items-center gap-4 pt-1 flex-wrap">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={showPrice}
                   onChange={(e) => setShowPrice(e.target.checked)}
                   className="rounded text-[#ff5c01] focus:ring-[#ff5c01]"
                 />
-                <span>Price</span>
+                <span>{language === 'bn' ? 'মূল্য' : 'Price'}</span>
               </label>
-              <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 cursor-pointer">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={showSKU}
@@ -653,109 +897,279 @@ export const BarcodeGeneratorView: React.FC = () => {
                 />
                 <span>SKU Code</span>
               </label>
-              <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 cursor-pointer">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={showBrand}
                   onChange={(e) => setShowBrand(e.target.checked)}
                   className="rounded text-[#ff5c01] focus:ring-[#ff5c01]"
                 />
-                <span>Store Name</span>
+                <span>{language === 'bn' ? 'দোকানের নাম' : 'Store Name'}</span>
               </label>
             </div>
           </div>
         </div>
 
-        {/* Action Bar */}
-        <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
-          <button
-            type="button"
-            onClick={handleGenerate}
-            disabled={isGenerating || !selectedProduct}
-            className="w-full sm:w-auto px-8 py-3 font-black text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer bg-[#ff5c01] hover:bg-[#e05100] text-white shadow-lg shadow-[#ff5c01]/20 disabled:opacity-50"
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>
-              {isGenerating
-                ? 'Generating Labels...'
-                : codeType === 'qrcode'
-                ? `Generate ${copiesInput} QR Code Label${copiesInput > 1 ? 's' : ''}`
-                : codeType === 'barcode'
-                ? `Generate ${copiesInput} Barcode Label${copiesInput > 1 ? 's' : ''}`
-                : `Generate ${copiesInput} Printable Label${copiesInput > 1 ? 's' : ''}`}
-            </span>
-          </button>
+        {/* Primary Action Buttons Bar */}
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={handleManualGenerate}
+              disabled={isGenerating || !selectedProduct}
+              className="w-full sm:w-auto px-6 py-3 font-black text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white shadow-md disabled:opacity-50"
+            >
+              <Sparkles className="w-4 h-4 text-[#ff5c01]" />
+              <span>
+                {isGenerating
+                  ? language === 'bn'
+                    ? 'তৈরি হচ্ছে...'
+                    : 'Generating...'
+                  : language === 'bn'
+                  ? 'রিফ্রেশ / কোড তৈরি'
+                  : 'Regenerate Code'}
+              </span>
+            </button>
+          </div>
 
-          {generatedConfig && (
-            <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-              <button
-                type="button"
-                onClick={() => handlePrint('a4')}
-                className="flex-1 sm:flex-none px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Printer className="w-4 h-4" />
-                <span>Print A4 Sheet ({generatedConfig.copies})</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handlePrint('thermal')}
-                className="flex-1 sm:flex-none px-6 py-3 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black text-xs rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Tag className="w-4 h-4" />
-                <span>Print Thermal Labels (50×30mm)</span>
-              </button>
-            </div>
-          )}
+          <div className="flex items-center gap-2.5 flex-wrap w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => triggerDirectPrint('a4')}
+              className="flex-1 sm:flex-none px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.02]"
+            >
+              <Printer className="w-4 h-4" />
+              <span>
+                {language === 'bn'
+                  ? `A4 শিট প্রিন্ট (${copiesInput}টি)`
+                  : `Print A4 Sheet (${copiesInput})`}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => triggerDirectPrint('thermal-50x30')}
+              className="flex-1 sm:flex-none px-5 py-3 bg-amber-400 hover:bg-amber-500 text-slate-900 font-black text-xs rounded-xl shadow-lg shadow-amber-400/20 transition-all flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.02]"
+            >
+              <Tag className="w-4 h-4" />
+              <span>
+                {language === 'bn' ? 'থার্মাল রোল (50×30)' : 'Thermal (50×30mm)'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => triggerDirectPrint('thermal-30x20')}
+              className="flex-1 sm:flex-none px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02]"
+            >
+              <Tag className="w-4 h-4" />
+              <span>
+                {language === 'bn' ? 'মিনি থার্মাল (15-30mm)' : 'Thermal (15–30mm)'}
+              </span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Generated Labels Preview Grid Section */}
+      {/* Standalone Printable Container — Rendered in DOM for exact browser print */}
+      <div id="print-standalone-container" className="hidden print:block">
+        <div
+          className={
+            activePrintLayout === 'a4'
+              ? 'print-layout-a4'
+              : `print-layout-thermal ${activePrintLayout}`
+          }
+        >
+          {generatedConfig &&
+            Array.from({ length: generatedConfig.copies }).map((_, index) => (
+              <div key={index} className="label-sticker-card">
+                {generatedConfig.showBrand && (
+                  <div
+                    style={{
+                      fontSize: activePrintLayout === 'thermal-30x20' || activePrintLayout === 'thermal-15x30' ? '7px' : '9px',
+                      fontWeight: 800,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.4px',
+                      marginBottom: '1px',
+                      borderBottom: '1px solid #ddd',
+                      paddingBottom: '1px',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {brandName}
+                  </div>
+                )}
+
+                <div
+                  style={{
+                    fontSize: activePrintLayout === 'thermal-30x20' || activePrintLayout === 'thermal-15x30' ? '8px' : '10px',
+                    fontWeight: 700,
+                    marginBottom: '1px',
+                    lineHeight: 1.1,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {generatedConfig.productName}
+                </div>
+
+                {/* Barcode Image */}
+                {(generatedConfig.codeType === 'barcode' || generatedConfig.codeType === 'both') &&
+                  generatedConfig.barcodeDataUrl && (
+                    <div style={{ margin: '1px 0', display: 'flex', justifyContent: 'center' }}>
+                      <img
+                        src={generatedConfig.barcodeDataUrl}
+                        alt="Barcode"
+                        style={{
+                          maxHeight:
+                            activePrintLayout === 'thermal-30x20' || activePrintLayout === 'thermal-15x30'
+                              ? '22px'
+                              : activePrintLayout === 'a4'
+                              ? '38px'
+                              : '32px',
+                          maxWidth: '96%',
+                          objectFit: 'contain',
+                        }}
+                      />
+                    </div>
+                  )}
+
+                {/* QR Code Image */}
+                {(generatedConfig.codeType === 'qrcode' || generatedConfig.codeType === 'both') &&
+                  generatedConfig.qrDataUrl && (
+                    <div style={{ margin: '1px 0', display: 'flex', justifyContent: 'center' }}>
+                      <img
+                        src={generatedConfig.qrDataUrl}
+                        alt="QR Code"
+                        style={{
+                          width:
+                            activePrintLayout === 'thermal-30x20' || activePrintLayout === 'thermal-15x30'
+                              ? '30px'
+                              : activePrintLayout === 'a4'
+                              ? '44px'
+                              : '38px',
+                          height:
+                            activePrintLayout === 'thermal-30x20' || activePrintLayout === 'thermal-15x30'
+                              ? '30px'
+                              : activePrintLayout === 'a4'
+                              ? '44px'
+                              : '38px',
+                          objectFit: 'contain',
+                        }}
+                      />
+                    </div>
+                  )}
+
+                {/* Footer details */}
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    borderTop: '1px solid #ddd',
+                    paddingTop: '1px',
+                    marginTop: '1px',
+                    fontSize:
+                      activePrintLayout === 'thermal-30x20' || activePrintLayout === 'thermal-15x30'
+                        ? '7.5px'
+                        : '9px',
+                  }}
+                >
+                  {generatedConfig.showSKU && (
+                    <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#333' }}>
+                      #{generatedConfig.sku}
+                    </span>
+                  )}
+                  {generatedConfig.showPrice && (
+                    <span
+                      style={{
+                        fontWeight: 900,
+                        color: '#000',
+                        marginLeft: 'auto',
+                      }}
+                    >
+                      {symbol}{generatedConfig.sellingPrice}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+        </div>
+      </div>
+
+      {/* Screen Preview Grid */}
       {generatedConfig ? (
-        <div id="printable-sticker-section" className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 no-print px-1">
-            <h3 className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-500" />
-              Previewing {generatedConfig.copies} Generated Sticker Labels
-            </h3>
+        <div className="space-y-4 no-print">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
             <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-500" />
+              <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                {language === 'bn'
+                  ? `লাইভ প্রিভিউ: ${generatedConfig.copies}টি স্টিকার`
+                  : `Live Preview: ${generatedConfig.copies} Labels Ready`}
+              </h3>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[11px] font-bold text-slate-400">
-                Format:
+                {language === 'bn' ? 'প্রিন্ট ফরম্যাট:' : 'Print Layout:'}
               </span>
               <button
                 type="button"
-                onClick={() => handlePrint('a4')}
-                className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 hover:bg-emerald-200 transition-colors cursor-pointer"
+                onClick={() => triggerDirectPrint('a4')}
+                className="px-3 py-1.5 text-xs font-black rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 hover:bg-emerald-200 transition-colors cursor-pointer flex items-center gap-1.5"
               >
-                🖨️ A4 Sheet
+                <Printer className="w-3.5 h-3.5" />
+                <span>A4 Sheet</span>
               </button>
               <button
                 type="button"
-                onClick={() => handlePrint('thermal')}
-                className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 hover:bg-amber-200 transition-colors cursor-pointer"
+                onClick={() => triggerDirectPrint('thermal-50x30')}
+                className="px-3 py-1.5 text-xs font-black rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 hover:bg-amber-200 transition-colors cursor-pointer flex items-center gap-1.5"
               >
-                🏷️ Thermal Roll
+                <Tag className="w-3.5 h-3.5" />
+                <span>Thermal 50×30</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => triggerDirectPrint('thermal-30x20')}
+                className="px-3 py-1.5 text-xs font-black rounded-xl bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800 hover:bg-indigo-200 transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <Tag className="w-3.5 h-3.5" />
+                <span>15–30mm</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowPrintModal(true)}
+                className="px-3 py-1.5 text-xs font-black rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-300 transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>{language === 'bn' ? 'বিস্তারিত প্রিভিউ' : 'Full Preview & PDF'}</span>
               </button>
             </div>
           </div>
 
           <div className="p-6 rounded-3xl bg-slate-100 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 shadow-inner">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 print-sticker-grid">
-              {Array.from({ length: generatedConfig.copies }).map((_, index) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {Array.from({ length: Math.min(generatedConfig.copies, 24) }).map((_, index) => (
                 <div
                   key={index}
-                  className="print-sticker-card p-3 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-2xl text-center shadow-xs flex flex-col items-center justify-between space-y-1.5 transition-all hover:scale-[1.02]"
+                  className="p-3.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-2xl text-center shadow-xs flex flex-col items-center justify-between space-y-1.5 transition-all hover:border-[#ff5c01] group relative"
                 >
                   {generatedConfig.showBrand && (
-                    <p className="font-extrabold text-[10px] text-slate-900 dark:text-slate-100 uppercase tracking-tight line-clamp-1 border-b border-slate-100 dark:border-slate-800 pb-1 w-full">
-                      {getDisplayBrandName(settings.brandName)}
+                    <p className="font-extrabold text-[10px] text-slate-800 dark:text-slate-100 uppercase tracking-tight line-clamp-1 border-b border-slate-100 dark:border-slate-800 pb-1 w-full">
+                      {brandName}
                     </p>
                   )}
 
-                  <p className="font-bold text-xs text-slate-800 dark:text-slate-200 line-clamp-1">
+                  <p className="font-bold text-xs text-slate-900 dark:text-slate-100 line-clamp-1">
                     {generatedConfig.productName}
                   </p>
 
-                  {/* Render Barcode Image if selected */}
+                  {/* Barcode Image */}
                   {(generatedConfig.codeType === 'barcode' || generatedConfig.codeType === 'both') &&
                     generatedConfig.barcodeDataUrl && (
                       <div className="w-full flex justify-center py-1 overflow-hidden">
@@ -767,7 +1181,7 @@ export const BarcodeGeneratorView: React.FC = () => {
                       </div>
                     )}
 
-                  {/* Render QR Image if selected */}
+                  {/* QR Image */}
                   {(generatedConfig.codeType === 'qrcode' || generatedConfig.codeType === 'both') &&
                     generatedConfig.qrDataUrl && (
                       <div className="w-full flex justify-center py-1">
@@ -779,7 +1193,7 @@ export const BarcodeGeneratorView: React.FC = () => {
                       </div>
                     )}
 
-                  {/* Footer Info Row */}
+                  {/* Footer */}
                   <div className="flex items-center justify-between w-full pt-1.5 border-t border-slate-100 dark:border-slate-800 text-[10px]">
                     {generatedConfig.showSKU && (
                       <span className="font-mono text-slate-500 font-bold">
@@ -796,6 +1210,12 @@ export const BarcodeGeneratorView: React.FC = () => {
                 </div>
               ))}
             </div>
+
+            {generatedConfig.copies > 24 && (
+              <div className="text-center pt-4 text-xs font-bold text-slate-500">
+                + {generatedConfig.copies - 24} {language === 'bn' ? 'টি আরও স্টিকার প্রিন্ট হবে' : 'more labels will be included in the print job'}
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -804,11 +1224,268 @@ export const BarcodeGeneratorView: React.FC = () => {
             <Barcode className="w-6 h-6" />
           </div>
           <h3 className="font-bold text-sm text-slate-700 dark:text-slate-300">
-            No Labels Generated Yet
+            {language === 'bn' ? 'কোনো পণ্য সিলেক্ট করা হয়নি' : 'No Product Selected'}
           </h3>
           <p className="text-xs text-slate-400 max-w-sm mx-auto">
-            Choose a product, enter the number of copies (e.g., 20), and click <strong>Generate</strong> to build printable sticker labels.
+            {language === 'bn'
+              ? 'উপরের ড্রপডাউন থেকে পণ্য বেছে নিয়ে প্রিন্ট বাটনে চাপ দিন।'
+              : 'Select a product from the list above to generate and print labels.'}
           </p>
+        </div>
+      )}
+
+      {/* Advanced Print Preview & PDF Modal */}
+      {showPrintModal && generatedConfig && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto no-print">
+          <div className="relative w-full max-w-4xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 max-h-[92vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-850">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-[#ff5c01]/10 text-[#ff5c01] rounded-xl">
+                  <Printer className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 dark:text-slate-100 text-base">
+                    {language === 'bn' ? 'লেবেল প্রিন্ট ও পিডিএফ প্রিভিউ' : 'Label Print & PDF Studio'}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {generatedConfig.productName} — SKU: {generatedConfig.sku} ({generatedConfig.copies} {language === 'bn' ? 'কপি' : 'copies'})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPrintModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-6 flex-1">
+              {/* Paper Format Selector */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                  {language === 'bn' ? 'প্রিন্টার ও পেপার সাইজ নির্বাচন করুন:' : 'Select Printer Paper Size:'}
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setActivePrintLayout('a4')}
+                    className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                      activePrintLayout === 'a4'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-900 dark:text-emerald-200 shadow-sm'
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <FileText className="w-4 h-4 text-emerald-600" />
+                      {activePrintLayout === 'a4' && <Check className="w-4 h-4 text-emerald-600" />}
+                    </div>
+                    <strong className="text-xs font-black block">A4 Sticker Sheet</strong>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                      3×8 Grid (24 per sheet)
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActivePrintLayout('thermal-50x30')}
+                    className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                      activePrintLayout === 'thermal-50x30'
+                        ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500 text-amber-900 dark:text-amber-200 shadow-sm'
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <Tag className="w-4 h-4 text-amber-600" />
+                      {activePrintLayout === 'thermal-50x30' && <Check className="w-4 h-4 text-amber-600" />}
+                    </div>
+                    <strong className="text-xs font-black block">Thermal (50×30 mm)</strong>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                      Standard Retail Roll
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActivePrintLayout('thermal-40x30')}
+                    className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                      activePrintLayout === 'thermal-40x30'
+                        ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-500 text-purple-900 dark:text-purple-200 shadow-sm'
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <Tag className="w-4 h-4 text-purple-600" />
+                      {activePrintLayout === 'thermal-40x30' && <Check className="w-4 h-4 text-purple-600" />}
+                    </div>
+                    <strong className="text-xs font-black block">Thermal (40×30 mm)</strong>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                      Compact Retail Roll
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActivePrintLayout('thermal-30x20')}
+                    className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                      activePrintLayout === 'thermal-30x20'
+                        ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-500 text-indigo-900 dark:text-indigo-200 shadow-sm'
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <Tag className="w-4 h-4 text-indigo-600" />
+                      {activePrintLayout === 'thermal-30x20' && <Check className="w-4 h-4 text-indigo-600" />}
+                    </div>
+                    <strong className="text-xs font-black block">Mini (15–30 mm)</strong>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                      Jewelry / Cosmetics Roll
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Sample Render Box */}
+              <div className="p-5 bg-slate-100 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center">
+                <span className="text-[11px] font-bold text-slate-500 mb-3">
+                  {language === 'bn' ? 'প্রিন্ট হওয়া একটি স্টিকারের নমুনা:' : 'Single Label Render Sample:'}
+                </span>
+
+                <div
+                  className="bg-white text-black p-3.5 rounded-xl shadow-md border border-slate-300 flex flex-col items-center justify-between text-center"
+                  style={{
+                    width:
+                      activePrintLayout === 'a4'
+                        ? '210px'
+                        : activePrintLayout === 'thermal-50x30'
+                        ? '200px'
+                        : activePrintLayout === 'thermal-40x30'
+                        ? '170px'
+                        : '140px',
+                    minHeight:
+                      activePrintLayout === 'thermal-30x20' ? '95px' : '110px',
+                  }}
+                >
+                  {generatedConfig.showBrand && (
+                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-0.5 w-full">
+                      {brandName}
+                    </span>
+                  )}
+                  <span className="text-xs font-black text-slate-900 mt-1 line-clamp-1">
+                    {generatedConfig.productName}
+                  </span>
+
+                  {generatedConfig.codeType !== 'qrcode' && generatedConfig.barcodeDataUrl && (
+                    <img
+                      src={generatedConfig.barcodeDataUrl}
+                      alt="Barcode"
+                      className="max-h-11 my-1 object-contain"
+                    />
+                  )}
+
+                  {generatedConfig.codeType !== 'barcode' && generatedConfig.qrDataUrl && (
+                    <img
+                      src={generatedConfig.qrDataUrl}
+                      alt="QR"
+                      className="w-14 h-14 my-1 object-contain"
+                    />
+                  )}
+
+                  <div className="flex items-center justify-between w-full pt-1 border-t border-slate-200 text-[10px]">
+                    {generatedConfig.showSKU && (
+                      <span className="font-mono font-bold text-slate-600">
+                        #{generatedConfig.sku}
+                      </span>
+                    )}
+                    {generatedConfig.showPrice && (
+                      <span className="font-black text-xs text-[#ff5c01] ml-auto">
+                        {symbol}{generatedConfig.sellingPrice}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Image Copy Row */}
+              <div className="flex items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200/60 dark:border-slate-700/60 text-xs">
+                <span className="text-slate-600 dark:text-slate-300 font-medium">
+                  {language === 'bn' ? 'ছবি আলাদাভাবে সংরক্ষণ করুন:' : 'Copy Raw Code Images:'}
+                </span>
+                <div className="flex gap-2">
+                  {generatedConfig.barcodeDataUrl && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        copyImageToClipboard(generatedConfig.barcodeDataUrl, 'Barcode Image')
+                      }
+                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>Barcode</span>
+                    </button>
+                  )}
+                  {generatedConfig.qrDataUrl && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        copyImageToClipboard(generatedConfig.qrDataUrl, 'QR Code Image')
+                      }
+                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>QR Code</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 gap-3">
+              <button
+                type="button"
+                onClick={() => setShowPrintModal(false)}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                {language === 'bn' ? 'বন্ধ করুন' : 'Close'}
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadPDF(activePrintLayout)}
+                  disabled={isDownloadingPdf}
+                  className="px-4 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-xs font-black transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <Download className="w-4 h-4 text-indigo-500" />
+                  <span>
+                    {isDownloadingPdf
+                      ? language === 'bn'
+                        ? 'ডাউনলোড হচ্ছে...'
+                        : 'Generating PDF...'
+                      : language === 'bn'
+                      ? 'পিডিএফ ডাউনলোড'
+                      : 'Download PDF'}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPrintModal(false);
+                    triggerDirectPrint(activePrintLayout);
+                  }}
+                  className="px-6 py-2.5 rounded-xl bg-[#ff5c01] hover:bg-[#e05100] text-white text-xs font-black transition-all shadow-lg shadow-[#ff5c01]/20 flex items-center gap-2 cursor-pointer hover:scale-[1.02]"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>{language === 'bn' ? 'এখনই প্রিন্ট করুন' : 'Print Now'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

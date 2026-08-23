@@ -31,6 +31,7 @@ import {
   Coins,
   Activity,
   TrendingDown,
+  LayoutDashboard,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -235,6 +236,53 @@ export const DashboardView: React.FC = () => {
         }] : []),
       ],
     },
+    ...(settings.onlineBusiness?.enabled ? [{
+      title: language === 'bn' ? 'অনলাইন বিজনেস' : 'Online Business',
+      items: [
+        {
+          id: 'online-dashboard',
+          title: language === 'bn' ? 'অনলাইন ড্যাশবোর্ড' : 'Online Dashboard',
+          desc: language === 'bn' ? 'অনলাইন সেলস, ডেলিভারি ও রিসিভেবল' : 'Online sales overview & metrics',
+          icon: LayoutDashboard,
+          color: 'from-indigo-600 to-indigo-700',
+        },
+        {
+          id: 'online-orders',
+          title: language === 'bn' ? 'অনলাইন অর্ডার' : 'Online Orders',
+          desc: language === 'bn' ? 'নতুন ও পেন্ডিং কাস্টমার অর্ডার' : 'Manage online orders & billing',
+          icon: ShoppingBag,
+          color: 'from-blue-600 to-cyan-600',
+        },
+        {
+          id: 'online-status',
+          title: language === 'bn' ? 'অর্ডার স্ট্যাটাস' : 'Order Status',
+          desc: language === 'bn' ? 'ডেলিভারি ট্র্যাকিং ও কুরিয়ার স্ট্যাটাস' : 'Fulfillment pipeline & tracking',
+          icon: Truck,
+          color: 'from-purple-600 to-violet-700',
+        },
+        {
+          id: 'online-customers',
+          title: language === 'bn' ? 'অনলাইন কাস্টমার' : 'Online Customers',
+          desc: language === 'bn' ? 'গ্রাহক তালিকা ও পূর্ববর্তী অর্ডার' : 'Customer addresses & order history',
+          icon: Users,
+          color: 'from-teal-600 to-emerald-600',
+        },
+        {
+          id: 'online-delivery',
+          title: language === 'bn' ? 'ডেলিভারি ও চার্জ' : 'Delivery & Rates',
+          desc: language === 'bn' ? 'কুরিয়ার পার্টনার ও শিপিং কনফিগারেশন' : 'Courier partners & shipping rates',
+          icon: Settings,
+          color: 'from-amber-600 to-orange-600',
+        },
+        {
+          id: 'online-reports',
+          title: language === 'bn' ? 'অনলাইন রিপোর্ট' : 'Online Reports',
+          desc: language === 'bn' ? 'কুরিয়ার পারফরম্যান্স ও রিটার্ন অ্যানালিটিক্স' : 'Courier & channel revenue metrics',
+          icon: TrendingUp,
+          color: 'from-rose-600 to-pink-600',
+        },
+      ],
+    }] : []),
     {
       title: language === 'bn' ? 'টিম ও পে-রোল' : 'Team & Payroll',
       items: [

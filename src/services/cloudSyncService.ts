@@ -27,6 +27,8 @@ import {
   OnlineCustomer,
   OnlineBusinessSettings,
   OnlineProduct,
+  PersonalContact,
+  PersonalTransaction,
 } from '../types';
 
 export interface CloudBusinessDataCallbacks {
@@ -42,6 +44,8 @@ export interface CloudBusinessDataCallbacks {
   onDueCollectionsLoaded?: (dueCollections: DueCollection[], fromCloud: boolean) => void;
   onInvestmentsLoaded?: (investments: Investment[], fromCloud: boolean) => void;
   onCapitalWithdrawalsLoaded?: (withdrawals: CapitalWithdrawal[], fromCloud: boolean) => void;
+  onPersonalContactsLoaded?: (contacts: PersonalContact[], fromCloud: boolean) => void;
+  onPersonalTransactionsLoaded?: (transactions: PersonalTransaction[], fromCloud: boolean) => void;
   onTeamLoaded?: (team: TeamMember[], fromCloud: boolean) => void;
   onDevicesLoaded?: (devices: EmployeeDevice[], fromCloud: boolean) => void;
   onPayrollLoaded?: (payroll: { employees: Employee[]; payments: PayrollPayment[]; adjustments: SalaryAdjustment[] }, fromCloud: boolean) => void;
@@ -511,6 +515,34 @@ export function subscribeToUserBusinessData(
     } else if (exists && data && data.enabled !== undefined) {
       offlineDb.setCollection(userId, 'onlineSettings', [data as OnlineBusinessSettings]).catch(() => {});
       callbacks.onOnlineSettingsLoaded?.(data as OnlineBusinessSettings, true);
+    }
+  });
+
+  // 22. Personal Ledger Contacts ("ব্যক্তিগত খাতা" পরিচিতি)
+  attachListener('personalLedgerContacts', (data, exists) => {
+    const items = extractItems<PersonalContact>(data, 'personalLedgerContacts');
+    if (exists && items.length > 0) {
+      offlineDb.setCollection(userId, 'personalLedgerContacts', items).catch(() => {});
+      callbacks.onPersonalContactsLoaded?.(items, true);
+    } else if (exists && data) {
+      offlineDb.setCollection(userId, 'personalLedgerContacts', items).catch(() => {});
+      callbacks.onPersonalContactsLoaded?.(items, true);
+    } else {
+      callbacks.onPersonalContactsLoaded?.([], false);
+    }
+  });
+
+  // 23. Personal Ledger Transactions ("ব্যক্তিগত খাতা" লেনদেন)
+  attachListener('personalLedgerTransactions', (data, exists) => {
+    const items = extractItems<PersonalTransaction>(data, 'personalLedgerTransactions');
+    if (exists && items.length > 0) {
+      offlineDb.setCollection(userId, 'personalLedgerTransactions', items).catch(() => {});
+      callbacks.onPersonalTransactionsLoaded?.(items, true);
+    } else if (exists && data) {
+      offlineDb.setCollection(userId, 'personalLedgerTransactions', items).catch(() => {});
+      callbacks.onPersonalTransactionsLoaded?.(items, true);
+    } else {
+      callbacks.onPersonalTransactionsLoaded?.([], false);
     }
   });
 

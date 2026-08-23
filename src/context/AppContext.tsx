@@ -68,6 +68,9 @@ import {
   defaultOnlineBusinessSettings,
   isOnlineBusinessEligible,
   OnlineProduct,
+  PersonalContact,
+  PersonalTransaction,
+  PersonalTransactionType,
 } from '../types';
 import {
   getCurrentDeviceInfo,
@@ -372,6 +375,24 @@ interface AppContextType {
   recordCodCollection: (orderId: string, amount: number, courierNote?: string) => Promise<void>;
   createOnlineCustomer: (customerData: Partial<OnlineCustomer>) => Promise<OnlineCustomer>;
   updateOnlineCustomer: (customerId: string, updates: Partial<OnlineCustomer>) => Promise<void>;
+
+  // Personal Ledger ("ব্যক্তিগত খাতা" - Completely Isolated from Business Metrics)
+  personalContacts: PersonalContact[];
+  personalTransactions: PersonalTransaction[];
+  addPersonalContact: (contact: Omit<PersonalContact, 'id' | 'createdAt'>) => Promise<PersonalContact>;
+  updatePersonalContact: (id: string, updates: Partial<PersonalContact>) => Promise<void>;
+  deletePersonalContact: (id: string) => Promise<void>;
+  addPersonalTransaction: (tx: Omit<PersonalTransaction, 'id' | 'createdAt'>) => Promise<PersonalTransaction>;
+  updatePersonalTransaction: (id: string, updates: Partial<PersonalTransaction>) => Promise<void>;
+  deletePersonalTransaction: (id: string) => Promise<void>;
+  settlePersonalBalance: (params: {
+    contactId: string;
+    amount: number;
+    settlementType: 'RECEIVE_FROM_CONTACT' | 'PAY_TO_CONTACT';
+    paymentMethod?: string;
+    notes?: string;
+    date?: string;
+  }) => Promise<PersonalTransaction>;
 
   // Calculated Business Metrics
   metrics: {
@@ -1226,6 +1247,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
+  // Personal Ledger State ("ব্যক্তিগত খাতা" - Completely Isolated from Business Metrics)
+  const [personalContacts, setPersonalContacts] = useState<PersonalContact[]>(() => {
+    try {
+      const currentUserId = user?.id || 'default';
+      const saved = localStorage.getItem(`biz_personal_contacts_${currentUserId}`) || localStorage.getItem('biz_personal_contacts');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [personalTransactions, setPersonalTransactions] = useState<PersonalTransaction[]>(() => {
+    try {
+      const currentUserId = user?.id || 'default';
+      const saved = localStorage.getItem(`biz_personal_transactions_${currentUserId}`) || localStorage.getItem('biz_personal_transactions');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
   const [isCloudSynced, setIsCloudSynced] = useState<boolean>(false);
 
   // Real-time Cloud Synchronization (Single Account = Single Cloud Data across all PC & Mobile devices)
@@ -1252,6 +1294,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setOnlineProducts([]);
       setOnlineOrders([]);
       setOnlineCustomers([]);
+      setPersonalContacts([]);
+      setPersonalTransactions([]);
       return;
     }
 
@@ -1657,6 +1701,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               ...cloudOnlineSettings,
             },
           }));
+        }
+      },
+
+      onPersonalContactsLoaded: (cloudContacts, fromCloud) => {
+        if (fromCloud) {
+          setPersonalContacts(cloudContacts);
+          try {
+            localStorage.setItem(`biz_personal_contacts_${currentUserId}`, JSON.stringify(cloudContacts));
+          } catch (e) {}
+        }
+      },
+
+      onPersonalTransactionsLoaded: (cloudTransactions, fromCloud) => {
+        if (fromCloud) {
+          setPersonalTransactions(cloudTransactions);
+          try {
+            localStorage.setItem(`biz_personal_transactions_${currentUserId}`, JSON.stringify(cloudTransactions));
+          } catch (e) {}
         }
       },
 
@@ -5529,6 +5591,191 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // ==============================================================
+  // PERSONAL LEDGER ("ব্যক্তিগত খাতা") CRUD & SETTLEMENT METHODS
+  // 100% Isolated from business sales, metrics, stocks, & accounting
+  // ==============================================================
+
+  const addPersonalContact = async (contactData: Omit<PersonalContact, 'id' | 'createdAt'>): Promise<PersonalContact> => {
+    const currentUserId = user?.id || auth.currentUser?.uid || 'default';
+    const newContact: PersonalContact = {
+      id: `pcon-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      name: contactData.name.trim(),
+      phone: contactData.phone?.trim() || '',
+      address: contactData.address?.trim() || '',
+      photoUrl: contactData.photoUrl || '',
+      notes: contactData.notes || '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const updated = [newContact, ...personalContacts];
+    setPersonalContacts(updated);
+    localStorage.setItem(`biz_personal_contacts_${currentUserId}`, JSON.stringify(updated));
+    localStorage.setItem('biz_personal_contacts', JSON.stringify(updated));
+
+    try {
+      await offlineDb.setCollection(currentUserId, 'personalLedgerContacts', updated);
+    } catch (e) {}
+
+    if (currentUserId !== 'default') {
+      try {
+        await saveUserCloudCollection(currentUserId, 'personalLedgerContacts', { items: updated });
+      } catch (e) {}
+    }
+
+    return newContact;
+  };
+
+  const updatePersonalContact = async (id: string, updates: Partial<PersonalContact>): Promise<void> => {
+    const currentUserId = user?.id || auth.currentUser?.uid || 'default';
+    const updated = personalContacts.map((c) =>
+      c.id === id ? { ...c, ...updates, updatedAt: new Date().toISOString() } : c
+    );
+    setPersonalContacts(updated);
+    localStorage.setItem(`biz_personal_contacts_${currentUserId}`, JSON.stringify(updated));
+    localStorage.setItem('biz_personal_contacts', JSON.stringify(updated));
+
+    try {
+      await offlineDb.setCollection(currentUserId, 'personalLedgerContacts', updated);
+    } catch (e) {}
+
+    if (currentUserId !== 'default') {
+      try {
+        await saveUserCloudCollection(currentUserId, 'personalLedgerContacts', { items: updated });
+      } catch (e) {}
+    }
+  };
+
+  const deletePersonalContact = async (id: string): Promise<void> => {
+    const currentUserId = user?.id || auth.currentUser?.uid || 'default';
+    const updatedContacts = personalContacts.filter((c) => c.id !== id);
+    const updatedTxs = personalTransactions.filter((tx) => tx.contactId !== id);
+
+    setPersonalContacts(updatedContacts);
+    setPersonalTransactions(updatedTxs);
+
+    localStorage.setItem(`biz_personal_contacts_${currentUserId}`, JSON.stringify(updatedContacts));
+    localStorage.setItem('biz_personal_contacts', JSON.stringify(updatedContacts));
+    localStorage.setItem(`biz_personal_transactions_${currentUserId}`, JSON.stringify(updatedTxs));
+    localStorage.setItem('biz_personal_transactions', JSON.stringify(updatedTxs));
+
+    try {
+      await offlineDb.setCollection(currentUserId, 'personalLedgerContacts', updatedContacts);
+      await offlineDb.setCollection(currentUserId, 'personalLedgerTransactions', updatedTxs);
+    } catch (e) {}
+
+    if (currentUserId !== 'default') {
+      try {
+        await saveUserCloudCollection(currentUserId, 'personalLedgerContacts', { items: updatedContacts });
+        await saveUserCloudCollection(currentUserId, 'personalLedgerTransactions', { items: updatedTxs });
+      } catch (e) {}
+    }
+  };
+
+  const addPersonalTransaction = async (
+    txData: Omit<PersonalTransaction, 'id' | 'createdAt'>
+  ): Promise<PersonalTransaction> => {
+    const currentUserId = user?.id || auth.currentUser?.uid || 'default';
+    const newTx: PersonalTransaction = {
+      id: `ptx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      contactId: txData.contactId,
+      contactName: txData.contactName,
+      contactPhone: txData.contactPhone || '',
+      type: txData.type,
+      amount: Number(txData.amount) || 0,
+      date: txData.date || new Date().toISOString().split('T')[0],
+      dueDate: txData.dueDate || undefined,
+      notes: txData.notes || '',
+      attachmentUrl: txData.attachmentUrl || '',
+      paymentMethod: txData.paymentMethod || 'Cash',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const updated = [newTx, ...personalTransactions];
+    setPersonalTransactions(updated);
+    localStorage.setItem(`biz_personal_transactions_${currentUserId}`, JSON.stringify(updated));
+    localStorage.setItem('biz_personal_transactions', JSON.stringify(updated));
+
+    try {
+      await offlineDb.setCollection(currentUserId, 'personalLedgerTransactions', updated);
+    } catch (e) {}
+
+    if (currentUserId !== 'default') {
+      try {
+        await saveUserCloudCollection(currentUserId, 'personalLedgerTransactions', { items: updated });
+      } catch (e) {}
+    }
+
+    return newTx;
+  };
+
+  const updatePersonalTransaction = async (id: string, updates: Partial<PersonalTransaction>): Promise<void> => {
+    const currentUserId = user?.id || auth.currentUser?.uid || 'default';
+    const updated = personalTransactions.map((tx) =>
+      tx.id === id ? { ...tx, ...updates, updatedAt: new Date().toISOString() } : tx
+    );
+    setPersonalTransactions(updated);
+    localStorage.setItem(`biz_personal_transactions_${currentUserId}`, JSON.stringify(updated));
+    localStorage.setItem('biz_personal_transactions', JSON.stringify(updated));
+
+    try {
+      await offlineDb.setCollection(currentUserId, 'personalLedgerTransactions', updated);
+    } catch (e) {}
+
+    if (currentUserId !== 'default') {
+      try {
+        await saveUserCloudCollection(currentUserId, 'personalLedgerTransactions', { items: updated });
+      } catch (e) {}
+    }
+  };
+
+  const deletePersonalTransaction = async (id: string): Promise<void> => {
+    const currentUserId = user?.id || auth.currentUser?.uid || 'default';
+    const updated = personalTransactions.filter((tx) => tx.id !== id);
+    setPersonalTransactions(updated);
+    localStorage.setItem(`biz_personal_transactions_${currentUserId}`, JSON.stringify(updated));
+    localStorage.setItem('biz_personal_transactions', JSON.stringify(updated));
+
+    try {
+      await offlineDb.setCollection(currentUserId, 'personalLedgerTransactions', updated);
+    } catch (e) {}
+
+    if (currentUserId !== 'default') {
+      try {
+        await saveUserCloudCollection(currentUserId, 'personalLedgerTransactions', { items: updated });
+      } catch (e) {}
+    }
+  };
+
+  const settlePersonalBalance = async (params: {
+    contactId: string;
+    amount: number;
+    settlementType: 'RECEIVE_FROM_CONTACT' | 'PAY_TO_CONTACT';
+    paymentMethod?: string;
+    notes?: string;
+    date?: string;
+  }): Promise<PersonalTransaction> => {
+    const contact = personalContacts.find((c) => c.id === params.contactId);
+    const contactName = contact ? contact.name : 'Unknown';
+    const contactPhone = contact ? contact.phone : '';
+
+    const txType: PersonalTransactionType =
+      params.settlementType === 'RECEIVE_FROM_CONTACT' ? 'SETTLEMENT_RECEIVED' : 'SETTLEMENT_PAID';
+
+    return await addPersonalTransaction({
+      contactId: params.contactId,
+      contactName,
+      contactPhone,
+      type: txType,
+      amount: Math.abs(params.amount),
+      date: params.date || new Date().toISOString().split('T')[0],
+      notes: params.notes || (params.settlementType === 'RECEIVE_FROM_CONTACT' ? 'আদায় গ্রহণ' : 'পরিশোধ প্রদান'),
+      paymentMethod: params.paymentMethod || 'Cash',
+    });
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -5686,6 +5933,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         recordCodCollection,
         createOnlineCustomer,
         updateOnlineCustomer,
+        personalContacts,
+        personalTransactions,
+        addPersonalContact,
+        updatePersonalContact,
+        deletePersonalContact,
+        addPersonalTransaction,
+        updatePersonalTransaction,
+        deletePersonalTransaction,
+        settlePersonalBalance,
         metrics: {
           todaySales,
           todayExpense,

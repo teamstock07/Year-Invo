@@ -38,6 +38,7 @@ import { SalesCalendarView } from './components/sales/SalesCalendarView';
 import { AuditLogView } from './components/audit/AuditLogView';
 import { CapitalInvestmentView } from './components/capital/CapitalInvestmentView';
 import { OnlineBusinessModule } from './components/online/OnlineBusinessModule';
+import { PersonalLedgerModule } from './components/personalLedger/PersonalLedgerModule';
 import { BusinessTypeSetupModal } from './components/common/BusinessTypeSetupModal';
 import { EmailVerificationPrompt } from './components/auth/EmailVerificationPrompt';
 import { AcceptInvitationView } from './components/team/AcceptInvitationView';
@@ -134,6 +135,11 @@ const MainLayout: React.FC = () => {
         return <SupplierDirectoryView onNavigateToPurchases={() => setActiveTab('purchases')} />;
       case 'due':
         return <DueManagement />;
+      case 'personal-ledger':
+      case 'personalLedger':
+      case 'personal':
+      case 'personal_ledger':
+        return <PersonalLedgerModule />;
       case 'expenses':
         return <ExpenseList />;
       case 'capital-investment':
@@ -142,16 +148,82 @@ const MainLayout: React.FC = () => {
       case 'investment':
         return <CapitalInvestmentView />;
       case 'online-business':
+      case 'onlineBusiness':
+      case 'online':
       case 'online-dashboard':
+      case 'onlineDashboard':
+      case 'online_dashboard':
+      case 'onlinedashboard':
       case 'online-orders':
+      case 'online-order':
+      case 'onlineOrders':
+      case 'onlineOrder':
+      case 'online_orders':
+      case 'online_order':
+      case 'onlineorders':
+      case 'onlineorder':
       case 'online-status':
+      case 'onlineStatus':
+      case 'online_status':
+      case 'onlinestatus':
+      case 'order-status':
+      case 'orderStatus':
+      case 'online-products':
+      case 'online-product':
+      case 'onlineProducts':
+      case 'onlineProduct':
+      case 'online_products':
+      case 'onlineproducts':
       case 'online-customers':
+      case 'online-customer':
+      case 'onlineCustomers':
+      case 'onlineCustomer':
+      case 'online_customers':
+      case 'onlinecustomers':
       case 'online-delivery':
+      case 'onlineDelivery':
+      case 'online_delivery':
+      case 'online-delivery-review':
+      case 'online-delivery-and-review':
+      case 'onlineDeliveryReview':
+      case 'onlineDeliveryAndReview':
+      case 'onlinedelivery':
+      case 'delivery-and-review':
+      case 'deliveryAndReview':
+      case 'delivery-rates':
+      case 'deliveryRates':
+      case 'delivery-settings':
+      case 'deliverySettings':
       case 'online-cod':
+      case 'onlineCod':
+      case 'online_cod':
+      case 'onlinecod':
+      case 'cod-management':
+      case 'codManagement':
       case 'online-reports':
-        return <OnlineBusinessModule initialTab={activeTab} />;
+      case 'online-report':
+      case 'onlineReports':
+      case 'onlineReport':
+      case 'online_reports':
+      case 'online_report':
+      case 'onlinereports':
+      case 'onlinereport':
+        return <OnlineBusinessModule initialTab={activeTab} initialSubTab={activeTab} />;
       case 'team':
       case 'teamManagement':
+      case 'team-management':
+      case 'team_management':
+      case 'teammanagement':
+      case 'ceo':
+      case 'ceo-team':
+      case 'ceoTeam':
+      case 'ceoteam':
+      case 'ceo-team-management':
+      case 'ceoTeamManagement':
+      case 'ceo_team_management':
+      case 'ceoteammanagement':
+      case 'staff':
+      case 'employees':
         return <TeamManagementView />;
       case 'payroll':
       case 'salary':

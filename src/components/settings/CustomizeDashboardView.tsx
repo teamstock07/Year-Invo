@@ -33,6 +33,7 @@ import {
   Eye,
   EyeOff,
   Store,
+  BookOpen,
 } from 'lucide-react';
 
 interface ModuleItem {
@@ -163,6 +164,15 @@ export const CustomizeDashboardView: React.FC = () => {
       defaultName: 'Due Management',
       defaultDesc: 'Customer and supplier balances & credit collection',
       icon: CreditCard,
+      category: 'finance',
+    },
+    {
+      key: 'personalLedger',
+      nameKey: 'modPersonalLedger',
+      descKey: 'modPersonalLedgerDesc',
+      defaultName: 'Personal Ledger',
+      defaultDesc: 'Personal lending & borrowing ledger completely isolated from business records',
+      icon: BookOpen,
       category: 'finance',
     },
     {

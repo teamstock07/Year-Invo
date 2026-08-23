@@ -42,6 +42,7 @@ export interface DashboardPreferences {
   teamManagement: boolean;
   payroll: boolean;
   auditLog: boolean;
+  personalLedger?: boolean;
   storeSettings?: boolean;
   dashboardCustomization?: boolean;
   support: boolean;
@@ -73,6 +74,7 @@ export const defaultDashboardPreferences: DashboardPreferences = {
   teamManagement: true,
   payroll: true,
   auditLog: true,
+  personalLedger: true,
   storeSettings: true,
   dashboardCustomization: true,
   support: true,
@@ -1224,3 +1226,42 @@ export interface BusinessSettings {
   paymentSettings?: OwnerPaymentSettings;
   onlineBusiness?: OnlineBusinessSettings;
 }
+
+// ==========================================
+// PERSONAL LEDGER ("ব্যক্তিগত খাতা") TYPES
+// Completely isolated from business accounting
+// ==========================================
+
+export type PersonalTransactionType =
+  | 'RECEIVABLE' // টাকা দিলাম / ঋণ প্রদান (I gave money -> I will receive)
+  | 'PAYABLE'    // টাকা নিলাম / ঋণ গ্রহণ (I took money -> I will give/pay)
+  | 'SETTLEMENT_RECEIVED' // টাকা আদায় পেলাম (Received settlement against receivable)
+  | 'SETTLEMENT_PAID';    // টাকা পরিশোধ দিলাম (Paid settlement against payable)
+
+export interface PersonalContact {
+  id: string;
+  name: string;
+  phone?: string;
+  address?: string;
+  photoUrl?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface PersonalTransaction {
+  id: string;
+  contactId: string;
+  contactName: string;
+  contactPhone?: string;
+  type: PersonalTransactionType;
+  amount: number;
+  date: string; // YYYY-MM-DD
+  dueDate?: string; // YYYY-MM-DD
+  notes?: string;
+  attachmentUrl?: string;
+  paymentMethod?: 'Cash' | 'bKash' | 'Nagad' | 'Bank' | 'Rocket' | 'Other' | string;
+  createdAt: string;
+  updatedAt?: string;
+}
+

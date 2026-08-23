@@ -62,7 +62,34 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
   const availableProducts = useMemo(() => {
     const onl = onlineProducts || [];
     const pos = products || [];
-    return onl.length > 0 ? onl : pos;
+    const map = new Map<string, any>();
+    pos.forEach((p) => {
+      map.set(p.id, {
+        id: p.id,
+        name: p.name,
+        sellingPrice: Number(p.sellingPrice) || 0,
+        buyingPrice: Number(p.buyingPrice) || 0,
+        stock: p.currentStock !== undefined ? p.currentStock : (p.stock || 0),
+        unit: p.unit || 'pcs',
+        sku: p.sku || '',
+        imageUrl: p.imageUrl,
+      });
+    });
+    onl.forEach((p) => {
+      const existing = map.get(p.id);
+      map.set(p.id, {
+        ...existing,
+        id: p.id,
+        name: p.name,
+        sellingPrice: Number(p.sellingPrice) || (existing ? existing.sellingPrice : 0),
+        buyingPrice: Number(p.buyingPrice) || (existing ? existing.buyingPrice : 0),
+        stock: p.stock !== undefined ? p.stock : (existing ? existing.stock : 0),
+        unit: p.unit || (existing ? existing.unit : 'pcs'),
+        sku: p.sku || (existing ? existing.sku : ''),
+        imageUrl: p.imageUrl || (existing ? existing.imageUrl : undefined),
+      });
+    });
+    return Array.from(map.values());
   }, [onlineProducts, products]);
 
   const [activeStatusFilter, setActiveStatusFilter] = useState<OnlineOrderStatus | 'All'>(
