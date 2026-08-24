@@ -370,7 +370,24 @@ interface AppContextType {
   deleteOnlineProduct: (productId: string) => Promise<void>;
   createOnlineOrder: (orderData: Partial<OnlineOrder>) => Promise<OnlineOrder>;
   updateOnlineOrder: (orderId: string, updates: Partial<OnlineOrder>) => Promise<void>;
-  updateOnlineOrderStatus: (orderId: string, status: OnlineOrderStatus, notesOrReason?: string) => Promise<void>;
+  updateOnlineOrderStatus: (
+    orderId: string,
+    status: OnlineOrderStatus,
+    optionsOrReason?: string | {
+      reason?: string;
+      cancellationReason?: string;
+      courierCost?: number;
+      cancellationCost?: number;
+      totalLoss?: number;
+      cancelledBy?: string;
+      cancellationStage?: string;
+      returnReason?: string;
+      returnedBy?: string;
+      returnCourierCost?: number;
+      totalReturnLoss?: number;
+      notes?: string;
+    }
+  ) => Promise<void>;
   deleteOnlineOrder: (orderId: string) => Promise<void>;
   recordCodCollection: (orderId: string, amount: number, courierNote?: string) => Promise<void>;
   createOnlineCustomer: (customerData: Partial<OnlineCustomer>) => Promise<OnlineCustomer>;
@@ -5311,11 +5328,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const grandTotal = calculatedGrandTotal;
     const ownerDeliveryExpense = deliveryPayer === 'Owner' ? deliveryCharge : 0;
     const codAmount = orderData.paymentMethod === 'COD' || !orderData.paymentMethod ? grandTotal : 0;
+    const courierCost = orderData.courierCost !== undefined
+      ? Number(orderData.courierCost)
+      : (deliveryPayer === 'Owner' ? deliveryCharge : (orderData.deliveryCity === 'Outside City' ? 150 : 80));
 
     const newOrder: OnlineOrder = {
       id: `ord_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
       orderNo: orderData.orderNo || orderNumber,
       userId: currentUserId,
+      customerId: orderData.customerId,
       customerName: orderData.customerName || 'Customer',
       customerPhone: orderData.customerPhone || '',
       customerEmail: orderData.customerEmail,
@@ -5325,6 +5346,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       subtotal,
       deliveryCharge,
       deliveryPayer,
+      courierCost,
       discount,
       grandTotal,
       ownerDeliveryExpense,
@@ -5336,6 +5358,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       notes: orderData.notes,
       codAmount: orderData.codAmount !== undefined ? Number(orderData.codAmount) : codAmount,
       codCollected: orderData.codCollected || false,
+      codCollectedAmount: orderData.codCollectedAmount,
       codCollectedAt: orderData.codCollectedAt,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -5375,8 +5398,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // 2. Auto catalog customer in onlineCustomers if not present or update stats
-    const existingCustomer = onlineCustomers.find((c) => c.phone === newOrder.customerPhone);
+    const existingCustomer = orderData.customerId
+      ? onlineCustomers.find((c) => c.id === orderData.customerId)
+      : onlineCustomers.find((c) => c.phone === newOrder.customerPhone);
+
     if (existingCustomer) {
+      newOrder.customerId = existingCustomer.id;
       await updateOnlineCustomer(existingCustomer.id, {
         totalOrders: existingCustomer.totalOrders + 1,
         totalSpent: existingCustomer.totalSpent + newOrder.grandTotal,
@@ -5385,7 +5412,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         city: newOrder.deliveryCity || existingCustomer.city,
       });
     } else if (newOrder.customerName && newOrder.customerPhone) {
-      await createOnlineCustomer({
+      const createdCust = await createOnlineCustomer({
         name: newOrder.customerName,
         phone: newOrder.customerPhone,
         email: newOrder.customerEmail,
@@ -5395,6 +5422,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         totalSpent: newOrder.grandTotal,
         lastOrderDate: new Date().toISOString(),
       });
+      newOrder.customerId = createdCust.id;
     }
 
     // 3. Save Order in state, IndexedDB, and Cloud Sync
@@ -5447,32 +5475,153 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateOnlineOrderStatus = async (
     orderId: string,
     status: OnlineOrderStatus,
-    notesOrReason?: string
+    optionsOrReason?: string | {
+      reason?: string;
+      cancellationReason?: string;
+      courierCost?: number;
+      cancellationCost?: number;
+      totalLoss?: number;
+      cancelledBy?: string;
+      cancellationStage?: string;
+      returnReason?: string;
+      returnedBy?: string;
+      returnCourierCost?: number;
+      totalReturnLoss?: number;
+      notes?: string;
+    }
   ) => {
+    const currentUserId = user?.id || auth.currentUser?.uid || 'default';
     const existing = onlineOrders.find((o) => o.id === orderId);
     if (!existing) return;
+
+    const previousStatus = existing.status;
+    const isAlreadyCancelledOrReturned = previousStatus === 'Cancelled' || previousStatus === 'Returned';
+
+    const opts = typeof optionsOrReason === 'string'
+      ? { reason: optionsOrReason, notes: optionsOrReason }
+      : (optionsOrReason || {});
 
     const updates: Partial<OnlineOrder> = {
       status,
       updatedAt: new Date().toISOString(),
     };
 
-    if (status === 'Delivered') {
+    if (status === 'Confirmed') {
+      updates.confirmedAt = existing.confirmedAt || new Date().toISOString();
+    } else if (status === 'Processing') {
+      updates.packagedAt = existing.packagedAt || new Date().toISOString();
+    } else if (status === 'Shipped') {
+      updates.shippedAt = existing.shippedAt || new Date().toISOString();
+    } else if (status === 'Delivered') {
       updates.deliveredAt = new Date().toISOString();
       if (existing.paymentMethod !== 'COD') {
         updates.paymentStatus = 'Paid';
       }
-    } else if (status === 'Shipped') {
-      updates.shippedAt = new Date().toISOString();
     } else if (status === 'Cancelled') {
       updates.cancelledAt = new Date().toISOString();
-      if (notesOrReason) {
-        updates.cancellationReason = notesOrReason;
+      updates.cancellationReason = opts.cancellationReason || opts.reason || existing.cancellationReason || 'Order Cancelled';
+      updates.cancelledBy = opts.cancelledBy || user?.ownerName || user?.name || user?.email || 'Admin';
+      updates.cancellationStage = opts.cancellationStage || previousStatus;
+      updates.paymentStatus = 'Cancelled';
+
+      // Determine courier and cancellation cost incurred:
+      const isAfterCourier = previousStatus === 'Shipped' || previousStatus === 'Processing' || opts.cancellationStage === 'Shipped' || opts.cancellationStage === 'Processing';
+      let courierFee = 0;
+      if (opts.courierCost !== undefined) {
+        courierFee = Number(opts.courierCost);
+      } else if (isAfterCourier) {
+        courierFee = existing.courierCost !== undefined
+          ? Number(existing.courierCost)
+          : (existing.deliveryCharge || (existing.deliveryCity === 'Outside City' ? 150 : 80));
+      }
+
+      const cancelFee = opts.cancellationCost !== undefined ? Number(opts.cancellationCost) : courierFee;
+      const totalLost = opts.totalLoss !== undefined
+        ? Number(opts.totalLoss)
+        : (cancelFee > 0 ? cancelFee : courierFee);
+
+      updates.courierCost = courierFee;
+      updates.cancellationCost = cancelFee;
+      updates.totalLoss = totalLost;
+      updates.financialImpact = totalLost > 0 ? -Math.abs(totalLost) : 0;
+
+      // Restore inventory back to products if cancelling from an active state
+      if (!isAlreadyCancelledOrReturned && existing.items && existing.items.length > 0) {
+        const updatedOnlineProducts = onlineProducts.map((prod) => {
+          const itemSold = existing.items.find((it) => it.productId === prod.id);
+          if (itemSold) {
+            return { ...prod, stock: (prod.stock || 0) + itemSold.quantity };
+          }
+          return prod;
+        });
+        setOnlineProducts(updatedOnlineProducts);
+        localStorage.setItem(`biz_online_products_${currentUserId}`, JSON.stringify(updatedOnlineProducts));
+        if (currentUserId !== 'default') {
+          saveUserCloudCollection(currentUserId, 'onlineProducts', { items: updatedOnlineProducts }).catch(() => {});
+        }
+
+        const updatedPosProducts = products.map((prod) => {
+          const itemSold = existing.items.find((it) => it.productId === prod.id);
+          if (itemSold) {
+            return { ...prod, currentStock: prod.currentStock + itemSold.quantity };
+          }
+          return prod;
+        });
+        setProducts(updatedPosProducts);
+        localStorage.setItem(`biz_products_${currentUserId}`, JSON.stringify(updatedPosProducts));
+        if (currentUserId !== 'default') {
+          saveUserCloudCollection(currentUserId, 'products', { items: updatedPosProducts }).catch(() => {});
+        }
       }
     } else if (status === 'Returned') {
       updates.returnedAt = new Date().toISOString();
-      if (notesOrReason) {
-        updates.returnReason = notesOrReason;
+      updates.returnReason = opts.returnReason || opts.reason || existing.returnReason || 'Parcel returned by customer';
+      updates.returnedBy = opts.returnedBy || user?.ownerName || user?.name || user?.email || 'Admin';
+      updates.paymentStatus = 'Refunded';
+
+      const courierReturnCost = opts.returnCourierCost !== undefined
+        ? Number(opts.returnCourierCost)
+        : (opts.courierCost !== undefined
+            ? Number(opts.courierCost)
+            : (existing.courierCost !== undefined ? Number(existing.courierCost) : (existing.deliveryCharge || (existing.deliveryCity === 'Outside City' ? 150 : 80))));
+
+      const totalReturnLoss = opts.totalReturnLoss !== undefined
+        ? Number(opts.totalReturnLoss)
+        : (opts.totalLoss !== undefined ? Number(opts.totalLoss) : courierReturnCost);
+
+      updates.courierCost = courierReturnCost;
+      updates.returnCourierCost = courierReturnCost;
+      updates.totalReturnLoss = totalReturnLoss;
+      updates.totalLoss = totalReturnLoss;
+      updates.financialImpact = totalReturnLoss > 0 ? -Math.abs(totalReturnLoss) : 0;
+
+      // Restore inventory if returning
+      if (!isAlreadyCancelledOrReturned && existing.items && existing.items.length > 0) {
+        const updatedOnlineProducts = onlineProducts.map((prod) => {
+          const itemSold = existing.items.find((it) => it.productId === prod.id);
+          if (itemSold) {
+            return { ...prod, stock: (prod.stock || 0) + itemSold.quantity };
+          }
+          return prod;
+        });
+        setOnlineProducts(updatedOnlineProducts);
+        localStorage.setItem(`biz_online_products_${currentUserId}`, JSON.stringify(updatedOnlineProducts));
+        if (currentUserId !== 'default') {
+          saveUserCloudCollection(currentUserId, 'onlineProducts', { items: updatedOnlineProducts }).catch(() => {});
+        }
+
+        const updatedPosProducts = products.map((prod) => {
+          const itemSold = existing.items.find((it) => it.productId === prod.id);
+          if (itemSold) {
+            return { ...prod, currentStock: prod.currentStock + itemSold.quantity };
+          }
+          return prod;
+        });
+        setProducts(updatedPosProducts);
+        localStorage.setItem(`biz_products_${currentUserId}`, JSON.stringify(updatedPosProducts));
+        if (currentUserId !== 'default') {
+          saveUserCloudCollection(currentUserId, 'products', { items: updatedPosProducts }).catch(() => {});
+        }
       }
     }
 

@@ -5,6 +5,7 @@ import {
   OnlineOrderStatus,
   OnlineOrderItem,
   DeliveryPayer,
+  OnlineCustomer,
   Product,
 } from '../../types';
 import {
@@ -26,6 +27,7 @@ import {
   Trash2,
   DollarSign,
   User,
+  Users,
   Phone,
   MapPin,
   Calendar,
@@ -35,6 +37,9 @@ import {
   Send,
   Download,
   X,
+  Check,
+  Building,
+  UserPlus,
 } from 'lucide-react';
 
 interface OnlineOrdersViewProps {
@@ -49,6 +54,7 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
   const {
     onlineOrders,
     onlineProducts,
+    onlineCustomers,
     products,
     settings,
     createOnlineOrder,
@@ -102,6 +108,13 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
   const [statusUpdateModalOrder, setStatusUpdateModalOrder] = useState<OnlineOrder | null>(null);
   const [statusNoteOrReason, setStatusNoteOrReason] = useState('');
   const [targetStatusToSet, setTargetStatusToSet] = useState<OnlineOrderStatus>('Confirmed');
+  const [incurredCourierCost, setIncurredCourierCost] = useState<number>(0);
+  const [cancellationStage, setCancellationStage] = useState<string>('');
+
+  // Customer Select & Search State
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
 
   // Form State for creating a new online order
   const [customerName, setCustomerName] = useState('');
@@ -115,6 +128,9 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
   const [deliveryCharge, setDeliveryCharge] = useState<number>(
     settings.onlineBusiness?.delivery?.defaultInsideCityCharge || 80
   );
+  const [courierCost, setCourierCost] = useState<number>(
+    settings.onlineBusiness?.delivery?.defaultInsideCityCharge || 80
+  );
   const [discount, setDiscount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<'COD' | 'bKash' | 'Nagad' | 'Card' | 'Bank Transfer' | 'Prepaid'>('COD');
   const [courierName, setCourierName] = useState<string>('Steadfast');
@@ -126,7 +142,44 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
   const [itemSelectProductId, setItemSelectProductId] = useState('');
   const [itemSelectQty, setItemSelectQty] = useState(1);
 
-  // Update delivery charge when city changes
+  // Matching customers for search
+  const filteredCustomerList = useMemo(() => {
+    const list = onlineCustomers || [];
+    if (!customerSearchQuery.trim()) return list.slice(0, 8);
+    const q = customerSearchQuery.toLowerCase().trim();
+    return list.filter(
+      (c) =>
+        (c.name || '').toLowerCase().includes(q) ||
+        (c.phone || '').includes(q) ||
+        (c.id || '').toLowerCase().includes(q) ||
+        (c.address && c.address.toLowerCase().includes(q)) ||
+        (c.email && c.email.toLowerCase().includes(q))
+    ).slice(0, 10);
+  }, [onlineCustomers, customerSearchQuery]);
+
+  const handleSelectExistingCustomer = (cust: OnlineCustomer) => {
+    setSelectedCustomerId(cust.id);
+    setCustomerName(cust.name || '');
+    setCustomerPhone(cust.phone || '');
+    setCustomerEmail(cust.email || '');
+    setDeliveryAddress(cust.address || '');
+    if (cust.city === 'Outside City' || cust.city === 'Inside City') {
+      handleCityChange(cust.city);
+    }
+    setIsCustomerDropdownOpen(false);
+    setCustomerSearchQuery('');
+  };
+
+  const handleClearSelectedCustomer = () => {
+    setSelectedCustomerId(null);
+    setCustomerName('');
+    setCustomerPhone('');
+    setCustomerEmail('');
+    setDeliveryAddress('');
+    setCustomerSearchQuery('');
+  };
+
+  // Update delivery charge and courier cost when city changes
   const handleCityChange = (city: 'Inside City' | 'Outside City') => {
     setDeliveryCity(city);
     const rate =
@@ -134,6 +187,7 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
         ? settings.onlineBusiness?.delivery?.defaultInsideCityCharge || 80
         : settings.onlineBusiness?.delivery?.defaultOutsideCityCharge || 150;
     setDeliveryCharge(rate);
+    setCourierCost(rate);
   };
 
   // Add Item to Order Cart
@@ -225,6 +279,7 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
       : Math.max(0, sub - disc);
 
     await createOnlineOrder({
+      customerId: selectedCustomerId || undefined,
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
       customerEmail: customerEmail.trim() || undefined,
@@ -232,6 +287,7 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
       deliveryCity,
       deliveryPayer,
       deliveryCharge: ship,
+      courierCost: Number(courierCost) || ship,
       discount: disc,
       subtotal: sub,
       grandTotal: finalGrandTotal,
@@ -245,6 +301,7 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
     // Reset Form
     setIsCreateModalOpen(false);
     setSelectedItems([]);
+    setSelectedCustomerId(null);
     setCustomerName('');
     setCustomerPhone('');
     setCustomerEmail('');
@@ -269,7 +326,8 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
         const matchPhone = ord.customerPhone?.toLowerCase().includes(q);
         const matchCourier = ord.courierName?.toLowerCase().includes(q);
         const matchTrack = ord.trackingNumber?.toLowerCase().includes(q);
-        if (!matchNo && !matchCust && !matchPhone && !matchCourier && !matchTrack) {
+        const matchCustId = ord.customerId?.toLowerCase().includes(q);
+        if (!matchNo && !matchCust && !matchPhone && !matchCourier && !matchTrack && !matchCustId) {
           return false;
         }
       }
@@ -357,7 +415,12 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
   const handleOpenStatusModal = (order: OnlineOrder, nextStatus: OnlineOrderStatus) => {
     setStatusUpdateModalOrder(order);
     setTargetStatusToSet(nextStatus);
-    setStatusNoteOrReason('');
+    setStatusNoteOrReason(order.cancellationReason || '');
+    setCancellationStage(order.status);
+    const defaultCost = order.courierCost !== undefined
+      ? order.courierCost
+      : (order.deliveryCharge || (order.deliveryCity === 'Outside City' ? 150 : 80));
+    setIncurredCourierCost(defaultCost);
   };
 
   const handleConfirmStatusUpdate = async () => {
@@ -365,11 +428,20 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
     await updateOnlineOrderStatus(
       statusUpdateModalOrder.id,
       targetStatusToSet,
-      statusNoteOrReason.trim() || undefined
+      {
+        reason: statusNoteOrReason.trim() || undefined,
+        cancellationStage: cancellationStage || statusUpdateModalOrder.status,
+        courierCost: targetStatusToSet === 'Cancelled' || targetStatusToSet === 'Returned' ? incurredCourierCost : undefined,
+      }
     );
     setStatusUpdateModalOrder(null);
     setStatusNoteOrReason('');
   };
+
+  const selectedCustomerRecord = useMemo(() => {
+    if (!selectedCustomerId) return null;
+    return (onlineCustomers || []).find((c) => c.id === selectedCustomerId) || null;
+  }, [onlineCustomers, selectedCustomerId]);
 
   return (
     <div className="space-y-6">
@@ -381,14 +453,17 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
             <span>Online Orders</span>
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Manage incoming online orders, delivery charges, customer addresses, and courier statuses.
+            Manage incoming online orders, customer directory linkage, delivery charges, and courier tracking.
           </p>
         </div>
 
         <div className="flex items-center gap-2.5">
           <button
             type="button"
-            onClick={() => setIsCreateModalOpen(true)}
+            onClick={() => {
+              handleClearSelectedCustomer();
+              setIsCreateModalOpen(true);
+            }}
             className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 rounded-xl shadow-md shadow-indigo-600/20 transition-all hover:scale-[1.01]"
           >
             <Plus className="w-4 h-4" />
@@ -448,38 +523,27 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
           />
           {searchTerm && (
             <button
+              type="button"
               onClick={() => setSearchTerm('')}
-              className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+              className="absolute right-3 top-2.5 p-1 text-slate-400 hover:text-slate-600"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
       </div>
 
-      {/* Orders Table & Cards */}
+      {/* Orders Table Container */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         {filteredOrders.length === 0 ? (
           <div className="p-12 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto mb-3">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 flex items-center justify-center mx-auto mb-3">
               <ShoppingBag className="w-6 h-6" />
             </div>
             <h4 className="text-sm font-bold text-slate-900 dark:text-white">No online orders found</h4>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
-              {searchTerm
-                ? 'Try adjusting your search criteria.'
-                : 'Create your first online order to start tracking delivery lifecycle and customer shipments.'}
+              Create an online order or adjust your status and search filters.
             </p>
-            {!searchTerm && (
-              <button
-                type="button"
-                onClick={() => setIsCreateModalOpen(true)}
-                className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-indigo-600 rounded-xl shadow hover:bg-indigo-700 transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>+ Create Online Order</span>
-              </button>
-            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -487,17 +551,20 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
               <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-200 dark:border-slate-800">
                 <tr>
                   <th className="px-4 py-3.5">Order Info</th>
-                  <th className="px-4 py-3.5">Customer & Address</th>
+                  <th className="px-4 py-3.5">Customer</th>
                   <th className="px-4 py-3.5">Items</th>
-                  <th className="px-4 py-3.5">Delivery & Payer</th>
+                  <th className="px-4 py-3.5">Delivery Fee</th>
                   <th className="px-4 py-3.5">Grand Total</th>
                   <th className="px-4 py-3.5">Status</th>
-                  <th className="px-4 py-3.5 text-right">Quick Actions</th>
+                  <th className="px-4 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-300">
                 {filteredOrders.map((order) => {
                   const itemCount = order.items.reduce((sum, i) => sum + i.quantity, 0);
+                  const isCancelled = order.status === 'Cancelled';
+                  const isReturned = order.status === 'Returned';
+                  const isDelivered = order.status === 'Delivered';
                   return (
                     <tr
                       key={order.id}
@@ -582,46 +649,114 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
                       </td>
 
                       {/* Status */}
-                      <td className="px-4 py-3.5">{getStatusBadge(order.status)}</td>
+                      <td className="px-4 py-3.5">
+                        <div className="space-y-1">
+                          {getStatusBadge(order.status)}
+                          {isCancelled && order.financialImpact !== undefined && order.financialImpact < 0 && (
+                            <span className="block text-[10px] font-bold text-rose-600 dark:text-rose-400">
+                              Courier Loss: {formatCurrency(order.financialImpact)}
+                            </span>
+                          )}
+                        </div>
+                      </td>
 
                       {/* Quick Actions */}
                       <td className="px-4 py-3.5 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           {/* 1-Click Status Stepper Action */}
                           {order.status === 'Pending' && (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenStatusModal(order, 'Confirmed')}
-                              className="px-2.5 py-1 text-xs font-semibold text-blue-600 bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 rounded-lg transition-colors"
-                            >
-                              Approve
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenStatusModal(order, 'Confirmed')}
+                                className="px-2.5 py-1 text-xs font-semibold text-blue-600 bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 rounded-lg transition-colors"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenStatusModal(order, 'Cancelled')}
+                                title="Cancel Order"
+                                className="px-2 py-1 text-xs font-semibold text-rose-600 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 rounded-lg transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </>
                           )}
                           {order.status === 'Confirmed' && (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenStatusModal(order, 'Processing')}
-                              className="px-2.5 py-1 text-xs font-semibold text-indigo-600 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 rounded-lg transition-colors"
-                            >
-                              Pack / Process
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenStatusModal(order, 'Processing')}
+                                className="px-2.5 py-1 text-xs font-semibold text-indigo-600 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 rounded-lg transition-colors"
+                              >
+                                Pack / Process
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenStatusModal(order, 'Cancelled')}
+                                title="Cancel Order"
+                                className="px-2 py-1 text-xs font-semibold text-rose-600 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 rounded-lg transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </>
                           )}
                           {order.status === 'Processing' && (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenStatusModal(order, 'Shipped')}
-                              className="px-2.5 py-1 text-xs font-semibold text-purple-600 bg-purple-50 dark:bg-purple-950/50 hover:bg-purple-100 rounded-lg transition-colors"
-                            >
-                              Ship
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenStatusModal(order, 'Shipped')}
+                                className="px-2.5 py-1 text-xs font-semibold text-purple-600 bg-purple-50 dark:bg-purple-950/50 hover:bg-purple-100 rounded-lg transition-colors"
+                              >
+                                Hand to Courier
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenStatusModal(order, 'Cancelled')}
+                                title="Cancel Order"
+                                className="px-2 py-1 text-xs font-semibold text-rose-600 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 rounded-lg transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </>
                           )}
                           {order.status === 'Shipped' && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenStatusModal(order, 'Delivered')}
+                                title="Delivery Successful"
+                                className="px-2 py-1 text-xs font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 rounded-lg transition-colors"
+                              >
+                                Delivered
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenStatusModal(order, 'Cancelled')}
+                                title="Cancel Order"
+                                className="px-2 py-1 text-xs font-semibold text-rose-600 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 rounded-lg transition-colors"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenStatusModal(order, 'Returned')}
+                                title="Return Order"
+                                className="px-2 py-1 text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 hover:bg-amber-100 rounded-lg transition-colors"
+                              >
+                                Return
+                              </button>
+                            </>
+                          )}
+                          {order.status === 'Delivered' && (
                             <button
                               type="button"
-                              onClick={() => handleOpenStatusModal(order, 'Delivered')}
-                              className="px-2.5 py-1 text-xs font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 rounded-lg transition-colors"
+                              onClick={() => handleOpenStatusModal(order, 'Returned')}
+                              title="Mark as Returned / Refunded"
+                              className="px-2 py-1 text-xs font-semibold text-slate-600 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
                             >
-                              Delivered
+                              Return
                             </button>
                           )}
 
@@ -669,7 +804,7 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
                     Create New Online Order
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Add customer delivery info and select products from your store inventory.
+                    Select customer from directory or add new, configure delivery charge and items.
                   </p>
                 </div>
               </div>
@@ -683,75 +818,202 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
             </div>
 
             <form onSubmit={handleCreateOrderSubmit} className="space-y-4 text-xs">
-              {/* Customer Details Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Customer Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Tanvir Ahmed"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                  />
+              {/* CUSTOMER SELECTION SECTION */}
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/70 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-white">
+                    <Users className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    <span>Customer Selection (Online Directory)</span>
+                  </div>
+                  {selectedCustomerId ? (
+                    <button
+                      type="button"
+                      onClick={handleClearSelectedCustomer}
+                      className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-semibold"
+                    >
+                      Change Customer
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-slate-500">
+                      Search existing or type details below
+                    </span>
+                  )}
                 </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Phone Number *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. 01712345678"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    placeholder="customer@email.com"
-                    value={customerEmail}
-                    onChange={(e) => setCustomerEmail(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                  />
-                </div>
-              </div>
 
-              {/* Delivery Address & City */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="sm:col-span-2">
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Delivery Full Address *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="House/Road/Area, City"
-                    value={deliveryAddress}
-                    onChange={(e) => setDeliveryAddress(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                  />
+                {!selectedCustomerId ? (
+                  <div className="space-y-2 relative">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Search customer by name, phone number, customer ID or address..."
+                        value={customerSearchQuery}
+                        onFocus={() => setIsCustomerDropdownOpen(true)}
+                        onChange={(e) => {
+                          setCustomerSearchQuery(e.target.value);
+                          setIsCustomerDropdownOpen(true);
+                        }}
+                        className="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-500"
+                      />
+                      {customerSearchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setCustomerSearchQuery('')}
+                          className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Customer Dropdown Results */}
+                    {isCustomerDropdownOpen && (
+                      <div className="absolute z-20 top-full left-0 right-0 mt-1 max-h-52 overflow-y-auto bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl divide-y divide-slate-100 dark:divide-slate-800">
+                        {filteredCustomerList.length === 0 ? (
+                          <div className="p-3 text-center text-slate-400">
+                            No matching customer found. Enter details manually below to create new.
+                          </div>
+                        ) : (
+                          filteredCustomerList.map((cust) => (
+                            <button
+                              key={cust.id}
+                              type="button"
+                              onClick={() => handleSelectExistingCustomer(cust)}
+                              className="w-full text-left p-2.5 hover:bg-indigo-50/70 dark:hover:bg-slate-800 flex items-center justify-between transition-colors"
+                            >
+                              <div>
+                                <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                  <span>{cust.name}</span>
+                                  <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.2 rounded">
+                                    {cust.phone}
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-slate-500 truncate max-w-sm">
+                                  📍 {cust.address || 'No address saved'} {cust.city ? `(${cust.city})` : ''}
+                                </div>
+                              </div>
+                              <div className="text-right text-[11px]">
+                                <span className="font-bold text-slate-700 dark:text-slate-300 block">
+                                  {cust.totalOrders || 0} orders
+                                </span>
+                                <span className="text-slate-400">
+                                  {formatCurrency(cust.totalSpent || 0)}
+                                </span>
+                              </div>
+                            </button>
+                          ))
+                        )}
+                        <div className="p-2 bg-slate-50 dark:bg-slate-800/80 text-center">
+                          <button
+                            type="button"
+                            onClick={() => setIsCustomerDropdownOpen(false)}
+                            className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
+                          >
+                            Close Search Dropdown
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Selected Customer Card Preview */
+                  <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold">
+                        <Check className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>{customerName}</span>
+                          <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                            📞 {customerPhone}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-600 dark:text-slate-400">
+                          {deliveryAddress || 'Address loaded'} • {deliveryCity}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleClearSelectedCustomer}
+                      className="px-2.5 py-1 text-xs font-semibold text-rose-600 bg-white dark:bg-slate-800 border border-rose-200 dark:border-rose-800 rounded-lg hover:bg-rose-50"
+                    >
+                      Clear Customer
+                    </button>
+                  </div>
+                )}
+
+                {/* Customer Input Fields */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Customer Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Tanvir Ahmed"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Phone Number *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. 01712345678"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="customer@email.com"
+                      value={customerEmail}
+                      onChange={(e) => setCustomerEmail(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Delivery Region
-                  </label>
-                  <select
-                    value={deliveryCity}
-                    onChange={(e) => handleCityChange(e.target.value as any)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                  >
-                    <option value="Inside City">Inside City (৳80 default)</option>
-                    <option value="Outside City">Outside City (৳150 default)</option>
-                  </select>
+
+                {/* Delivery Address & City */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Delivery Full Address *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="House/Road/Area, Police Station, District"
+                      value={deliveryAddress}
+                      onChange={(e) => setDeliveryAddress(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Delivery Region
+                    </label>
+                    <select
+                      value={deliveryCity}
+                      onChange={(e) => handleCityChange(e.target.value as any)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                    >
+                      <option value="Inside City">Inside City (৳80 default)</option>
+                      <option value="Outside City">Outside City (৳150 default)</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -907,7 +1169,7 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
                       Delivery Charge ({settings.currency})
@@ -917,6 +1179,18 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
                       min="0"
                       value={deliveryCharge}
                       onChange={(e) => setDeliveryCharge(Math.max(0, Number(e.target.value) || 0))}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                      Courier Cost ({settings.currency})
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={courierCost}
+                      onChange={(e) => setCourierCost(Math.max(0, Number(e.target.value) || 0))}
                       className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                     />
                   </div>
@@ -1064,13 +1338,13 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
         </div>
       )}
 
-      {/* STATUS ADVANCE CONFIRMATION MODAL */}
+      {/* STATUS ADVANCE / CANCELLATION MODAL */}
       {statusUpdateModalOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
           <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                Update Order Status
+                Update Order Status: #{statusUpdateModalOrder.orderNo}
               </h3>
               <button
                 type="button"
@@ -1083,46 +1357,87 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
 
             <div className="text-xs space-y-3">
               <p className="text-slate-600 dark:text-slate-400">
-                Change status for Order <strong>#{statusUpdateModalOrder.orderNo}</strong> ({statusUpdateModalOrder.customerName}) from{' '}
-                <span className="font-semibold text-slate-800 dark:text-slate-200">
-                  {statusUpdateModalOrder.status}
-                </span>{' '}
-                to:
+                Customer: <strong>{statusUpdateModalOrder.customerName}</strong> ({statusUpdateModalOrder.customerPhone})
               </p>
 
-              <div className="grid grid-cols-2 gap-2">
-                {(['Confirmed', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Returned'] as OnlineOrderStatus[]).map(
-                  (st) => (
-                    <button
-                      key={st}
-                      type="button"
-                      onClick={() => setTargetStatusToSet(st)}
-                      className={`p-2 rounded-xl text-xs font-semibold border text-center transition-all ${
-                        targetStatusToSet === st
-                          ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400'
-                          : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
-                      }`}
-                    >
-                      {st}
-                    </button>
-                  )
-                )}
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Select Target Status:
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['Confirmed', 'Processing', 'Shipped', 'Delivered', 'Cancelled', 'Returned'] as OnlineOrderStatus[]).map(
+                    (st) => (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => setTargetStatusToSet(st)}
+                        className={`p-2 rounded-xl text-xs font-semibold border text-center transition-all ${
+                          targetStatusToSet === st
+                            ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 font-bold'
+                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                        }`}
+                      >
+                        {st}
+                      </button>
+                    )
+                  )}
+                </div>
               </div>
 
               {(targetStatusToSet === 'Cancelled' || targetStatusToSet === 'Returned') && (
-                <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Reason for {targetStatusToSet}:
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Customer cancelled, wrong address, defect..."
-                    value={statusNoteOrReason}
-                    onChange={(e) => setStatusNoteOrReason(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
-                  />
-                  <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
-                    ⚠️ Ordered items will be automatically restocked into store inventory.
+                <div className="space-y-2.5 p-3 rounded-xl bg-rose-50/70 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60">
+                  <div>
+                    <label className="block font-semibold text-rose-900 dark:text-rose-200 mb-1">
+                      Reason for {targetStatusToSet} *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Customer refused delivery, wrong phone number, order cancelled..."
+                      value={statusNoteOrReason}
+                      onChange={(e) => setStatusNoteOrReason(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-rose-300 dark:border-rose-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                    />
+                  </div>
+
+                  {/* Quick Reason Suggestions */}
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[
+                      'Customer cancelled order',
+                      'Customer refused at doorstep',
+                      'Customer phone unreachable',
+                      'Wrong delivery address',
+                      'Damaged in transit',
+                    ].map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => setStatusNoteOrReason(tag)}
+                        className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-rose-200 dark:border-rose-800 text-[10px] text-rose-700 dark:text-rose-300 hover:bg-rose-100"
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Courier Cost Incurred on Cancellation */}
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Incurred Courier Loss ({settings.currency})
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={incurredCourierCost}
+                      onChange={(e) => setIncurredCourierCost(Math.max(0, Number(e.target.value) || 0))}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                    />
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+                      If the parcel was handed to courier or packaged, courier fee is recorded as a delivery loss.
+                    </p>
+                  </div>
+
+                  <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold">
+                    ✓ Ordered items will be automatically restocked into your store inventory.
                   </p>
                 </div>
               )}
@@ -1298,6 +1613,24 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
                 <span className="font-semibold text-slate-600 dark:text-slate-400">Current Status</span>
                 <div>{getStatusBadge(selectedOrderForDetail.status)}</div>
               </div>
+
+              {selectedOrderForDetail.status === 'Cancelled' && (
+                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 space-y-1">
+                  <div className="font-bold text-rose-800 dark:text-rose-200">
+                    Cancelled: {selectedOrderForDetail.cancellationReason || 'No reason specified'}
+                  </div>
+                  {selectedOrderForDetail.cancelledBy && (
+                    <div className="text-[11px] text-rose-600 dark:text-rose-400">
+                      Cancelled By: {selectedOrderForDetail.cancelledBy} • Stage: {selectedOrderForDetail.cancellationStage || '—'}
+                    </div>
+                  )}
+                  {selectedOrderForDetail.financialImpact !== undefined && selectedOrderForDetail.financialImpact < 0 && (
+                    <div className="text-xs font-bold text-rose-700 dark:text-rose-300">
+                      Courier Delivery Loss: {formatCurrency(selectedOrderForDetail.financialImpact)}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-1.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50">
                 <div className="flex justify-between">

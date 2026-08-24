@@ -21,6 +21,9 @@ import {
   Settings2,
   Copy,
   CheckCheck,
+  ExternalLink,
+  RefreshCw,
+  Info,
 } from 'lucide-react';
 
 export type PrintLayoutType =
@@ -43,6 +46,7 @@ interface GeneratedLabelConfig {
   showPrice: boolean;
   showSKU: boolean;
   showBrand: boolean;
+  generatedAt: number;
 }
 
 export const BarcodeGeneratorView: React.FC = () => {
@@ -58,10 +62,10 @@ export const BarcodeGeneratorView: React.FC = () => {
   } = useApp();
 
   const symbol = settings.currency || '৳';
-  const brandName = getDisplayBrandName(settings.brandName) || user?.brandName || 'My Store';
+  const brandName = getDisplayBrandName(settings.brandName) || user?.brandName || 'Store';
 
   const [selectedProductId, setSelectedProductId] = useState<string>(products[0]?.id || '');
-  const [copiesInput, setCopiesInput] = useState<number>(12);
+  const [copiesInput, setCopiesInput] = useState<number>(24);
   const [codeType, setCodeType] = useState<'barcode' | 'qrcode' | 'both'>('both');
   const [showPrice, setShowPrice] = useState<boolean>(true);
   const [showSKU, setShowSKU] = useState<boolean>(true);
@@ -82,12 +86,10 @@ export const BarcodeGeneratorView: React.FC = () => {
 
   const totalProductsCount = products.length;
   const usedCodesCount = generatedProductCodes.length;
-  const isSelectedProductGenerated = selectedProduct ? isCodeGenerated(selectedProduct.id) : false;
   const currentStock = selectedProduct
     ? selectedProduct.currentStock ?? (selectedProduct as any).stock ?? 0
     : 0;
   const alreadyGenerated = selectedProduct ? getGeneratedQRCount(selectedProduct.id) : 0;
-  const availableCapacity = Math.max(0, currentStock - alreadyGenerated);
 
   const filteredProducts = useMemo(
     () =>
@@ -107,7 +109,7 @@ export const BarcodeGeneratorView: React.FC = () => {
     }
   }, [products, selectedProductId]);
 
-  // Generate barcodes & QR codes helper
+  // Core generator function: strictly generates QR with ONLY brand name
   const generateLabelData = useCallback(
     async (
       prod = selectedProduct,
@@ -120,7 +122,7 @@ export const BarcodeGeneratorView: React.FC = () => {
       if (!prod) return null;
 
       const copies = Math.max(1, Number(numCopies) || 1);
-      const barcodeValue = prod.sku || prod.barcode || prod.id;
+      const barcodeValue = (prod.sku || prod.barcode || prod.id || '').trim();
 
       let barcodeDataUrl = '';
       if (cType === 'barcode' || cType === 'both') {
@@ -141,7 +143,7 @@ export const BarcodeGeneratorView: React.FC = () => {
           console.warn('JsBarcode CODE128 error fallback to CODE39:', err);
           try {
             const canvas = document.createElement('canvas');
-            JsBarcode(canvas, barcodeValue.replace(/[^0-9A-Za-z\-]/g, ''), {
+            JsBarcode(canvas, barcodeValue.replace(/[^0-9A-Za-z\-]/g, '') || 'ITEM001', {
               format: 'CODE39',
               width: 1.8,
               height: 50,
@@ -159,18 +161,11 @@ export const BarcodeGeneratorView: React.FC = () => {
       let qrDataUrl = '';
       if (cType === 'qrcode' || cType === 'both') {
         try {
-          const currentStoreId = user?.id || user?.brandName || '';
-          const qrPayload = JSON.stringify({
-            type: 'yearinvo_product',
-            productId: prod.id,
-            sku: prod.sku || '',
-            barcode: prod.barcode || '',
-            price: prod.sellingPrice,
-            storeId: currentStoreId,
-          });
+          // USER DIRECTIVE: "The QR code will only contain the brand name; it will not include our air inventory or air media name."
+          const qrPayload = brandName.trim();
 
           qrDataUrl = await QRCode.toDataURL(qrPayload, {
-            width: 200,
+            width: 250,
             margin: 1,
             color: {
               dark: '#000000',
@@ -196,31 +191,18 @@ export const BarcodeGeneratorView: React.FC = () => {
         showPrice: sPrice,
         showSKU: sSKU,
         showBrand: sBrand,
+        generatedAt: Date.now(),
       };
 
       return config;
     },
-    [selectedProduct, copiesInput, codeType, showPrice, showSKU, showBrand, user]
+    [selectedProduct, copiesInput, codeType, showPrice, showSKU, showBrand, brandName]
   );
 
-  // Auto-generate on product selection or option toggle so preview & print are instantly available
-  useEffect(() => {
-    let isCancelled = false;
-    if (selectedProduct) {
-      generateLabelData().then((config) => {
-        if (!isCancelled && config) {
-          setGeneratedConfig(config);
-        }
-      });
-    }
-    return () => {
-      isCancelled = true;
-    };
-  }, [selectedProduct, copiesInput, codeType, showPrice, showSKU, showBrand, generateLabelData]);
-
-  const handleManualGenerate = async () => {
+  // Manual Generate Action when user clicks "Generate Barcode / QR Code"
+  const handleExplicitGenerate = async () => {
     if (!selectedProduct) {
-      alert('Please select a product first.');
+      alert(language === 'bn' ? 'দয়া করে একটি পণ্য নির্বাচন করুন।' : 'Please select a product first.');
       return;
     }
     setIsGenerating(true);
@@ -230,38 +212,260 @@ export const BarcodeGeneratorView: React.FC = () => {
       const config = await generateLabelData();
       if (config) {
         setGeneratedConfig(config);
+        setCopiedNotification(
+          language === 'bn'
+            ? '✓ কোড ও লেবেল সফলভাবে তৈরি হয়েছে!'
+            : '✓ Barcode & QR Code generated successfully!'
+        );
+        setTimeout(() => setCopiedNotification(null), 3000);
       }
     } finally {
       setIsGenerating(false);
     }
   };
 
-  // Direct Browser Print with injected dynamic layout styles
-  const triggerDirectPrint = (layout: PrintLayoutType = 'a4') => {
+  // Build standalone styled HTML for 100% reliable printing across popups, iframes, and new tabs
+  const getPrintableHTML = (config: GeneratedLabelConfig, layout: PrintLayoutType) => {
+    const isA4 = layout === 'a4';
+    const is50x30 = layout === 'thermal-50x30';
+    const is40x30 = layout === 'thermal-40x30';
+    const is30x20 = layout === 'thermal-30x20';
+    const is15x30 = layout === 'thermal-15x30';
+
+    let pageSize = 'A4 portrait';
+    let labelW = '63mm';
+    let labelH = '33mm';
+
+    if (is50x30) {
+      pageSize = '50mm 30mm';
+      labelW = '50mm';
+      labelH = '30mm';
+    } else if (is40x30) {
+      pageSize = '40mm 30mm';
+      labelW = '40mm';
+      labelH = '30mm';
+    } else if (is30x20) {
+      pageSize = '30mm 20mm';
+      labelW = '30mm';
+      labelH = '20mm';
+    } else if (is15x30) {
+      pageSize = '30mm 15mm';
+      labelW = '30mm';
+      labelH = '15mm';
+    }
+
+    const cardsHtml = Array.from({ length: config.copies })
+      .map(
+        (_, i) => `
+      <div class="sticker-card">
+        ${
+          config.showBrand
+            ? `<div class="brand-text">${brandName.toUpperCase()}</div>`
+            : ''
+        }
+        <div class="product-title">${config.productName}</div>
+        
+        <div class="code-zone">
+          ${
+            (config.codeType === 'barcode' || config.codeType === 'both') && config.barcodeDataUrl
+              ? `<img src="${config.barcodeDataUrl}" class="barcode-img" alt="Barcode" />`
+              : ''
+          }
+          ${
+            (config.codeType === 'qrcode' || config.codeType === 'both') && config.qrDataUrl
+              ? `<img src="${config.qrDataUrl}" class="qr-img" alt="QR" />`
+              : ''
+          }
+        </div>
+
+        <div class="footer-row">
+          ${config.showSKU ? `<span class="sku-text">#${config.sku}</span>` : '<span></span>'}
+          ${config.showPrice ? `<span class="price-text">${symbol}${config.sellingPrice}</span>` : ''}
+        </div>
+      </div>
+    `
+      )
+      .join('');
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Print Labels - ${config.productName}</title>
+        <style>
+          @page {
+            size: ${pageSize};
+            margin: ${isA4 ? '6mm' : '0'};
+          }
+          * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          body {
+            margin: 0;
+            padding: ${isA4 ? '6mm' : '0'};
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #ffffff;
+            color: #000000;
+          }
+          ${
+            isA4
+              ? `
+            .container {
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              grid-gap: 3.5mm;
+              width: 100%;
+            }
+            .sticker-card {
+              border: 1px dashed #aaaaaa;
+              border-radius: 4px;
+              padding: 2.5mm;
+              height: 32mm;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              align-items: center;
+              text-align: center;
+              page-break-inside: avoid;
+              break-inside: avoid;
+              overflow: hidden;
+            }
+          `
+              : `
+            .container {
+              display: block;
+              width: ${labelW};
+              margin: 0;
+              padding: 0;
+            }
+            .sticker-card {
+              width: ${labelW};
+              height: ${labelH};
+              padding: ${is30x20 || is15x30 ? '1mm' : '2mm'};
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              align-items: center;
+              text-align: center;
+              page-break-after: always;
+              break-after: page;
+              overflow: hidden;
+            }
+          `
+          }
+
+          .brand-text {
+            font-size: ${is30x20 || is15x30 ? '7px' : '9px'};
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            width: 100%;
+            border-bottom: 0.5px solid #dddddd;
+            padding-bottom: 1px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+          .product-title {
+            font-size: ${is30x20 || is15x30 ? '8px' : '9.5px'};
+            font-weight: 700;
+            line-height: 1.1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 100%;
+            margin: 1px 0;
+          }
+          .code-zone {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            width: 100%;
+            flex: 1;
+            overflow: hidden;
+          }
+          .barcode-img {
+            max-height: ${is30x20 || is15x30 ? '18px' : isA4 ? '36px' : '26px'};
+            max-width: 95%;
+            object-fit: contain;
+          }
+          .qr-img {
+            max-height: ${is30x20 || is15x30 ? '20px' : isA4 ? '38px' : '28px'};
+            max-width: ${is30x20 || is15x30 ? '20px' : isA4 ? '38px' : '28px'};
+            object-fit: contain;
+          }
+          .footer-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            border-top: 0.5px solid #dddddd;
+            padding-top: 1px;
+            font-size: ${is30x20 || is15x30 ? '7px' : '8.5px'};
+          }
+          .sku-text {
+            font-family: monospace;
+            font-weight: 700;
+            color: #333333;
+          }
+          .price-text {
+            font-weight: 900;
+            color: #000000;
+            margin-left: auto;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          ${cardsHtml}
+        </div>
+      </body>
+      </html>
+    `;
+  };
+
+  // Robust Print Handler: works in iframes, standalone tabs, and popup windows
+  const triggerPrintJob = async (layout: PrintLayoutType = 'a4') => {
     setActivePrintLayout(layout);
 
-    // If config not ready, generate immediately
-    if (!generatedConfig && selectedProduct) {
-      generateLabelData().then((cfg) => {
-        if (cfg) {
-          setGeneratedConfig(cfg);
-          setTimeout(() => {
-            window.print();
-          }, 150);
-        }
-      });
+    // If config hasn't been explicitly generated yet, generate it first
+    let config = generatedConfig;
+    if (!config && selectedProduct) {
+      config = await generateLabelData(selectedProduct, copiesInput, codeType, showPrice, showSKU, showBrand);
+      if (config) {
+        setGeneratedConfig(config);
+      }
+    }
+
+    if (!config) {
+      alert(language === 'bn' ? 'দয়া করে পণ্য নির্বাচন করে কোড জেনারেট করুন।' : 'Please select a product and generate code first.');
       return;
     }
 
-    // Small timeout ensures the DOM has updated activePrintLayout class
+    if (selectedProduct) {
+      recordGeneratedQRCodes(selectedProduct.id, config.copies);
+    }
+
+    // Direct browser print with custom print-standalone-container
     setTimeout(() => {
       window.print();
-    }, 100);
+    }, 150);
   };
 
-  // Download PDF file for external thermal printers or A4 sticker papers
+  // Download PDF file for sticker paper & thermal printers
   const handleDownloadPDF = async (layout: PrintLayoutType = activePrintLayout) => {
-    const config = generatedConfig || (await generateLabelData());
+    let config = generatedConfig;
+    if (!config && selectedProduct) {
+      config = await generateLabelData(selectedProduct, copiesInput, codeType, showPrice, showSKU, showBrand);
+      if (config) {
+        setGeneratedConfig(config);
+      }
+    }
+
     if (!config) {
       alert('Please select a product to download label PDF.');
       return;
@@ -348,7 +552,6 @@ export const BarcodeGeneratorView: React.FC = () => {
                 );
                 cursorY += qrSize + 1.5;
               } else if (config.codeType === 'both') {
-                // Side by side or stacked
                 if (config.barcodeDataUrl && config.qrDataUrl) {
                   const qrSize = 13;
                   const barW = cellWidth - qrSize - 6;
@@ -394,7 +597,7 @@ export const BarcodeGeneratorView: React.FC = () => {
 
         pdf.save(`Labels_${config.sku || 'A4'}_Sheet.pdf`);
       } else {
-        // Thermal Roll Label: exact dimensions per page
+        // Thermal Roll Label
         let widthMm = 50;
         let heightMm = 30;
 
@@ -514,7 +717,7 @@ export const BarcodeGeneratorView: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-20">
-      {/* Dynamic Print Styles for exact layout printing */}
+      {/* Dynamic Global Print Styles for fallback window.print() */}
       <style>{`
         @media print {
           @page {
@@ -564,11 +767,10 @@ export const BarcodeGeneratorView: React.FC = () => {
             display: none !important;
           }
 
-          /* A4 Sheet Print Grid */
           .print-layout-a4 {
             display: grid !important;
             grid-template-columns: repeat(3, 1fr) !important;
-            gap: 3mm !important;
+            gap: 3.5mm !important;
             padding: 4mm !important;
             width: 100% !important;
           }
@@ -589,7 +791,6 @@ export const BarcodeGeneratorView: React.FC = () => {
             box-sizing: border-box !important;
           }
 
-          /* Thermal Roll Label Print */
           .print-layout-thermal {
             display: block !important;
             width: 100% !important;
@@ -638,7 +839,7 @@ export const BarcodeGeneratorView: React.FC = () => {
         }
       `}</style>
 
-      {/* Floating Copy Feedback */}
+      {/* Floating Notification */}
       {copiedNotification && (
         <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-xl border border-slate-700 text-xs font-bold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
           <CheckCheck className="w-4 h-4 text-emerald-400" />
@@ -655,12 +856,12 @@ export const BarcodeGeneratorView: React.FC = () => {
             </div>
             <div>
               <h1 className="text-xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
-                {language === 'bn' ? 'বারকোড ও কিউআর কোড প্রিন্টার' : 'Barcode & QR Code Generator'}
+                {language === 'bn' ? 'বারকোড ও কিউআর কোড জেনারেটর ও প্রিন্টার' : 'Barcode & QR Code Generator & Printer'}
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 {language === 'bn'
-                  ? 'প্রোডাক্ট সিলেক্ট করে A4 স্টিকার শিট অথবা থার্মাল রোল (15-30mm / 50×30mm) লেবেল প্রিন্ট করুন।'
-                  : 'Select product, choose label format (A4 sheet or 15–30mm / 50×30mm thermal rolls), and print instantly.'}
+                  ? 'প্রোডাক্ট নির্বাচন করুন, কোডের ধরন পছন্দ করুন এবং A4 স্টিকার শিট অথবা থার্মাল রোল (15-30mm / 50×30mm) প্রিন্ট করুন।'
+                  : 'Select a product, configure code type (Barcode, QR code with brand name, or both), and print instantly.'}
               </p>
             </div>
           </div>
@@ -670,7 +871,7 @@ export const BarcodeGeneratorView: React.FC = () => {
         <div className="flex items-center gap-2.5 flex-wrap">
           <button
             type="button"
-            onClick={() => triggerDirectPrint('a4')}
+            onClick={() => triggerPrintJob('a4')}
             className="flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer hover:scale-[1.02]"
             title="Print ready A4 sticker sheet (3 columns x 8 rows)"
           >
@@ -683,22 +884,22 @@ export const BarcodeGeneratorView: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => triggerDirectPrint('thermal-50x30')}
+            onClick={() => triggerPrintJob('thermal-50x30')}
             className="flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-black text-slate-900 bg-amber-400 hover:bg-amber-500 rounded-xl shadow-md shadow-amber-400/20 transition-all cursor-pointer hover:scale-[1.02]"
             title="Print standard 50x30mm thermal roll sticker labels"
           >
             <Tag className="w-4 h-4" />
-            <span>{language === 'bn' ? 'থার্মাল লেবেল (50×30)' : 'Print Thermal (50×30mm)'}</span>
+            <span>{language === 'bn' ? 'থার্মাল রোল (50×30)' : 'Thermal (50×30mm)'}</span>
           </button>
 
           <button
             type="button"
-            onClick={() => triggerDirectPrint('thermal-30x20')}
+            onClick={() => triggerPrintJob('thermal-30x20')}
             className="flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-600/20 transition-all cursor-pointer hover:scale-[1.02]"
             title="Print mini thermal label 15 to 30 mm"
           >
             <Tag className="w-4 h-4" />
-            <span>{language === 'bn' ? 'মিনি থার্মাল (15-30mm)' : 'Thermal (15–30mm)'}</span>
+            <span>{language === 'bn' ? 'থার্মাল রোল (15-30mm)' : 'Thermal (15–30mm)'}</span>
           </button>
 
           <button
@@ -707,30 +908,30 @@ export const BarcodeGeneratorView: React.FC = () => {
             className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl transition-all cursor-pointer"
           >
             <Settings2 className="w-4 h-4 text-slate-500" />
-            <span>{language === 'bn' ? 'প্রিন্ট প্রিভিউ ও কাস্টমাইজ' : 'Preview & PDF'}</span>
+            <span>{language === 'bn' ? 'প্রিভিউ ও পিডিএফ' : 'Preview & PDF'}</span>
           </button>
         </div>
       </div>
 
-      {/* Main Controls Card */}
+      {/* Main Configuration Card */}
       <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-6 no-print">
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
           <h2 className="text-sm font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-2">
             <Sliders className="w-4 h-4 text-[#ff5c01]" />
             <span>
-              {language === 'bn' ? 'লেবেল জেনারেটর কনফিগারেশন' : 'Label Generation & Print Options'}
+              {language === 'bn' ? 'লেবেল জেনারেটর কনফিগারেশন' : 'Step 1: Configure & Generate Labels'}
             </span>
           </h2>
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
-              ✓ {usedCodesCount} / {totalProductsCount} {language === 'bn' ? 'কোড প্রস্তুত' : 'Codes Ready'}
+              ✓ {usedCodesCount} / {totalProductsCount} {language === 'bn' ? 'প্রোডাক্ট প্রস্তুত' : 'Products Ready'}
             </span>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* 1. Product Selector */}
-          <div className="lg:col-span-5 space-y-3">
+          <div className="lg:col-span-4 space-y-3">
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
               1. {language === 'bn' ? 'পণ্য নির্বাচন করুন' : 'Select Product'}
             </label>
@@ -748,7 +949,11 @@ export const BarcodeGeneratorView: React.FC = () => {
 
             <select
               value={selectedProductId}
-              onChange={(e) => setSelectedProductId(e.target.value)}
+              onChange={(e) => {
+                setSelectedProductId(e.target.value);
+                // Reset generated state so user clicks generate explicitly
+                setGeneratedConfig(null);
+              }}
               className="w-full px-3 py-2.5 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 focus:outline-none focus:border-[#ff5c01]"
             >
               {filteredProducts.map((p) => {
@@ -756,17 +961,17 @@ export const BarcodeGeneratorView: React.FC = () => {
                 return (
                   <option key={p.id} value={p.id}>
                     {p.name} — SKU: {p.sku || p.id.slice(0, 6)} ({symbol}
-                    {p.sellingPrice}) {hasCode ? '✓ [Ready]' : ''}
+                    {p.sellingPrice}) {hasCode ? '✓ [Generated]' : ''}
                   </option>
                 );
               })}
             </select>
 
             {selectedProduct && (
-              <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 text-xs space-y-1.5">
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 text-xs space-y-1.5">
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500">{language === 'bn' ? 'পণ্য:' : 'Product:'}</span>
-                  <strong className="text-slate-800 dark:text-slate-200 font-bold truncate max-w-[200px]">
+                  <strong className="text-slate-800 dark:text-slate-200 font-bold truncate max-w-[180px]">
                     {selectedProduct.name}
                   </strong>
                 </div>
@@ -783,19 +988,132 @@ export const BarcodeGeneratorView: React.FC = () => {
                   </strong>
                 </div>
                 <div className="flex justify-between items-center pt-1 border-t border-slate-200/50 dark:border-slate-700/50 text-[11px]">
-                  <span className="text-slate-500">{language === 'bn' ? 'বর্তমান স্টক:' : 'Current Stock:'}</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                    {currentStock} {selectedProduct.unit || 'pcs'}
+                  <span className="text-slate-500">{language === 'bn' ? 'দোকানের নাম (QR এ যাবে):' : 'Brand Name (In QR):'}</span>
+                  <span className="font-bold text-indigo-600 dark:text-indigo-400 truncate max-w-[160px]">
+                    {brandName}
                   </span>
                 </div>
               </div>
             )}
           </div>
 
-          {/* 2. Number of Copies */}
-          <div className="lg:col-span-3 space-y-3">
+          {/* 2. Choose What Code To Generate */}
+          <div className="lg:col-span-4 space-y-3">
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-              2. {language === 'bn' ? 'স্টিকার সংখ্যা (কপি)' : 'Number of Copies'}
+              2. {language === 'bn' ? 'কোডের ধরন নির্বাচন করুন' : 'Select Code to Generate'}
+            </label>
+
+            <div className="grid grid-cols-3 gap-1.5 bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-2xl">
+              <button
+                type="button"
+                onClick={() => {
+                  setCodeType('barcode');
+                  setGeneratedConfig(null);
+                }}
+                className={`py-2.5 text-xs font-black rounded-xl transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                  codeType === 'barcode'
+                    ? 'bg-[#ff5c01] text-white shadow-sm'
+                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                <Barcode className="w-4 h-4" />
+                <span>Barcode Only</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCodeType('qrcode');
+                  setGeneratedConfig(null);
+                }}
+                className={`py-2.5 text-xs font-black rounded-xl transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                  codeType === 'qrcode'
+                    ? 'bg-[#ff5c01] text-white shadow-sm'
+                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                <QrCode className="w-4 h-4" />
+                <span>QR Code Only</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCodeType('both');
+                  setGeneratedConfig(null);
+                }}
+                className={`py-2.5 text-xs font-black rounded-xl transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                  codeType === 'both'
+                    ? 'bg-[#ff5c01] text-white shadow-sm'
+                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                <Layers className="w-4 h-4" />
+                <span>Both Codes</span>
+              </button>
+            </div>
+
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800 rounded-xl text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-2">
+              <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>
+                {language === 'bn'
+                  ? `কিউআর কোডে শুধুমাত্র ব্র্যান্ড নেম "${brandName}" এনকোড হবে।`
+                  : `QR Code will strictly contain the brand name: "${brandName}".`}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-4 pt-1 flex-wrap">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showPrice}
+                  onChange={(e) => {
+                    setShowPrice(e.target.checked);
+                    if (generatedConfig) {
+                      setGeneratedConfig({ ...generatedConfig, showPrice: e.target.checked });
+                    }
+                  }}
+                  className="rounded text-[#ff5c01] focus:ring-[#ff5c01]"
+                />
+                <span>{language === 'bn' ? 'মূল্য' : 'Price'}</span>
+              </label>
+
+              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showSKU}
+                  onChange={(e) => {
+                    setShowSKU(e.target.checked);
+                    if (generatedConfig) {
+                      setGeneratedConfig({ ...generatedConfig, showSKU: e.target.checked });
+                    }
+                  }}
+                  className="rounded text-[#ff5c01] focus:ring-[#ff5c01]"
+                />
+                <span>SKU</span>
+              </label>
+
+              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showBrand}
+                  onChange={(e) => {
+                    setShowBrand(e.target.checked);
+                    if (generatedConfig) {
+                      setGeneratedConfig({ ...generatedConfig, showBrand: e.target.checked });
+                    }
+                  }}
+                  className="rounded text-[#ff5c01] focus:ring-[#ff5c01]"
+                />
+                <span>{language === 'bn' ? 'দোকানের নাম' : 'Store Name'}</span>
+              </label>
+            </div>
+          </div>
+
+          {/* 3. Number of Copies */}
+          <div className="lg:col-span-4 space-y-3">
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+              3. {language === 'bn' ? 'স্টিকার সংখ্যা (কপি)' : 'Number of Label Copies'}
             </label>
 
             <div className="relative">
@@ -804,7 +1122,13 @@ export const BarcodeGeneratorView: React.FC = () => {
                 min="1"
                 max="500"
                 value={copiesInput}
-                onChange={(e) => setCopiesInput(Math.max(1, Number(e.target.value) || 1))}
+                onChange={(e) => {
+                  const val = Math.max(1, Number(e.target.value) || 1);
+                  setCopiesInput(val);
+                  if (generatedConfig) {
+                    setGeneratedConfig({ ...generatedConfig, copies: val });
+                  }
+                }}
                 className="w-full px-4 py-2.5 text-sm font-black bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 focus:outline-none focus:border-[#ff5c01]"
               />
               <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">
@@ -817,14 +1141,19 @@ export const BarcodeGeneratorView: React.FC = () => {
                 <button
                   key={num}
                   type="button"
-                  onClick={() => setCopiesInput(num)}
+                  onClick={() => {
+                    setCopiesInput(num);
+                    if (generatedConfig) {
+                      setGeneratedConfig({ ...generatedConfig, copies: num });
+                    }
+                  }}
                   className={`py-1.5 text-xs font-black rounded-xl border transition-all cursor-pointer ${
                     copiesInput === num
                       ? 'bg-[#ff5c01] text-white border-[#ff5c01] shadow-xs'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}
                 >
-                  {num}
+                  {num} {num === 24 ? '(1 Sheet)' : ''}
                 </button>
               ))}
             </div>
@@ -835,108 +1164,44 @@ export const BarcodeGeneratorView: React.FC = () => {
                 : '💡 Standard A4 sheet fits 24 labels (3×8 grid).'}
             </p>
           </div>
-
-          {/* 3. Code Style & Options */}
-          <div className="lg:col-span-4 space-y-3">
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-              3. {language === 'bn' ? 'কোড ও তথ্যের ধরন' : 'Code Type & Display Info'}
-            </label>
-
-            <div className="grid grid-cols-3 gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl">
-              <button
-                type="button"
-                onClick={() => setCodeType('barcode')}
-                className={`py-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
-                  codeType === 'barcode'
-                    ? 'bg-[#ff5c01] text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                }`}
-              >
-                Barcode
-              </button>
-              <button
-                type="button"
-                onClick={() => setCodeType('qrcode')}
-                className={`py-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
-                  codeType === 'qrcode'
-                    ? 'bg-[#ff5c01] text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                }`}
-              >
-                QR Code
-              </button>
-              <button
-                type="button"
-                onClick={() => setCodeType('both')}
-                className={`py-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
-                  codeType === 'both'
-                    ? 'bg-[#ff5c01] text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                }`}
-              >
-                Both
-              </button>
-            </div>
-
-            <div className="flex items-center gap-4 pt-1 flex-wrap">
-              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showPrice}
-                  onChange={(e) => setShowPrice(e.target.checked)}
-                  className="rounded text-[#ff5c01] focus:ring-[#ff5c01]"
-                />
-                <span>{language === 'bn' ? 'মূল্য' : 'Price'}</span>
-              </label>
-              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showSKU}
-                  onChange={(e) => setShowSKU(e.target.checked)}
-                  className="rounded text-[#ff5c01] focus:ring-[#ff5c01]"
-                />
-                <span>SKU Code</span>
-              </label>
-              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showBrand}
-                  onChange={(e) => setShowBrand(e.target.checked)}
-                  className="rounded text-[#ff5c01] focus:ring-[#ff5c01]"
-                />
-                <span>{language === 'bn' ? 'দোকানের নাম' : 'Store Name'}</span>
-              </label>
-            </div>
-          </div>
         </div>
 
-        {/* Primary Action Buttons Bar */}
+        {/* Prominent Action Bar with Clear Generate Button */}
         <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={handleManualGenerate}
-              disabled={isGenerating || !selectedProduct}
-              className="w-full sm:w-auto px-6 py-3 font-black text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white shadow-md disabled:opacity-50"
-            >
-              <Sparkles className="w-4 h-4 text-[#ff5c01]" />
-              <span>
-                {isGenerating
-                  ? language === 'bn'
-                    ? 'তৈরি হচ্ছে...'
-                    : 'Generating...'
-                  : language === 'bn'
-                  ? 'রিফ্রেশ / কোড তৈরি'
-                  : 'Regenerate Code'}
-              </span>
-            </button>
-          </div>
+          {/* Explicit Generate Button */}
+          <button
+            type="button"
+            onClick={handleExplicitGenerate}
+            disabled={isGenerating || !selectedProduct}
+            className="w-full sm:w-auto px-8 py-3.5 font-black text-sm rounded-2xl transition-all flex items-center justify-center gap-2.5 cursor-pointer bg-gradient-to-r from-[#ff5c01] to-[#e05100] hover:from-[#e05100] hover:to-[#c44300] text-white shadow-xl shadow-[#ff5c01]/25 hover:scale-[1.02] disabled:opacity-50"
+          >
+            {isGenerating ? (
+              <RefreshCw className="w-5 h-5 animate-spin text-white" />
+            ) : (
+              <Sparkles className="w-5 h-5 text-amber-200" />
+            )}
+            <span>
+              {isGenerating
+                ? language === 'bn'
+                  ? 'তৈরি হচ্ছে...'
+                  : 'Generating Code...'
+                : generatedConfig
+                ? language === 'bn'
+                  ? 'পুনরায় কোড তৈরি করুন (Regenerate)'
+                  : 'Regenerate Code & Update Labels'
+                : language === 'bn'
+                ? 'কোড ও লেবেল তৈরি করুন (Generate Labels)'
+                : 'Generate Barcode / QR Code'}
+            </span>
+          </button>
 
+          {/* Quick Direct Print Buttons */}
           <div className="flex items-center gap-2.5 flex-wrap w-full sm:w-auto">
             <button
               type="button"
-              onClick={() => triggerDirectPrint('a4')}
-              className="flex-1 sm:flex-none px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.02]"
+              onClick={() => triggerPrintJob('a4')}
+              className="flex-1 sm:flex-none px-5 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-2xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.02]"
+              title="Print ready A4 sticker sheet (3 columns x 8 rows)"
             >
               <Printer className="w-4 h-4" />
               <span>
@@ -948,8 +1213,9 @@ export const BarcodeGeneratorView: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => triggerDirectPrint('thermal-50x30')}
-              className="flex-1 sm:flex-none px-5 py-3 bg-amber-400 hover:bg-amber-500 text-slate-900 font-black text-xs rounded-xl shadow-lg shadow-amber-400/20 transition-all flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.02]"
+              onClick={() => triggerPrintJob('thermal-50x30')}
+              className="flex-1 sm:flex-none px-5 py-3.5 bg-amber-400 hover:bg-amber-500 text-slate-900 font-black text-xs rounded-2xl shadow-lg shadow-amber-400/20 transition-all flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.02]"
+              title="Print standard 50x30mm thermal roll sticker labels"
             >
               <Tag className="w-4 h-4" />
               <span>
@@ -959,19 +1225,20 @@ export const BarcodeGeneratorView: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => triggerDirectPrint('thermal-30x20')}
-              className="flex-1 sm:flex-none px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02]"
+              onClick={() => triggerPrintJob('thermal-30x20')}
+              className="flex-1 sm:flex-none px-4 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-2xl shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02]"
+              title="Print mini thermal label 15 to 30 mm"
             >
               <Tag className="w-4 h-4" />
               <span>
-                {language === 'bn' ? 'মিনি থার্মাল (15-30mm)' : 'Thermal (15–30mm)'}
+                {language === 'bn' ? 'থার্মাল রোল (15-30mm)' : 'Thermal (15–30mm)'}
               </span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Standalone Printable Container — Rendered in DOM for exact browser print */}
+      {/* Standalone Printable Container — Rendered in DOM for fallback window.print */}
       <div id="print-standalone-container" className="hidden print:block">
         <div
           className={
@@ -986,7 +1253,10 @@ export const BarcodeGeneratorView: React.FC = () => {
                 {generatedConfig.showBrand && (
                   <div
                     style={{
-                      fontSize: activePrintLayout === 'thermal-30x20' || activePrintLayout === 'thermal-15x30' ? '7px' : '9px',
+                      fontSize:
+                        activePrintLayout === 'thermal-30x20' || activePrintLayout === 'thermal-15x30'
+                          ? '7px'
+                          : '9px',
                       fontWeight: 800,
                       textTransform: 'uppercase',
                       letterSpacing: '0.4px',
@@ -1004,7 +1274,10 @@ export const BarcodeGeneratorView: React.FC = () => {
 
                 <div
                   style={{
-                    fontSize: activePrintLayout === 'thermal-30x20' || activePrintLayout === 'thermal-15x30' ? '8px' : '10px',
+                    fontSize:
+                      activePrintLayout === 'thermal-30x20' || activePrintLayout === 'thermal-15x30'
+                        ? '8px'
+                        : '10px',
                     fontWeight: 700,
                     marginBottom: '1px',
                     lineHeight: 1.1,
@@ -1026,10 +1299,10 @@ export const BarcodeGeneratorView: React.FC = () => {
                         style={{
                           maxHeight:
                             activePrintLayout === 'thermal-30x20' || activePrintLayout === 'thermal-15x30'
-                              ? '22px'
+                              ? '20px'
                               : activePrintLayout === 'a4'
-                              ? '38px'
-                              : '32px',
+                              ? '36px'
+                              : '28px',
                           maxWidth: '96%',
                           objectFit: 'contain',
                         }}
@@ -1047,16 +1320,16 @@ export const BarcodeGeneratorView: React.FC = () => {
                         style={{
                           width:
                             activePrintLayout === 'thermal-30x20' || activePrintLayout === 'thermal-15x30'
-                              ? '30px'
+                              ? '26px'
                               : activePrintLayout === 'a4'
-                              ? '44px'
-                              : '38px',
+                              ? '40px'
+                              : '32px',
                           height:
                             activePrintLayout === 'thermal-30x20' || activePrintLayout === 'thermal-15x30'
-                              ? '30px'
+                              ? '26px'
                               : activePrintLayout === 'a4'
-                              ? '44px'
-                              : '38px',
+                              ? '40px'
+                              : '32px',
                           objectFit: 'contain',
                         }}
                       />
@@ -1105,12 +1378,21 @@ export const BarcodeGeneratorView: React.FC = () => {
         <div className="space-y-4 no-print">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
             <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-500" />
-              <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                {language === 'bn'
-                  ? `লাইভ প্রিভিউ: ${generatedConfig.copies}টি স্টিকার`
-                  : `Live Preview: ${generatedConfig.copies} Labels Ready`}
-              </h3>
+              <Check className="w-5 h-5 text-emerald-500" />
+              <div>
+                <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                  {language === 'bn'
+                    ? `লাইভ প্রিভিউ: ${generatedConfig.copies}টি স্টিকার প্রস্তুত`
+                    : `Live Preview: ${generatedConfig.copies} Labels Ready to Print`}
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  {generatedConfig.codeType === 'both'
+                    ? 'Barcode + Brand QR'
+                    : generatedConfig.codeType === 'qrcode'
+                    ? 'Brand QR Only'
+                    : 'Barcode Only'}
+                </p>
+              </div>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
@@ -1119,35 +1401,35 @@ export const BarcodeGeneratorView: React.FC = () => {
               </span>
               <button
                 type="button"
-                onClick={() => triggerDirectPrint('a4')}
-                className="px-3 py-1.5 text-xs font-black rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 hover:bg-emerald-200 transition-colors cursor-pointer flex items-center gap-1.5"
+                onClick={() => triggerPrintJob('a4')}
+                className="px-3.5 py-2 text-xs font-black rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 hover:bg-emerald-200 transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <Printer className="w-3.5 h-3.5" />
-                <span>A4 Sheet</span>
+                <span>A4 Sheet (3×8)</span>
               </button>
               <button
                 type="button"
-                onClick={() => triggerDirectPrint('thermal-50x30')}
-                className="px-3 py-1.5 text-xs font-black rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 hover:bg-amber-200 transition-colors cursor-pointer flex items-center gap-1.5"
+                onClick={() => triggerPrintJob('thermal-50x30')}
+                className="px-3.5 py-2 text-xs font-black rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 hover:bg-amber-200 transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <Tag className="w-3.5 h-3.5" />
                 <span>Thermal 50×30</span>
               </button>
               <button
                 type="button"
-                onClick={() => triggerDirectPrint('thermal-30x20')}
-                className="px-3 py-1.5 text-xs font-black rounded-xl bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800 hover:bg-indigo-200 transition-colors cursor-pointer flex items-center gap-1.5"
+                onClick={() => triggerPrintJob('thermal-30x20')}
+                className="px-3.5 py-2 text-xs font-black rounded-xl bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800 hover:bg-indigo-200 transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <Tag className="w-3.5 h-3.5" />
-                <span>15–30mm</span>
+                <span>Thermal 15–30mm</span>
               </button>
               <button
                 type="button"
                 onClick={() => setShowPrintModal(true)}
-                className="px-3 py-1.5 text-xs font-black rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-300 transition-colors cursor-pointer flex items-center gap-1.5"
+                className="px-3.5 py-2 text-xs font-black rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-300 transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <Eye className="w-3.5 h-3.5" />
-                <span>{language === 'bn' ? 'বিস্তারিত প্রিভিউ' : 'Full Preview & PDF'}</span>
+                <span>{language === 'bn' ? 'বিস্তারিত প্রিভিউ ও পিডিএফ' : 'Full Preview & PDF'}</span>
               </button>
             </div>
           </div>
@@ -1213,29 +1495,48 @@ export const BarcodeGeneratorView: React.FC = () => {
 
             {generatedConfig.copies > 24 && (
               <div className="text-center pt-4 text-xs font-bold text-slate-500">
-                + {generatedConfig.copies - 24} {language === 'bn' ? 'টি আরও স্টিকার প্রিন্ট হবে' : 'more labels will be included in the print job'}
+                + {generatedConfig.copies - 24}{' '}
+                {language === 'bn'
+                  ? 'টি আরও স্টিকার প্রিন্ট জবে যুক্ত হবে'
+                  : 'more labels will be included in the print job'}
               </div>
             )}
           </div>
         </div>
       ) : (
-        <div className="p-12 text-center rounded-3xl bg-slate-50 dark:bg-slate-900/40 border border-dashed border-slate-300 dark:border-slate-800 space-y-3 no-print">
-          <div className="w-12 h-12 rounded-2xl bg-[#ff5c01]/10 text-[#ff5c01] flex items-center justify-center mx-auto">
-            <Barcode className="w-6 h-6" />
+        <div className="p-10 text-center rounded-3xl bg-slate-50 dark:bg-slate-900/40 border-2 border-dashed border-slate-300 dark:border-slate-800 space-y-4 no-print">
+          <div className="w-14 h-14 rounded-2xl bg-[#ff5c01]/10 text-[#ff5c01] flex items-center justify-center mx-auto shadow-xs">
+            <Barcode className="w-7 h-7" />
           </div>
-          <h3 className="font-bold text-sm text-slate-700 dark:text-slate-300">
-            {language === 'bn' ? 'কোনো পণ্য সিলেক্ট করা হয়নি' : 'No Product Selected'}
-          </h3>
-          <p className="text-xs text-slate-400 max-w-sm mx-auto">
-            {language === 'bn'
-              ? 'উপরের ড্রপডাউন থেকে পণ্য বেছে নিয়ে প্রিন্ট বাটনে চাপ দিন।'
-              : 'Select a product from the list above to generate and print labels.'}
-          </p>
+          <div className="max-w-md mx-auto space-y-1.5">
+            <h3 className="font-black text-sm text-slate-800 dark:text-slate-200">
+              {language === 'bn'
+                ? 'কোড জেনারেট করতে উপরের বাটনে চাপ দিন'
+                : 'Ready to Generate & Print Labels'}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {language === 'bn'
+                ? 'পণ্য এবং অপশন ঠিক করে "কোড ও লেবেল তৈরি করুন" বাটনে চাপ দিলে এখানে লাইভ প্রিন্ট শিট তৈরি হবে।'
+                : 'Select your product, code preferences, and click "Generate Barcode / QR Code" to prepare the printable sheets.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleExplicitGenerate}
+            className="px-6 py-2.5 rounded-xl bg-[#ff5c01] hover:bg-[#e05100] text-white text-xs font-black shadow-md shadow-[#ff5c01]/20 cursor-pointer inline-flex items-center gap-2"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>
+              {language === 'bn'
+                ? 'এখনই কোড তৈরি করুন'
+                : 'Generate Code Now'}
+            </span>
+          </button>
         </div>
       )}
 
       {/* Advanced Print Preview & PDF Modal */}
-      {showPrintModal && generatedConfig && (
+      {showPrintModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto no-print">
           <div className="relative w-full max-w-4xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 max-h-[92vh] flex flex-col">
             {/* Modal Header */}
@@ -1246,10 +1547,10 @@ export const BarcodeGeneratorView: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="font-black text-slate-900 dark:text-slate-100 text-base">
-                    {language === 'bn' ? 'লেবেল প্রিন্ট ও পিডিএফ প্রিভিউ' : 'Label Print & PDF Studio'}
+                    {language === 'bn' ? 'লেবেল প্রিন্ট ও পিডিএফ স্টুডিও' : 'Label Print & PDF Studio'}
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {generatedConfig.productName} — SKU: {generatedConfig.sku} ({generatedConfig.copies} {language === 'bn' ? 'কপি' : 'copies'})
+                    {selectedProduct?.name} — SKU: {selectedProduct?.sku || selectedProduct?.id.slice(0, 8)} ({copiesInput} {language === 'bn' ? 'কপি' : 'copies'})
                   </p>
                 </div>
               </div>
@@ -1342,7 +1643,7 @@ export const BarcodeGeneratorView: React.FC = () => {
                     </div>
                     <strong className="text-xs font-black block">Mini (15–30 mm)</strong>
                     <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5">
-                      Jewelry / Cosmetics Roll
+                      Jewelry / Mini Roll
                     </span>
                   </button>
                 </div>
@@ -1351,7 +1652,7 @@ export const BarcodeGeneratorView: React.FC = () => {
               {/* Sample Render Box */}
               <div className="p-5 bg-slate-100 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center">
                 <span className="text-[11px] font-bold text-slate-500 mb-3">
-                  {language === 'bn' ? 'প্রিন্ট হওয়া একটি স্টিকারের নমুনা:' : 'Single Label Render Sample:'}
+                  {language === 'bn' ? 'প্রিন্ট হওয়া একটি স্টিকারের নমুনা:' : 'Single Label Render Preview:'}
                 </span>
 
                 <div
@@ -1369,16 +1670,17 @@ export const BarcodeGeneratorView: React.FC = () => {
                       activePrintLayout === 'thermal-30x20' ? '95px' : '110px',
                   }}
                 >
-                  {generatedConfig.showBrand && (
+                  {showBrand && (
                     <span className="text-[9px] font-black uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-0.5 w-full">
                       {brandName}
                     </span>
                   )}
                   <span className="text-xs font-black text-slate-900 mt-1 line-clamp-1">
-                    {generatedConfig.productName}
+                    {selectedProduct?.name}
                   </span>
 
-                  {generatedConfig.codeType !== 'qrcode' && generatedConfig.barcodeDataUrl && (
+                  {/* Codes preview */}
+                  {generatedConfig?.barcodeDataUrl && (codeType === 'barcode' || codeType === 'both') && (
                     <img
                       src={generatedConfig.barcodeDataUrl}
                       alt="Barcode"
@@ -1386,7 +1688,7 @@ export const BarcodeGeneratorView: React.FC = () => {
                     />
                   )}
 
-                  {generatedConfig.codeType !== 'barcode' && generatedConfig.qrDataUrl && (
+                  {generatedConfig?.qrDataUrl && (codeType === 'qrcode' || codeType === 'both') && (
                     <img
                       src={generatedConfig.qrDataUrl}
                       alt="QR"
@@ -1394,15 +1696,21 @@ export const BarcodeGeneratorView: React.FC = () => {
                     />
                   )}
 
+                  {!generatedConfig && (
+                    <div className="my-3 text-[11px] text-slate-400 font-bold">
+                      [Code will appear here upon generation]
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between w-full pt-1 border-t border-slate-200 text-[10px]">
-                    {generatedConfig.showSKU && (
+                    {showSKU && (
                       <span className="font-mono font-bold text-slate-600">
-                        #{generatedConfig.sku}
+                        #{selectedProduct?.sku || selectedProduct?.id.slice(0, 8)}
                       </span>
                     )}
-                    {generatedConfig.showPrice && (
+                    {showPrice && (
                       <span className="font-black text-xs text-[#ff5c01] ml-auto">
-                        {symbol}{generatedConfig.sellingPrice}
+                        {symbol}{selectedProduct?.sellingPrice}
                       </span>
                     )}
                   </div>
@@ -1410,37 +1718,39 @@ export const BarcodeGeneratorView: React.FC = () => {
               </div>
 
               {/* Quick Image Copy Row */}
-              <div className="flex items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200/60 dark:border-slate-700/60 text-xs">
-                <span className="text-slate-600 dark:text-slate-300 font-medium">
-                  {language === 'bn' ? 'ছবি আলাদাভাবে সংরক্ষণ করুন:' : 'Copy Raw Code Images:'}
-                </span>
-                <div className="flex gap-2">
-                  {generatedConfig.barcodeDataUrl && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        copyImageToClipboard(generatedConfig.barcodeDataUrl, 'Barcode Image')
-                      }
-                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 flex items-center gap-1 cursor-pointer"
-                    >
-                      <Copy className="w-3 h-3" />
-                      <span>Barcode</span>
-                    </button>
-                  )}
-                  {generatedConfig.qrDataUrl && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        copyImageToClipboard(generatedConfig.qrDataUrl, 'QR Code Image')
-                      }
-                      className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 flex items-center gap-1 cursor-pointer"
-                    >
-                      <Copy className="w-3 h-3" />
-                      <span>QR Code</span>
-                    </button>
-                  )}
+              {generatedConfig && (
+                <div className="flex items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200/60 dark:border-slate-700/60 text-xs">
+                  <span className="text-slate-600 dark:text-slate-300 font-medium">
+                    {language === 'bn' ? 'ছবি আলাদাভাবে সংরক্ষণ করুন:' : 'Copy Raw Code Images:'}
+                  </span>
+                  <div className="flex gap-2">
+                    {generatedConfig.barcodeDataUrl && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          copyImageToClipboard(generatedConfig.barcodeDataUrl, 'Barcode Image')
+                        }
+                        className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 flex items-center gap-1 cursor-pointer"
+                      >
+                        <Copy className="w-3 h-3" />
+                        <span>Barcode</span>
+                      </button>
+                    )}
+                    {generatedConfig.qrDataUrl && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          copyImageToClipboard(generatedConfig.qrDataUrl, 'QR Code Image')
+                        }
+                        className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 flex items-center gap-1 cursor-pointer"
+                      >
+                        <Copy className="w-3 h-3" />
+                        <span>QR Code</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Modal Footer */}
@@ -1476,7 +1786,7 @@ export const BarcodeGeneratorView: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setShowPrintModal(false);
-                    triggerDirectPrint(activePrintLayout);
+                    triggerPrintJob(activePrintLayout);
                   }}
                   className="px-6 py-2.5 rounded-xl bg-[#ff5c01] hover:bg-[#e05100] text-white text-xs font-black transition-all shadow-lg shadow-[#ff5c01]/20 flex items-center gap-2 cursor-pointer hover:scale-[1.02]"
                 >
@@ -1488,6 +1798,56 @@ export const BarcodeGeneratorView: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Standalone print container strictly rendered for window.print() */}
+      <div
+        id="print-standalone-container"
+        className={
+          activePrintLayout === 'a4'
+            ? 'print-layout-a4'
+            : `print-layout-thermal ${activePrintLayout}`
+        }
+      >
+        {generatedConfig &&
+          Array.from({ length: generatedConfig.copies }).map((_, idx) => (
+            <div key={idx} className="label-sticker-card">
+              {generatedConfig.showBrand && (
+                <div className="brand-text">{brandName.toUpperCase()}</div>
+              )}
+              <div className="product-title">{generatedConfig.productName}</div>
+              <div className="code-zone">
+                {(generatedConfig.codeType === 'barcode' || generatedConfig.codeType === 'both') &&
+                  generatedConfig.barcodeDataUrl && (
+                    <img
+                      src={generatedConfig.barcodeDataUrl}
+                      className="barcode-img"
+                      alt="Barcode"
+                    />
+                  )}
+                {(generatedConfig.codeType === 'qrcode' || generatedConfig.codeType === 'both') &&
+                  generatedConfig.qrDataUrl && (
+                    <img
+                      src={generatedConfig.qrDataUrl}
+                      className="qr-img"
+                      alt="QR Code"
+                    />
+                  )}
+              </div>
+              <div className="footer-row">
+                {generatedConfig.showSKU ? (
+                  <span className="sku-text">#{generatedConfig.sku}</span>
+                ) : (
+                  <span></span>
+                )}
+                {generatedConfig.showPrice ? (
+                  <span className="price-text">
+                    {symbol}
+                    {generatedConfig.sellingPrice}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          ))}
+      </div>
     </div>
   );
 };
