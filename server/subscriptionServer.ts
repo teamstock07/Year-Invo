@@ -25,12 +25,18 @@ export interface AuthoritativeSubscription {
     maxProducts: number;
     maxStockTotal: number;
     maxSalesPerDay: number;
+    // 10 Premium-only features
     isPosAllowed: boolean;
-    isTeamManagementAllowed: boolean;
+    isPersonalLedgerAllowed: boolean;
     isQrBarcodeAllowed: boolean;
-    isMultiBranchAllowed: boolean;
-    isAiInsightsAllowed: boolean;
+    isTeamManagementAllowed: boolean;
     isPayrollAllowed: boolean;
+    isSmartReorderAllowed: boolean;
+    isAiInsightsAllowed: boolean;
+    isCustomerLoyaltyAllowed: boolean;
+    isAuditLogAllowed: boolean;
+    isAdvancedPermissionsAllowed: boolean;
+    isMultiBranchAllowed: boolean;
   };
 }
 
@@ -73,11 +79,16 @@ export async function getAuthoritativeSubscription(userId: string): Promise<Auth
         maxStockTotal: 500,
         maxSalesPerDay: 50,
         isPosAllowed: false,
-        isTeamManagementAllowed: false,
+        isPersonalLedgerAllowed: false,
         isQrBarcodeAllowed: false,
-        isMultiBranchAllowed: false,
-        isAiInsightsAllowed: false,
+        isTeamManagementAllowed: false,
         isPayrollAllowed: false,
+        isSmartReorderAllowed: false,
+        isAiInsightsAllowed: false,
+        isCustomerLoyaltyAllowed: false,
+        isAuditLogAllowed: false,
+        isAdvancedPermissionsAllowed: false,
+        isMultiBranchAllowed: false,
       },
     };
   }
@@ -141,11 +152,16 @@ export async function getAuthoritativeSubscription(userId: string): Promise<Auth
         maxStockTotal: Number.POSITIVE_INFINITY,
         maxSalesPerDay: Number.POSITIVE_INFINITY,
         isPosAllowed: true,
-        isTeamManagementAllowed: true,
+        isPersonalLedgerAllowed: true,
         isQrBarcodeAllowed: true,
-        isMultiBranchAllowed: true,
-        isAiInsightsAllowed: true,
+        isTeamManagementAllowed: true,
         isPayrollAllowed: true,
+        isSmartReorderAllowed: true,
+        isAiInsightsAllowed: true,
+        isCustomerLoyaltyAllowed: true,
+        isAuditLogAllowed: true,
+        isAdvancedPermissionsAllowed: true,
+        isMultiBranchAllowed: true,
       },
     };
   }
@@ -169,11 +185,16 @@ export async function getAuthoritativeSubscription(userId: string): Promise<Auth
         maxStockTotal: 500,
         maxSalesPerDay: 50,
         isPosAllowed: false,
-        isTeamManagementAllowed: false,
+        isPersonalLedgerAllowed: false,
         isQrBarcodeAllowed: false,
-        isMultiBranchAllowed: false,
-        isAiInsightsAllowed: false,
+        isTeamManagementAllowed: false,
         isPayrollAllowed: false,
+        isSmartReorderAllowed: false,
+        isAiInsightsAllowed: false,
+        isCustomerLoyaltyAllowed: false,
+        isAuditLogAllowed: false,
+        isAdvancedPermissionsAllowed: false,
+        isMultiBranchAllowed: false,
       },
     };
   }
@@ -195,11 +216,16 @@ export async function getAuthoritativeSubscription(userId: string): Promise<Auth
         maxStockTotal: Number.POSITIVE_INFINITY,
         maxSalesPerDay: Number.POSITIVE_INFINITY,
         isPosAllowed: true,
-        isTeamManagementAllowed: true,
+        isPersonalLedgerAllowed: true,
         isQrBarcodeAllowed: true,
-        isMultiBranchAllowed: true,
-        isAiInsightsAllowed: true,
+        isTeamManagementAllowed: true,
         isPayrollAllowed: true,
+        isSmartReorderAllowed: true,
+        isAiInsightsAllowed: true,
+        isCustomerLoyaltyAllowed: true,
+        isAuditLogAllowed: true,
+        isAdvancedPermissionsAllowed: true,
+        isMultiBranchAllowed: true,
       },
     };
   }
@@ -220,12 +246,18 @@ export async function getAuthoritativeSubscription(userId: string): Promise<Auth
         maxProducts: Number.POSITIVE_INFINITY,
         maxStockTotal: Number.POSITIVE_INFINITY,
         maxSalesPerDay: Number.POSITIVE_INFINITY,
+        // The 10 features are forbidden in Pro:
         isPosAllowed: false,
-        isTeamManagementAllowed: false,
+        isPersonalLedgerAllowed: false,
         isQrBarcodeAllowed: false,
+        isTeamManagementAllowed: false,
+        isPayrollAllowed: false,
+        isSmartReorderAllowed: false,
+        isAiInsightsAllowed: false,
+        isCustomerLoyaltyAllowed: false,
+        isAuditLogAllowed: false,
+        isAdvancedPermissionsAllowed: false,
         isMultiBranchAllowed: false,
-        isAiInsightsAllowed: true,
-        isPayrollAllowed: true,
       },
     };
   }
@@ -247,11 +279,16 @@ export async function getAuthoritativeSubscription(userId: string): Promise<Auth
       maxStockTotal: 500,
       maxSalesPerDay: 50,
       isPosAllowed: false,
-      isTeamManagementAllowed: false,
+      isPersonalLedgerAllowed: false,
       isQrBarcodeAllowed: false,
-      isMultiBranchAllowed: false,
-      isAiInsightsAllowed: false,
+      isTeamManagementAllowed: false,
       isPayrollAllowed: false,
+      isSmartReorderAllowed: false,
+      isAiInsightsAllowed: false,
+      isCustomerLoyaltyAllowed: false,
+      isAuditLogAllowed: false,
+      isAdvancedPermissionsAllowed: false,
+      isMultiBranchAllowed: false,
     },
   };
 }
@@ -361,15 +398,15 @@ export async function handleValidateSubscriptionAction(req: Request, res: Respon
       return res.json({ allowed: true });
     }
 
-    // 2. Team Member Invitation
-    if (action === 'invite_team_member' || action === 'team_management') {
-      if (!sub.limits.isTeamManagementAllowed) {
+    // 2. Personal Ledger
+    if (action === 'personal_ledger' || action === 'add_personal_contact' || action === 'add_personal_transaction') {
+      if (!sub.limits.isPersonalLedgerAllowed) {
         return res.status(403).json({
           allowed: false,
-          code: 'TEAM_MANAGEMENT_LOCKED',
+          code: 'PERSONAL_LEDGER_LOCKED',
           plan: sub.plan,
-          message: 'Team Member Management is a Premium feature. Please upgrade your subscription to Premium to invite staff and assign custom roles.',
-          messageBn: 'টিম মেম্বার ম্যানেজমেন্ট শুধুমাত্র প্রিমিয়াম (Premium) প্ল্যানের জন্য উন্মুক্ত। টিম মেম্বারদের ইনভাইট পাঠাতে দয়া করে প্রিমিয়ামে আপগ্রেড করুন।',
+          message: 'Personal Ledger is a Premium feature. Please upgrade your subscription to Premium to use Personal Ledger.',
+          messageBn: 'ব্যক্তিগত খাতা শুধুমাত্র প্রিমিয়াম (Premium) প্ল্যানের অন্তর্ভুক্ত। এটি ব্যবহার করতে দয়া করে প্রিমিয়ামে আপগ্রেড করুন।',
           requiredPlan: 'Premium',
         });
       }
@@ -391,16 +428,91 @@ export async function handleValidateSubscriptionAction(req: Request, res: Respon
       return res.json({ allowed: true });
     }
 
-    // 4. Payroll / Employee Salary Payout
-    if (action === 'payroll' || action === 'employee_payout') {
+    // 4. Team Member Invitation & Permissions
+    if (action === 'invite_team_member' || action === 'team_management' || action === 'advanced_permissions') {
+      if (!sub.limits.isTeamManagementAllowed) {
+        return res.status(403).json({
+          allowed: false,
+          code: 'TEAM_MANAGEMENT_LOCKED',
+          plan: sub.plan,
+          message: 'Team Member Management & Permissions is a Premium feature. Please upgrade your subscription to Premium to invite staff and assign custom roles.',
+          messageBn: 'টিম মেম্বার ও পারমিশন ম্যানেজমেন্ট শুধুমাত্র প্রিমিয়াম (Premium) প্ল্যানের জন্য উন্মুক্ত। টিম মেম্বারদের পরিচালনা করতে প্রিমিয়ামে আপগ্রেড করুন।',
+          requiredPlan: 'Premium',
+        });
+      }
+      return res.json({ allowed: true });
+    }
+
+    // 5. Payroll / Employee Salary Payout
+    if (action === 'payroll' || action === 'employee_payout' || action === 'add_employee') {
       if (!sub.limits.isPayrollAllowed) {
         return res.status(403).json({
           allowed: false,
           code: 'PAYROLL_FEATURE_LOCKED',
           plan: sub.plan,
-          message: 'Employee Payout & Salary Management is available in Pro and Premium plans. Please upgrade your plan to manage employee salaries.',
-          messageBn: 'কর্মচারীদের বেতন ও পে-আউট ম্যানেজমেন্ট প্রো এবং প্রিমিয়াম প্ল্যানের অন্তর্ভুক্ত। এটি ব্যবহার করতে আপগ্রেড করুন।',
-          requiredPlan: 'Pro',
+          message: 'Employee Payroll & Salary Management is a Premium feature. Please upgrade your plan to Premium to manage employee salaries.',
+          messageBn: 'কর্মচারীদের বেতন ও পে-রোল শুধুমাত্র প্রিমিয়াম (Premium) প্ল্যানের অন্তর্ভুক্ত। এটি ব্যবহার করতে প্রিমিয়ামে আপগ্রেড করুন।',
+          requiredPlan: 'Premium',
+        });
+      }
+      return res.json({ allowed: true });
+    }
+
+    // 6. Smart Reorder
+    if (action === 'smart_reorder') {
+      if (!sub.limits.isSmartReorderAllowed) {
+        return res.status(403).json({
+          allowed: false,
+          code: 'SMART_REORDER_LOCKED',
+          plan: sub.plan,
+          message: 'Smart Reorder System is a Premium feature. Please upgrade your plan to Premium to access smart reordering.',
+          messageBn: 'স্মার্ট রি-অর্ডার শুধুমাত্র প্রিমিয়াম (Premium) প্ল্যানের অন্তর্ভুক্ত। এটি ব্যবহার করতে প্রিমিয়ামে আপগ্রেড করুন।',
+          requiredPlan: 'Premium',
+        });
+      }
+      return res.json({ allowed: true });
+    }
+
+    // 7. AI Business Assistant & Insights
+    if (action === 'ai_insight' || action === 'ai_insights') {
+      if (!sub.limits.isAiInsightsAllowed) {
+        return res.status(403).json({
+          allowed: false,
+          code: 'AI_INSIGHTS_LOCKED',
+          plan: sub.plan,
+          message: 'AI Business Assistant & Intelligence is a Premium feature. Please upgrade your plan to Premium to access AI features.',
+          messageBn: 'এআই বিজনেস অ্যাসিস্ট্যান্ট শুধুমাত্র প্রিমিয়াম (Premium) প্ল্যানের অন্তর্ভুক্ত। এটি ব্যবহার করতে প্রিমিয়ামে আপগ্রেড করুন।',
+          requiredPlan: 'Premium',
+        });
+      }
+      return res.json({ allowed: true });
+    }
+
+    // 8. Customer Loyalty & Rewards
+    if (action === 'customer_loyalty' || action === 'loyalty_settings') {
+      if (!sub.limits.isCustomerLoyaltyAllowed) {
+        return res.status(403).json({
+          allowed: false,
+          code: 'LOYALTY_LOCKED',
+          plan: sub.plan,
+          message: 'Customer Loyalty & Rewards is a Premium feature. Please upgrade your plan to Premium to access Loyalty features.',
+          messageBn: 'কাস্টমার লয়ালটি ও পয়েন্ট প্রোগ্রাম শুধুমাত্র প্রিমিয়াম (Premium) প্ল্যানের অন্তর্ভুক্ত। এটি ব্যবহার করতে প্রিমিয়ামে আপগ্রেড করুন।',
+          requiredPlan: 'Premium',
+        });
+      }
+      return res.json({ allowed: true });
+    }
+
+    // 9. Audit Log
+    if (action === 'audit_log') {
+      if (!sub.limits.isAuditLogAllowed) {
+        return res.status(403).json({
+          allowed: false,
+          code: 'AUDIT_LOG_LOCKED',
+          plan: sub.plan,
+          message: 'Audit Log is a Premium feature. Please upgrade your plan to Premium to view audit logs.',
+          messageBn: 'অডিট লগ শুধুমাত্র প্রিমিয়াম (Premium) প্ল্যানের অন্তর্ভুক্ত। এটি ব্যবহার করতে প্রিমিয়ামে আপগ্রেড করুন।',
+          requiredPlan: 'Premium',
         });
       }
       return res.json({ allowed: true });

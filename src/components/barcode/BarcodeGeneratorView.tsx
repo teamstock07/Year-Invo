@@ -450,7 +450,46 @@ export const BarcodeGeneratorView: React.FC = () => {
       recordGeneratedQRCodes(selectedProduct.id, config.copies);
     }
 
-    // Direct browser print with custom print-standalone-container
+    const html = getPrintableHTML(config, layout);
+
+    try {
+      // 1. Dedicated print iframe for 100% reliable printing without parent interference
+      let printFrame = document.getElementById('barcode-print-helper-frame') as HTMLIFrameElement | null;
+      if (!printFrame) {
+        printFrame = document.createElement('iframe');
+        printFrame.id = 'barcode-print-helper-frame';
+        printFrame.style.position = 'fixed';
+        printFrame.style.right = '0';
+        printFrame.style.bottom = '0';
+        printFrame.style.width = '0';
+        printFrame.style.height = '0';
+        printFrame.style.border = '0';
+        printFrame.style.visibility = 'hidden';
+        document.body.appendChild(printFrame);
+      }
+
+      const frameDoc = printFrame.contentDocument || printFrame.contentWindow?.document;
+      if (frameDoc) {
+        frameDoc.open();
+        frameDoc.write(html);
+        frameDoc.close();
+
+        setTimeout(() => {
+          try {
+            printFrame?.contentWindow?.focus();
+            printFrame?.contentWindow?.print();
+          } catch (e) {
+            console.warn('Iframe print error, falling back to window.print:', e);
+            window.print();
+          }
+        }, 200);
+        return;
+      }
+    } catch (err) {
+      console.warn('Direct iframe print attempt caught error, falling back to window.print:', err);
+    }
+
+    // Direct browser print fallback with custom print-standalone-container
     setTimeout(() => {
       window.print();
     }, 150);
@@ -1798,56 +1837,6 @@ export const BarcodeGeneratorView: React.FC = () => {
           </div>
         </div>
       )}
-      {/* Standalone print container strictly rendered for window.print() */}
-      <div
-        id="print-standalone-container"
-        className={
-          activePrintLayout === 'a4'
-            ? 'print-layout-a4'
-            : `print-layout-thermal ${activePrintLayout}`
-        }
-      >
-        {generatedConfig &&
-          Array.from({ length: generatedConfig.copies }).map((_, idx) => (
-            <div key={idx} className="label-sticker-card">
-              {generatedConfig.showBrand && (
-                <div className="brand-text">{brandName.toUpperCase()}</div>
-              )}
-              <div className="product-title">{generatedConfig.productName}</div>
-              <div className="code-zone">
-                {(generatedConfig.codeType === 'barcode' || generatedConfig.codeType === 'both') &&
-                  generatedConfig.barcodeDataUrl && (
-                    <img
-                      src={generatedConfig.barcodeDataUrl}
-                      className="barcode-img"
-                      alt="Barcode"
-                    />
-                  )}
-                {(generatedConfig.codeType === 'qrcode' || generatedConfig.codeType === 'both') &&
-                  generatedConfig.qrDataUrl && (
-                    <img
-                      src={generatedConfig.qrDataUrl}
-                      className="qr-img"
-                      alt="QR Code"
-                    />
-                  )}
-              </div>
-              <div className="footer-row">
-                {generatedConfig.showSKU ? (
-                  <span className="sku-text">#{generatedConfig.sku}</span>
-                ) : (
-                  <span></span>
-                )}
-                {generatedConfig.showPrice ? (
-                  <span className="price-text">
-                    {symbol}
-                    {generatedConfig.sellingPrice}
-                  </span>
-                ) : null}
-              </div>
-            </div>
-          ))}
-      </div>
     </div>
   );
 };

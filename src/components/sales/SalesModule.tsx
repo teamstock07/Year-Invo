@@ -4,6 +4,7 @@ import { QuickSaleView } from './QuickSaleView';
 import { PosSystem } from '../pos/PosSystem';
 import { SalesHistoryView } from './SalesHistoryView';
 import { Zap, History, Sparkles, ShoppingCart } from 'lucide-react';
+import { PremiumFeatureGuard } from '../common/PremiumFeatureGuard';
 
 interface SalesModuleProps {
   initialSubTab?: 'quicksale' | 'pos' | 'history';
@@ -21,7 +22,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({ initialSubTab = 'quick
 
   return (
     <div className="space-y-4 pb-12">
-      {/* Sub-Tab Navigation Bar: [ Quick Sale ] [ Sales History ] [ Upgrade ] */}
+      {/* Sub-Tab Navigation Bar: [ Quick Sale ] [ Simple POS ] [ Sales History ] [ Upgrade ] */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-2 sm:p-2.5 shadow-xs flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700/80 overflow-x-auto">
           {/* 1. Quick Sale */}
@@ -49,7 +50,7 @@ export const SalesModule: React.FC<SalesModuleProps> = ({ initialSubTab = 'quick
             }`}
           >
             <ShoppingCart className="w-3.5 h-3.5 text-[#ff5c01]" />
-            <span>{t('posSystem') || 'Simple POS'}</span>
+            <span>{t('posSystem') || 'POS & Sell'}</span>
           </button>
 
           {/* 3. Sales History */}
@@ -94,7 +95,18 @@ export const SalesModule: React.FC<SalesModuleProps> = ({ initialSubTab = 'quick
           onOpenHistory={() => setSubTab('history')}
         />
       )}
-      {subTab === 'pos' && <PosSystem />}
+      {subTab === 'pos' && (
+        <PremiumFeatureGuard
+          featureKey="isPosAllowed"
+          featureNameEn="Point of Sale (POS) Register"
+          featureNameBn="পয়েন্ট অব সেল (POS) কাউন্টার"
+          descriptionEn="Full counter POS terminal with barcode scanning, custom discounts, cash register, and receipt printing."
+          descriptionBn="বারকোড স্ক্যানিং, কাস্টম ডিসকাউন্ট ও ক্যাশ রসিদ প্রিন্টিংসহ সম্পূর্ণ পিওএস ক্যাশ কাউন্টার।"
+          icon={ShoppingCart}
+        >
+          <PosSystem />
+        </PremiumFeatureGuard>
+      )}
       {subTab === 'history' && <SalesHistoryView />}
     </div>
   );

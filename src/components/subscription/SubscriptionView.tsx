@@ -921,11 +921,7 @@ export const SubscriptionView: React.FC = () => {
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>{langDict.payrollIncluded}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>{langDict.aiInsightsIncluded}</span>
+                <span>{langDict.purchaseSupplierMgmt}</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
@@ -935,11 +931,23 @@ export const SubscriptionView: React.FC = () => {
               <div className="pt-2 space-y-2 text-slate-400 dark:text-slate-500">
                 <div className="flex items-center gap-2">
                   <Lock className="w-4 h-4 text-slate-400 dark:text-slate-600 shrink-0" />
-                  <span>{langDict.posSystemLocked}</span>
+                  <span>POS & Sell (Premium Only)</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Lock className="w-4 h-4 text-slate-400 dark:text-slate-600 shrink-0" />
-                  <span>{langDict.teamLocked}</span>
+                  <span>Personal Ledger (ব্যক্তিগত খাতা)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-slate-400 dark:text-slate-600 shrink-0" />
+                  <span>Barcode & QR Code Generator</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-slate-400 dark:text-slate-600 shrink-0" />
+                  <span>Team & Payroll Management</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-slate-400 dark:text-slate-600 shrink-0" />
+                  <span>AI Assistant & Smart Reorder</span>
                 </div>
               </div>
             </div>
@@ -1118,33 +1126,63 @@ export const SubscriptionView: React.FC = () => {
                   <td className="p-3.5 text-center text-emerald-600 dark:text-emerald-400 font-bold">Included</td>
                 </tr>
                 <tr>
-                  <td className="p-3.5 font-bold">Point of Sale (POS) Billing Register</td>
-                  <td className="p-3.5 text-center text-slate-400">Locked (Premium)</td>
-                  <td className="p-3.5 text-center text-slate-400">Locked (Premium)</td>
+                  <td className="p-3.5 font-bold">Point of Sale (POS) Counter</td>
+                  <td className="p-3.5 text-center text-slate-400">Locked</td>
+                  <td className="p-3.5 text-center text-slate-400">Locked (Premium Only)</td>
+                  <td className="p-3.5 text-center font-bold text-emerald-600 dark:text-emerald-400">Included</td>
+                </tr>
+                <tr>
+                  <td className="p-3.5 font-bold">Personal Ledger (ব্যক্তিগত খাতা)</td>
+                  <td className="p-3.5 text-center text-slate-400">Locked</td>
+                  <td className="p-3.5 text-center text-slate-400">Locked (Premium Only)</td>
                   <td className="p-3.5 text-center font-bold text-emerald-600 dark:text-emerald-400">Included</td>
                 </tr>
                 <tr>
                   <td className="p-3.5 font-bold">Barcode & QR Code Generator & Printing</td>
                   <td className="p-3.5 text-center text-slate-400">Locked</td>
-                  <td className="p-3.5 text-center text-slate-400">Locked</td>
+                  <td className="p-3.5 text-center text-slate-400">Locked (Premium Only)</td>
                   <td className="p-3.5 text-center font-bold text-emerald-600 dark:text-emerald-400">Included</td>
                 </tr>
                 <tr>
-                  <td className="p-3.5 font-bold">Employee Salary & Payout Management</td>
+                  <td className="p-3.5 font-bold">Team Member Management & Permissions</td>
                   <td className="p-3.5 text-center text-slate-400">Locked</td>
-                  <td className="p-3.5 text-center text-emerald-600 dark:text-emerald-400 font-bold">Included</td>
+                  <td className="p-3.5 text-center text-slate-400">Locked (Premium Only)</td>
+                  <td className="p-3.5 text-center font-bold text-emerald-600 dark:text-emerald-400">Full Access</td>
+                </tr>
+                <tr>
+                  <td className="p-3.5 font-bold">Employee Payroll & Salary Management</td>
+                  <td className="p-3.5 text-center text-slate-400">Locked</td>
+                  <td className="p-3.5 text-center text-slate-400">Locked (Premium Only)</td>
                   <td className="p-3.5 text-center font-bold text-emerald-600 dark:text-emerald-400">Included</td>
                 </tr>
                 <tr>
-                  <td className="p-3.5 font-bold">Purchase Orders & Supplier Ledgers</td>
+                  <td className="p-3.5 font-bold">Smart Reorder System</td>
                   <td className="p-3.5 text-center text-slate-400">Locked</td>
-                  <td className="p-3.5 text-center text-emerald-600 dark:text-emerald-400 font-bold">Included</td>
+                  <td className="p-3.5 text-center text-slate-400">Locked (Premium Only)</td>
                   <td className="p-3.5 text-center font-bold text-emerald-600 dark:text-emerald-400">Included</td>
                 </tr>
                 <tr>
-                  <td className="p-3.5 font-bold">Team Member Management & Roles</td>
+                  <td className="p-3.5 font-bold">AI Business Assistant & Intelligence</td>
                   <td className="p-3.5 text-center text-slate-400">Locked</td>
+                  <td className="p-3.5 text-center text-slate-400">Locked (Premium Only)</td>
+                  <td className="p-3.5 text-center font-bold text-emerald-600 dark:text-emerald-400">Included</td>
+                </tr>
+                <tr>
+                  <td className="p-3.5 font-bold">Customer Loyalty & Rewards Program</td>
                   <td className="p-3.5 text-center text-slate-400">Locked</td>
+                  <td className="p-3.5 text-center text-slate-400">Locked (Premium Only)</td>
+                  <td className="p-3.5 text-center font-bold text-emerald-600 dark:text-emerald-400">Included</td>
+                </tr>
+                <tr>
+                  <td className="p-3.5 font-bold">Audit Log & Security Trail</td>
+                  <td className="p-3.5 text-center text-slate-400">Locked</td>
+                  <td className="p-3.5 text-center text-slate-400">Locked (Premium Only)</td>
+                  <td className="p-3.5 text-center font-bold text-emerald-600 dark:text-emerald-400">Included</td>
+                </tr>
+                <tr>
+                  <td className="p-3.5 font-bold">Purchases, Suppliers & Due Management</td>
+                  <td className="p-3.5 text-center text-slate-500 font-bold">Basic</td>
+                  <td className="p-3.5 text-center font-bold text-emerald-600 dark:text-emerald-400">Full Access</td>
                   <td className="p-3.5 text-center font-bold text-emerald-600 dark:text-emerald-400">Full Access</td>
                 </tr>
                 <tr>

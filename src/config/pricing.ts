@@ -117,12 +117,18 @@ export interface PlanLimits {
   maxProducts: number;
   maxStockTotal: number;
   maxSalesPerDay: number;
+  // 10 Premium-only features (Strictly blocked in Free & Pro, enabled in Premium & Lifetime)
   isPosAllowed: boolean;
-  isTeamManagementAllowed: boolean;
+  isPersonalLedgerAllowed: boolean;
   isQrBarcodeAllowed: boolean;
-  isMultiBranchAllowed: boolean;
-  isAiInsightsAllowed: boolean;
+  isTeamManagementAllowed: boolean;
   isPayrollAllowed: boolean;
+  isSmartReorderAllowed: boolean;
+  isAiInsightsAllowed: boolean;
+  isCustomerLoyaltyAllowed: boolean;
+  isAuditLogAllowed: boolean;
+  isAdvancedPermissionsAllowed: boolean;
+  isMultiBranchAllowed: boolean;
   isExpired?: boolean;
 }
 
@@ -133,35 +139,52 @@ export const PLAN_LIMITS: Record<'Free' | 'Pro' | 'Premium', Omit<PlanLimits, 'p
     maxStockTotal: 500,
     maxSalesPerDay: 50,
     isPosAllowed: false,
-    isTeamManagementAllowed: false,
+    isPersonalLedgerAllowed: false,
     isQrBarcodeAllowed: false,
-    isMultiBranchAllowed: false,
-    isAiInsightsAllowed: false,
+    isTeamManagementAllowed: false,
     isPayrollAllowed: false,
+    isSmartReorderAllowed: false,
+    isAiInsightsAllowed: false,
+    isCustomerLoyaltyAllowed: false,
+    isAuditLogAllowed: false,
+    isAdvancedPermissionsAllowed: false,
+    isMultiBranchAllowed: false,
   },
   Pro: {
     trialDays: 0,
     maxProducts: Number.POSITIVE_INFINITY,
     maxStockTotal: Number.POSITIVE_INFINITY,
     maxSalesPerDay: Number.POSITIVE_INFINITY,
+    // 10 Premium-only features are NOT available in Pro:
     isPosAllowed: false,
+    isPersonalLedgerAllowed: false,
+    isQrBarcodeAllowed: false,
     isTeamManagementAllowed: false,
-    isQrBarcodeAllowed: false, // QR & Barcode generator requires Premium
+    isPayrollAllowed: false,
+    isSmartReorderAllowed: false,
+    isAiInsightsAllowed: false,
+    isCustomerLoyaltyAllowed: false,
+    isAuditLogAllowed: false,
+    isAdvancedPermissionsAllowed: false,
     isMultiBranchAllowed: false,
-    isAiInsightsAllowed: true,
-    isPayrollAllowed: true,
   },
   Premium: {
     trialDays: 0,
     maxProducts: Number.POSITIVE_INFINITY,
     maxStockTotal: Number.POSITIVE_INFINITY,
     maxSalesPerDay: Number.POSITIVE_INFINITY,
+    // Premium includes everything in Pro PLUS all 10 Premium features:
     isPosAllowed: true,
-    isTeamManagementAllowed: true,
+    isPersonalLedgerAllowed: true,
     isQrBarcodeAllowed: true,
-    isMultiBranchAllowed: true,
-    isAiInsightsAllowed: true,
+    isTeamManagementAllowed: true,
     isPayrollAllowed: true,
+    isSmartReorderAllowed: true,
+    isAiInsightsAllowed: true,
+    isCustomerLoyaltyAllowed: true,
+    isAuditLogAllowed: true,
+    isAdvancedPermissionsAllowed: true,
+    isMultiBranchAllowed: true,
   },
 };
 

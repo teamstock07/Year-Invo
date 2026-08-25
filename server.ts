@@ -109,9 +109,9 @@ app.post("/api/ai/insights", async (req, res) => {
         const sub = await getAuthoritativeSubscription(userId);
         if (!sub.limits.isAiInsightsAllowed) {
           return res.status(403).json({
-            error: "AI Business Insights is a Pro/Premium feature. Please upgrade your subscription to access AI intelligence.",
+            error: "AI Business Assistant & Intelligence is a Premium feature. Please upgrade your subscription to Premium to access AI features.",
             code: "AI_INSIGHTS_LOCKED",
-            requiredPlan: "Pro",
+            requiredPlan: "Premium",
           });
         }
       } catch (subErr) {

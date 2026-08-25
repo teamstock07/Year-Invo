@@ -42,6 +42,8 @@ import { PersonalLedgerModule } from './components/personalLedger/PersonalLedger
 import { BusinessTypeSetupModal } from './components/common/BusinessTypeSetupModal';
 import { EmailVerificationPrompt } from './components/auth/EmailVerificationPrompt';
 import { AcceptInvitationView } from './components/team/AcceptInvitationView';
+import { PremiumFeatureGuard } from './components/common/PremiumFeatureGuard';
+import { ShoppingCart, BookOpen, QrCode, ShieldCheck, Banknote, Sparkles, Award, Activity } from 'lucide-react';
 
 import { getDisplayBrandName } from './utils/brand';
 
@@ -109,7 +111,18 @@ const MainLayout: React.FC = () => {
       case 'sales':
         return <SalesModule initialSubTab="quicksale" />;
       case 'pos':
-        return <SalesModule initialSubTab="pos" />;
+        return (
+          <PremiumFeatureGuard
+            featureKey="isPosAllowed"
+            featureNameEn="Point of Sale (POS) Register"
+            featureNameBn="পয়েন্ট অব সেল (POS) কাউন্টার"
+            descriptionEn="Full counter POS terminal with barcode scanning, custom discounts, cash register, and receipt printing."
+            descriptionBn="বারকোড স্ক্যানিং, কাস্টম ডিসকাউন্ট ও ক্যাশ রসিদ প্রিন্টিংসহ সম্পূর্ণ পিওএস ক্যাশ কাউন্টার।"
+            icon={ShoppingCart}
+          >
+            <SalesModule initialSubTab="pos" />
+          </PremiumFeatureGuard>
+        );
       case 'products':
         return <ProductList />;
       case 'categories':
@@ -118,7 +131,18 @@ const MainLayout: React.FC = () => {
         return <StockManagement />;
       case 'smart-reorder':
       case 'smartReorder':
-        return <SmartReorderView />;
+        return (
+          <PremiumFeatureGuard
+            featureKey="isSmartReorderAllowed"
+            featureNameEn="Smart Reorder System"
+            featureNameBn="স্মার্ট রি-অর্ডার সিস্টেম"
+            descriptionEn="Predictive inventory intelligence with automatic supplier reordering and stock depletion forecasts."
+            descriptionBn="স্বয়ংক্রিয় রি-অর্ডার অ্যালার্ট, স্টক পূর্বাভাস ও সাপ্লায়ার রিকমেন্ডেশন সিস্টেম।"
+            icon={Sparkles}
+          >
+            <SmartReorderView />
+          </PremiumFeatureGuard>
+        );
       case 'saleshistory':
         return <SalesModule initialSubTab="history" />;
       case 'sales-calendar':
@@ -130,7 +154,18 @@ const MainLayout: React.FC = () => {
         return <CustomerDirectoryView />;
       case 'loyalty':
       case 'customerLoyalty':
-        return <CustomerLoyaltyView />;
+        return (
+          <PremiumFeatureGuard
+            featureKey="isCustomerLoyaltyAllowed"
+            featureNameEn="Customer Loyalty & Rewards"
+            featureNameBn="কাস্টমার লয়ালটি ও পয়েন্ট প্রোগ্রাম"
+            descriptionEn="Build customer retention with automatic points accumulation, redemption rules, and tier rewards."
+            descriptionBn="গ্রাহকদের জন্য পয়েন্ট রিওয়ার্ড প্রোগ্রাম, ক্যাশব্যাক ও বিশেষ মেম্বারশিপ সুবিধা।"
+            icon={Award}
+          >
+            <CustomerLoyaltyView />
+          </PremiumFeatureGuard>
+        );
       case 'suppliers':
         return <SupplierDirectoryView onNavigateToPurchases={() => setActiveTab('purchases')} />;
       case 'due':
@@ -139,7 +174,18 @@ const MainLayout: React.FC = () => {
       case 'personalLedger':
       case 'personal':
       case 'personal_ledger':
-        return <PersonalLedgerModule />;
+        return (
+          <PremiumFeatureGuard
+            featureKey="isPersonalLedgerAllowed"
+            featureNameEn="Personal Ledger (ব্যক্তিগত খাতা)"
+            featureNameBn="ব্যক্তিগত খাতা"
+            descriptionEn="Isolated digital ledger for managing personal loans, borrowing, and friends/family dues."
+            descriptionBn="ব্যবসায়িক হিসাবের বাইরে ব্যক্তিগত ধার-দেনা ও ঋণের সম্পূর্ণ পৃথক হিসাব খাতা।"
+            icon={BookOpen}
+          >
+            <PersonalLedgerModule />
+          </PremiumFeatureGuard>
+        );
       case 'expenses':
         return <ExpenseList />;
       case 'capital-investment':
@@ -224,23 +270,78 @@ const MainLayout: React.FC = () => {
       case 'ceoteammanagement':
       case 'staff':
       case 'employees':
-        return <TeamManagementView />;
+        return (
+          <PremiumFeatureGuard
+            featureKey="isTeamManagementAllowed"
+            featureNameEn="Team Member Management & Roles"
+            featureNameBn="টিম ম্যানেজমেন্ট ও রোলস"
+            descriptionEn="Invite staff members, create custom roles, assign branches, and manage permissions."
+            descriptionBn="কর্মী নিয়োগ, কাস্টম রোল তৈরি, ব্রাঞ্চ অ্যাসাইন ও সিকিউরিটি পারমিশন নিয়ন্ত্রণ।"
+            icon={ShieldCheck}
+          >
+            <TeamManagementView />
+          </PremiumFeatureGuard>
+        );
       case 'payroll':
       case 'salary':
-        return <PayrollView />;
+        return (
+          <PremiumFeatureGuard
+            featureKey="isPayrollAllowed"
+            featureNameEn="Employee Payroll & Salaries"
+            featureNameBn="কর্মচারী বেতন ও পে-রোল"
+            descriptionEn="Manage staff salaries, overtime, bonuses, advance pay adjustments, and print salary slips."
+            descriptionBn="কর্মচারীদের মাসিক বেতন, বোনাস, অগ্রিম কর্তন ও পে-স্লিপ জেনারেট করার সুবিধা।"
+            icon={Banknote}
+          >
+            <PayrollView />
+          </PremiumFeatureGuard>
+        );
       case 'audit':
       case 'audit-log':
       case 'auditLog':
-        return <AuditLogView />;
+        return (
+          <PremiumFeatureGuard
+            featureKey="isAuditLogAllowed"
+            featureNameEn="Audit Log & Security Tracking"
+            featureNameBn="অডিট লগ ও সিস্টেম অ্যাক্টিভিটি"
+            descriptionEn="Real-time activity audit trail tracking every staff action, stock modification, and financial edit."
+            descriptionBn="স্টাফদের প্রতিটি কার্যকলাপ, স্টক পরিবর্তন ও আর্থিক লেনদেন পরিবর্তনের বিস্তারিত লগ।"
+            icon={Activity}
+          >
+            <AuditLogView />
+          </PremiumFeatureGuard>
+        );
       case 'reports':
       case 'profit':
         return <ReportsView />;
       case 'expired':
         return <ExpiredProductsView />;
       case 'barcode':
-        return <BarcodeGeneratorView />;
+        return (
+          <PremiumFeatureGuard
+            featureKey="isQrBarcodeAllowed"
+            featureNameEn="Barcode & QR Code Generator"
+            featureNameBn="বারকোড ও কিউআর কোড জেনারেটর"
+            descriptionEn="Design custom barcode and QR code stickers, configure layout sizes, and print in multi-label thermal or A4 sheets."
+            descriptionBn="কাস্টম বারকোড ও কিউআর লেবেল জেনারেটর এবং থার্মাল রোল ও A4 পেপারে প্রিন্টিং।"
+            icon={QrCode}
+          >
+            <BarcodeGeneratorView />
+          </PremiumFeatureGuard>
+        );
       case 'ai':
-        return <AiInsightsView />;
+        return (
+          <PremiumFeatureGuard
+            featureKey="isAiInsightsAllowed"
+            featureNameEn="AI Business Assistant & Intelligence"
+            featureNameBn="এআই বিজনেস অ্যাসিস্ট্যান্ট"
+            descriptionEn="AI business forecasts, demand prediction, expense optimization, and profit-growth suggestions."
+            descriptionBn="এআই ভিত্তিক ভবিষ্যৎ সেলস প্রেডিকশন, খরচ নিয়ন্ত্রণ ও লাভ বাড়ানোর পরামর্শ।"
+            icon={Sparkles}
+          >
+            <AiInsightsView />
+          </PremiumFeatureGuard>
+        );
       case 'settings':
         return <SettingsView />;
       case 'branding':

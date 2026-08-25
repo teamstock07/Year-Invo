@@ -73,11 +73,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     user?.email?.toLowerCase().trim() === 'teamstock07@gmail.com' ||
     user?.role === 'PlatformOwner';
 
-  // Feature locking based on exact 3 plans
-  const isPosLocked = plan !== 'Premium' && plan !== 'Lifetime' && !isPlatformSuperAdmin;
-  const isBarcodeLocked = plan !== 'Premium' && plan !== 'Lifetime' && !isPlatformSuperAdmin;
-  const isTeamLocked = plan !== 'Premium' && plan !== 'Lifetime' && !isPlatformSuperAdmin;
-  const isPayrollLocked = plan === 'Free' && !isPlatformSuperAdmin;
+  // Feature locking based on exact 3 plans (10 features require Premium)
+  const isPremiumUnlocked = plan === 'Premium' || plan === 'Lifetime' || isPlatformSuperAdmin;
+  const isPosLocked = !isPremiumUnlocked;
+  const isPersonalLedgerLocked = !isPremiumUnlocked;
+  const isBarcodeLocked = !isPremiumUnlocked;
+  const isTeamLocked = !isPremiumUnlocked;
+  const isPayrollLocked = !isPremiumUnlocked;
+  const isSmartReorderLocked = !isPremiumUnlocked;
+  const isAiLocked = !isPremiumUnlocked;
+  const isLoyaltyLocked = !isPremiumUnlocked;
+  const isAuditLogLocked = !isPremiumUnlocked;
 
   // Team Management & Payroll Grouped Children
   const teamChildren = [
@@ -99,7 +105,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             label: t('modPayroll') || 'Employee Payroll',
             icon: Banknote,
             locked: isPayrollLocked,
-            badge: isPayrollLocked ? 'PRO' : undefined,
+            badge: isPayrollLocked ? 'PREMIUM' : undefined,
           },
         ]
       : []),
@@ -109,6 +115,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             id: 'audit-log',
             label: t('modAuditLog') || 'Audit Log',
             icon: Activity,
+            locked: isAuditLogLocked,
+            badge: isAuditLogLocked ? 'PREMIUM' : undefined,
           },
         ]
       : []),
@@ -171,15 +179,33 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     ...(dashboardPreferences?.products !== false && canAccessInventory ? [{ id: 'products', label: t('navProducts') || 'Products', icon: Package }] : []),
     ...(dashboardPreferences?.products !== false && dashboardPreferences?.categories !== false && canAccessInventory ? [{ id: 'categories', label: t('navCategories') || 'Categories', icon: Tags }] : []),
     ...(dashboardPreferences?.products !== false && dashboardPreferences?.stockManagement !== false && canAccessInventory ? [{ id: 'stock', label: t('navStock') || 'Stock Management', icon: Boxes }] : []),
-    ...(dashboardPreferences?.smartReorder !== false && canAccessInventory ? [{ id: 'smart-reorder', label: t('modSmartReorder') || 'Smart Reorder', icon: Sparkles }] : []),
+    ...(dashboardPreferences?.smartReorder !== false && canAccessInventory ? [{ 
+      id: 'smart-reorder', 
+      label: t('modSmartReorder') || 'Smart Reorder', 
+      icon: Sparkles,
+      locked: isSmartReorderLocked,
+      badge: isSmartReorderLocked ? 'PREMIUM' : undefined
+    }] : []),
     ...(dashboardPreferences?.salesHistory !== false && canAccessSales ? [{ id: 'saleshistory', label: t('navSales') || 'Sales History', icon: History }] : []),
     ...(dashboardPreferences?.salesCalendar !== false && canAccessSales ? [{ id: 'sales-calendar', label: t('modSalesCalendar') || 'Sales Calendar', icon: Calendar }] : []),
     ...(dashboardPreferences?.purchases !== false && canAccessInventory ? [{ id: 'purchases', label: t('navPurchases') || 'Purchases', icon: ShoppingBag }] : []),
     ...(dashboardPreferences?.customers !== false && (canAccessSales || canAccessFinance) ? [{ id: 'customers', label: t('navCustomers') || 'Customers', icon: Users }] : []),
-    ...(dashboardPreferences?.customerLoyalty !== false && canAccessSales ? [{ id: 'loyalty', label: t('modCustomerLoyalty') || 'Customer Loyalty', icon: Award }] : []),
+    ...(dashboardPreferences?.customerLoyalty !== false && canAccessSales ? [{ 
+      id: 'loyalty', 
+      label: t('modCustomerLoyalty') || 'Customer Loyalty', 
+      icon: Award,
+      locked: isLoyaltyLocked,
+      badge: isLoyaltyLocked ? 'PREMIUM' : undefined
+    }] : []),
     ...(dashboardPreferences?.suppliers !== false && canAccessInventory ? [{ id: 'suppliers', label: t('navSuppliers') || 'Suppliers', icon: Truck }] : []),
     ...(dashboardPreferences?.dueManagement !== false && (canAccessSales || canAccessFinance) ? [{ id: 'due', label: t('navDue') || 'Due Management', icon: CreditCard }] : []),
-    ...(dashboardPreferences?.personalLedger !== false ? [{ id: 'personal-ledger', label: t('navPersonalLedger') || (language === 'bn' ? 'ব্যক্তিগত খাতা' : 'Personal Ledger'), icon: BookOpen }] : []),
+    ...(dashboardPreferences?.personalLedger !== false ? [{ 
+      id: 'personal-ledger', 
+      label: t('navPersonalLedger') || (language === 'bn' ? 'ব্যক্তিগত খাতা' : 'Personal Ledger'), 
+      icon: BookOpen,
+      locked: isPersonalLedgerLocked,
+      badge: isPersonalLedgerLocked ? 'PREMIUM' : undefined
+    }] : []),
     ...(dashboardPreferences?.expenses !== false && canAccessFinance ? [{ id: 'expenses', label: t('navExpenses') || 'Expenses', icon: Receipt }] : []),
     ...(dashboardPreferences?.capitalInvestment !== false && canAccessFinance ? [{ id: 'capital-investment', label: t('navCapitalInvestment') || 'Capital & Investment', icon: Coins }] : []),
   ];
@@ -195,7 +221,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       locked: isBarcodeLocked,
       badge: isBarcodeLocked ? 'PREMIUM' : undefined,
     }] : []),
-    ...(dashboardPreferences?.aiAssistant !== false ? [{ id: 'ai', label: t('navAiInsights') || 'AI Business Assistant', icon: Sparkles }] : []),
+    ...(dashboardPreferences?.aiAssistant !== false ? [{ 
+      id: 'ai', 
+      label: t('navAiInsights') || 'AI Business Assistant', 
+      icon: Sparkles,
+      locked: isAiLocked,
+      badge: isAiLocked ? 'PREMIUM' : undefined,
+    }] : []),
     ...(canAccessSettings && dashboardPreferences?.storeSettings !== false ? [{ id: 'branding', label: t('branding') || 'Store Branding', icon: Store }] : []),
     ...(canAccessSettings && dashboardPreferences?.storeSettings !== false ? [{ id: 'settings', label: t('navSettings') || t('settings') || 'Settings', icon: Settings }] : []),
     ...(dashboardPreferences?.support !== false ? [{ id: 'help', label: t('navHelp') || 'Help & Support', icon: HelpCircle }] : []),
