@@ -114,7 +114,7 @@ import {
   getCurrencySymbol,
   FormatMoneyOptions,
 } from '../services/currencyService';
-import { isBangladeshCountry } from '../config/pricing';
+import { isBangladeshCountry, getPlanLimits, PLAN_LIMITS } from '../config/pricing';
 import { generateSystemNotifications } from '../services/notificationService';
 
 export const normalizePlan = (rawPlan: any): SubscriptionPlan => {
@@ -3941,6 +3941,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     cashReceived: number;
     note?: string;
   }): Promise<Sale> => {
+    // Subscription feature enforcement
+    const isOwner = isTeamStockAdmin(user?.email) || user?.role === 'PlatformOwner';
+    const planLimits = getPlanLimits(user?.subscriptionPlan, user?.subscriptionStatus === 'expired');
+    if (!isOwner && !planLimits.isPosAllowed) {
+      const upgradeMsg = user?.subscriptionPlan === 'Pro'
+        ? 'POS & Sell is a Premium feature. Please upgrade to Premium to use the POS register.'
+        : 'POS & Sell is locked on Free Trial. Please upgrade to Pro or Premium to use POS.';
+      alert(upgradeMsg);
+      throw new Error(upgradeMsg);
+    }
+
     if (!cart || cart.length === 0) {
       throw new Error('Cart is empty. Please add products to complete the sale.');
     }
@@ -4167,13 +4178,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Product CRUD
   const addProduct = async (data: Omit<Product, 'id' | 'createdAt' | 'status'>): Promise<Product> => {
-    // Check product limits based on user.subscriptionPlan
-    const plan = user?.subscriptionPlan || 'Free';
-    const limit = (plan === 'Free' || plan === 'Starter') ? 10 : ((plan === 'Pro' || plan === 'Tier2') ? 25 : Infinity);
-    if (products.length >= limit) {
-      const msg = `Product limit reached for ${plan} Plan (${limit} products max). Please upgrade your subscription plan to add more products!`;
-      alert(msg);
-      throw new Error(msg);
+    // Check product limits based on authoritative subscription plan limits
+    const isOwner = isTeamStockAdmin(user?.email) || user?.role === 'PlatformOwner';
+    const planLimits = getPlanLimits(user?.subscriptionPlan, user?.subscriptionStatus === 'expired');
+    
+    if (!isOwner && planLimits.maxProducts !== Number.POSITIVE_INFINITY) {
+      if (products.length >= planLimits.maxProducts) {
+        const msg = `Free Trial plan limit reached (Max ${planLimits.maxProducts} products). Please upgrade to Pro or Premium for unlimited product catalogue.`;
+        alert(msg);
+        throw new Error(msg);
+      }
+    }
+
+    if (!isOwner && planLimits.maxStockTotal !== Number.POSITIVE_INFINITY) {
+      const currentTotalStock = products.reduce((sum, p) => sum + (Number(p.currentStock) || 0), 0);
+      const newStock = Number(data.currentStock) || 0;
+      if (currentTotalStock + newStock > planLimits.maxStockTotal) {
+        const msg = `Free Trial inventory capacity limit reached (${planLimits.maxStockTotal} total units max). Please upgrade to Pro or Premium for unlimited stock storage.`;
+        alert(msg);
+        throw new Error(msg);
+      }
     }
 
     // Auto add category & brand if new

@@ -139,6 +139,14 @@ export const PremiumFeatureGuard: React.FC<PremiumFeatureGuardProps> = ({
     return <>{children}</>;
   }
 
+  const isProUser = user?.subscriptionPlan === 'Pro';
+  const isFreeUser = !user?.subscriptionPlan || user?.subscriptionPlan === 'Free';
+
+  const upgradeTargetPlan = isProUser ? 'Premium' : 'Pro';
+  const upgradeBtnText = isProUser
+    ? (isBn ? 'প্রিমিয়ামে আপগ্রেড করুন' : 'Upgrade to Premium')
+    : (isBn ? 'প্রো প্ল্যানে আপগ্রেড করুন' : 'Upgrade to Pro');
+
   const currentPlanName =
     user?.subscriptionPlan === 'Pro'
       ? isBn
@@ -162,7 +170,7 @@ export const PremiumFeatureGuard: React.FC<PremiumFeatureGuardProps> = ({
           <div className="space-y-3 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 text-xs font-bold tracking-wider uppercase">
               <Crown className="w-3.5 h-3.5" />
-              {isBn ? 'প্রিমিয়াম এক্সক্লুসিভ ফিচার' : 'Premium Exclusive Feature'}
+              {isBn ? 'লক করা ফিচার' : 'Locked Feature'}
             </div>
 
             <div className="flex items-center gap-3">
@@ -177,14 +185,24 @@ export const PremiumFeatureGuard: React.FC<PremiumFeatureGuardProps> = ({
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
               {isBn
                 ? descriptionBn ||
-                  `এই ফিচারটি শুধুমাত্র প্রিমিয়াম (Premium) সাবস্ক্রিপশন প্ল্যানের অন্তর্ভুক্ত। আপনার বর্তমান প্ল্যান (${currentPlanName})-এ এটি উপলব্ধ নয়।`
+                  (isProUser
+                    ? `এই ফিচারটি শুধুমাত্র প্রিমিয়াম (Premium) সাবস্ক্রিপশন প্ল্যানের অন্তর্ভুক্ত। আপনার বর্তমান প্ল্যান (${currentPlanName})-এ এটি উপলব্ধ নয়।`
+                    : `এই ফিচারটি ব্যবহার করতে প্রো বা প্রিমিয়াম সাবস্ক্রিপশনে আপগ্রেড করুন। আপনার বর্তমান প্ল্যান (${currentPlanName})-এ এটি লক করা আছে।`)
                 : descriptionEn ||
-                  `This feature is exclusively included in the Premium Plan. It is not available on your current ${currentPlanName}.`}
+                  (isProUser
+                    ? `This feature is exclusively included in the Premium Plan. It is not available on your current ${currentPlanName}.`
+                    : `This feature is locked on the ${currentPlanName}. Upgrade your subscription to access this and other advanced features.`)}
             </p>
 
-            <div className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700 text-slate-300">
-              <span>{isBn ? 'আপনার বর্তমান প্ল্যান:' : 'Your Current Plan:'}</span>
-              <span className="text-amber-400 font-bold">{currentPlanName}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700 text-slate-300">
+                <span>{isBn ? 'আপনার বর্তমান প্ল্যান:' : 'Your Current Plan:'}</span>
+                <span className="text-amber-400 font-bold">{currentPlanName}</span>
+              </div>
+              <div className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300">
+                <Lock className="w-3 h-3" />
+                <span>{isBn ? `প্রয়োজনীয় আপগ্রেড: ${upgradeTargetPlan}` : `Required Upgrade: ${upgradeTargetPlan}`}</span>
+              </div>
             </div>
           </div>
 
@@ -195,7 +213,7 @@ export const PremiumFeatureGuard: React.FC<PremiumFeatureGuardProps> = ({
               className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-sm shadow-lg shadow-amber-500/25 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
               <Crown className="w-4 h-4" />
-              <span>{isBn ? 'প্রিমিয়ামে আপগ্রেড করুন' : 'Upgrade to Premium'}</span>
+              <span>{upgradeBtnText}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
 
