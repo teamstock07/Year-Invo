@@ -90,10 +90,18 @@ export const MobileDashboardView: React.FC = () => {
   const storeName = getCustomerStoreName(rawStore) || rawStore || 'YearInvo Store';
   const planName = user?.subscriptionPlan || 'Free';
 
-  // Compute today's order count
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todaySales = sales.filter((s) => s.date && s.date.startsWith(todayStr));
-  const todaySalesCount = todaySales.length > 0 ? todaySales.length : (sales.length > 0 ? Math.min(sales.length, 5) : 0);
+  // Compute today's order count (matching today's date in local and ISO string)
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const localTodayStr = `${year}-${month}-${day}`;
+  const isoTodayStr = now.toISOString().split('T')[0];
+
+  const todaySales = sales.filter(
+    (s) => s.date && (s.date.startsWith(localTodayStr) || s.date.startsWith(isoTodayStr))
+  );
+  const todaySalesCount = todaySales.length;
 
   // Filter low stock and expired items
   const lowStockProducts = products.filter((p) => p.currentStock <= p.minStockAlert);

@@ -6,6 +6,11 @@ import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import { handlePaddleWebhook } from "./server/paddleWebhook";
 import {
+  handleGetPaddleConfig,
+  handleCancelPaddleSubscription,
+  handleUpdatePaddleSubscription,
+} from "./server/paddleApi";
+import {
   handleCreateInvitation,
   handleResendInvitation,
   handleRevokeInvitation,
@@ -70,8 +75,11 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Paddle Billing Server-side Webhook Endpoint
+// Paddle Billing Server-side Webhook & Management Endpoints
 app.post("/api/paddle/webhook", handlePaddleWebhook);
+app.get("/api/paddle/config", handleGetPaddleConfig);
+app.post("/api/paddle/cancel-subscription", handleCancelPaddleSubscription);
+app.post("/api/paddle/update-subscription", handleUpdatePaddleSubscription);
 
 // Team Member Email Invitation API Endpoints (Powered by Resend)
 app.post("/api/team/invite", handleCreateInvitation);

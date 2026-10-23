@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { MainWebsiteLogo } from '../common/MainWebsiteLogo';
+import { PaymentMethodIcon, BkashIcon, NagadIcon, RocketIcon, BankTransferIcon } from '../common/PaymentLogos';
 import { compressImage } from '../../utils/imageCompressor';
 import {
   Image,
@@ -442,19 +443,20 @@ export const BrandingView: React.FC = () => {
                     </label>
 
                     {/* Quick Preset Badges */}
-                    <div className="flex flex-wrap gap-1.5 mb-2">
+                    <div className="flex flex-wrap gap-2 mb-2">
                       {providerPresets.map((preset) => (
                         <button
                           key={preset}
                           type="button"
                           onClick={() => setQrProvider(preset)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer border ${
+                          className={`px-3 py-1.5 rounded-xl text-[11px] font-extrabold transition-all cursor-pointer border flex items-center gap-1.5 ${
                             qrProvider.toLowerCase() === preset.toLowerCase()
-                              ? 'bg-[#ff5c01] text-white border-[#ff5c01]'
+                              ? 'bg-[#ff5c01] text-white border-[#ff5c01] shadow-xs'
                               : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-[#ff5c01]'
                           }`}
                         >
-                          {preset}
+                          <PaymentMethodIcon method={preset} className="w-4 h-4" />
+                          <span>{preset}</span>
                         </button>
                       ))}
                     </div>
@@ -573,8 +575,8 @@ export const BrandingView: React.FC = () => {
               {qrEnabled ? (
                 <div className="max-w-sm mx-auto bg-slate-950 border border-slate-800 rounded-3xl p-5 text-center space-y-3 shadow-2xl">
                   <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                    <h4 className="font-bold text-xs text-white flex items-center gap-1.5">
-                      <QrCode className="w-4 h-4 text-[#ff5c01]" />
+                    <h4 className="font-bold text-xs text-white flex items-center gap-2">
+                      <PaymentMethodIcon method={qrProvider || 'bKash'} className="w-5 h-5" />
                       <span>{qrProvider || 'bKash'} QR Payment</span>
                     </h4>
                     <span className="text-[10px] font-mono text-emerald-400">STORE SPECIFIC</span>

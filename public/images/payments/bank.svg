@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Bank Structure Outline -->
+  <g fill="none" stroke="#111827" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Roof Triangle / Pediment -->
+    <path d="M 118 210 L 256 118 L 394 210 Z" stroke-width="20" fill="#FFFFFF"/>
+    
+    <!-- Dollar Sign inside Pediment -->
+    <text x="256" y="195" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="58" text-anchor="middle" fill="#111827" stroke="none">$</text>
+
+    <!-- Architrave / Top Beam -->
+    <rect x="118" y="210" width="276" height="24" rx="4" stroke-width="20" fill="#FFFFFF"/>
+
+    <!-- 3 Classical Columns (Left, Center, Right) -->
+    <!-- Column 1 (Left) -->
+    <path d="M 152 234 L 152 335 M 172 234 L 172 335" stroke-width="14"/>
+    <rect x="140" y="234" width="44" height="12" rx="3" stroke-width="12" fill="#FFFFFF"/>
+    <rect x="140" y="323" width="44" height="12" rx="3" stroke-width="12" fill="#FFFFFF"/>
+
+    <!-- Column 2 (Center) -->
+    <path d="M 246 234 L 246 335 M 266 234 L 266 335" stroke-width="14"/>
+    <rect x="234" y="234" width="44" height="12" rx="3" stroke-width="12" fill="#FFFFFF"/>
+    <rect x="234" y="323" width="44" height="12" rx="3" stroke-width="12" fill="#FFFFFF"/>
+
+    <!-- Column 3 (Right) -->
+    <path d="M 340 234 L 340 290" stroke-width="14"/>
+    <rect x="328" y="234" width="44" height="12" rx="3" stroke-width="12" fill="#FFFFFF"/>
+
+    <!-- Foundation Base Steps -->
+    <rect x="124" y="335" width="220" height="28" rx="4" stroke-width="20" fill="#FFFFFF"/>
+  </g>
+
+  <!-- Circular Transfer Badge (Bottom Right) -->
+  <g transform="translate(330, 330)">
+    <!-- White Backing Circle for clean overlay -->
+    <circle cx="0" cy="0" r="76" fill="#FFFFFF"/>
+    <!-- Blue Border Ring -->
+    <circle cx="0" cy="0" r="72" fill="none" stroke="#2B388F" stroke-width="16"/>
+
+    <!-- Top Arrow (Pointing Left) -->
+    <g fill="none" stroke="#2B388F" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M 32 -18 L -32 -18"/>
+      <path d="M -16 -34 L -32 -18 L -16 -2"/>
+    </g>
+
+    <!-- Bottom Arrow (Pointing Right) -->
+    <g fill="none" stroke="#2B388F" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M -32 20 L 32 20"/>
+      <path d="M 16 4 L 32 20 L 16 36"/>
+    </g>
+  </g>
+</svg>

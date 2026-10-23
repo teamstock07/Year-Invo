@@ -1,4 +1,4 @@
-import { PADDLE_CONFIG, getPaddlePriceId } from '../config/paddle';
+import { PADDLE_CONFIG, getPaddlePriceId, syncPaddleRuntimeConfig } from '../config/paddle';
 import { BillingCycle } from '../types';
 
 declare global {
@@ -16,7 +16,9 @@ let activeOnCloseCallback: (() => void) | null = null;
 /**
  * Dynamically loads official Paddle.js Billing (v2) from CDN and initializes it once.
  */
-export const initializePaddle = (): Promise<any> => {
+export const initializePaddle = async (): Promise<any> => {
+  await syncPaddleRuntimeConfig();
+
   if (paddleInitPromise) {
     return paddleInitPromise;
   }
@@ -25,7 +27,7 @@ export const initializePaddle = (): Promise<any> => {
     const clientToken = PADDLE_CONFIG.clientToken;
 
     if (!clientToken) {
-      const err = new Error('VITE_PADDLE_CLIENT_TOKEN environment variable is missing.');
+      const err = new Error('PADDLE_CLIENT_TOKEN or VITE_PADDLE_CLIENT_TOKEN is not configured.');
       console.error('[PADDLE DEBUG] Initialization Failed:', err.message);
       paddleInitPromise = null;
       reject(err);
@@ -154,6 +156,9 @@ export const openPaddleCheckout = async (options: OpenCheckoutOptions): Promise<
   activeOnErrorCallback = options.onError || null;
   activeOnSuccessCallback = options.onSuccess || null;
   activeOnCloseCallback = options.onClose || null;
+
+  // Sync runtime server config first to guarantee newest Price IDs & Token
+  await syncPaddleRuntimeConfig();
   const priceId = getPaddlePriceId(options.plan, options.billingCycle);
 
   // --- Pre-flight Diagnostics & Debug Logging ---

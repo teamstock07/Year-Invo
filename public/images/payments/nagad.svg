@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Nagad Runner Logo -->
+  <g fill="none">
+    <!-- Top-Right Ribbon Petal (Red) -->
+    <path d="M 270 180 C 310 160, 360 180, 425 155 C 445 147, 440 175, 430 205 C 400 295, 345 350, 270 375 C 330 320, 345 250, 270 180 Z" fill="#EE1C25"/>
+    
+    <!-- Middle Ribbon Petal (Orange) -->
+    <path d="M 245 190 C 275 160, 330 150, 365 90 C 375 75, 395 105, 390 130 C 365 210, 305 290, 230 330 C 280 270, 285 220, 245 190 Z" fill="#F15A24"/>
+
+    <!-- Left/Top Yellow-Orange Swirl Petal -->
+    <path d="M 220 220 C 230 180, 260 140, 270 85 C 275 60, 295 90, 290 115 C 265 180, 220 240, 160 270 C 180 230, 205 225, 220 220 Z" fill="#F7941D"/>
+
+    <!-- Outer Bottom Swirl Ring Base (Red) -->
+    <path d="M 160 270 C 120 330, 150 420, 256 425 C 362 430, 415 365, 415 285 C 415 255, 405 235, 400 245 C 405 325, 340 380, 256 380 C 180 380, 155 315, 185 265 C 190 255, 170 255, 160 270 Z" fill="#EE1C25"/>
+    
+    <!-- Outer Yellow Arc -->
+    <path d="M 256 425 C 150 425, 95 350, 95 270 C 95 180, 165 110, 270 85 C 240 120, 180 180, 180 270 C 180 330, 210 380, 256 380 Z" fill="#F7941D" opacity="0.95"/>
+  </g>
+
+  <!-- Central Runner Figure (ডাক হরকরা) in Red -->
+  <g fill="#EE1C25">
+    <!-- Head -->
+    <circle cx="248" cy="245" r="14"/>
+    <!-- Torso and Runner Body -->
+    <path d="M 238 260 C 238 260, 260 258, 265 272 L 278 288 C 278 288, 265 305, 255 305 L 245 295 L 235 320 L 225 318 L 238 280 Z"/>
+    <!-- Runner Legs (Action Pose) -->
+    <!-- Front Leg (Bended forward) -->
+    <path d="M 255 300 L 270 315 L 270 345 L 260 345 L 260 325 L 248 310 Z"/>
+    <!-- Back Leg (Extended backward) -->
+    <path d="M 235 305 L 210 325 L 185 325 L 185 315 L 205 315 L 225 298 Z"/>
+    <!-- Mail Spear / Pole across shoulder -->
+    <rect x="180" y="270" width="130" height="5" rx="2" transform="rotate(-3 245 272)"/>
+    <polygon points="180,268 168,272 180,277"/>
+    <!-- Hanging Lantern (লণ্ঠন) -->
+    <rect x="210" y="278" width="18" height="24" rx="3" fill="none" stroke="#EE1C25" stroke-width="3"/>
+    <line x1="219" y1="272" x2="219" y2="278" stroke="#EE1C25" stroke-width="2"/>
+    <circle cx="219" cy="290" r="3"/>
+    <!-- Mail Sack on back -->
+    <ellipse cx="270" cy="265" rx="14" ry="12" fill="#EE1C25"/>
+  </g>
+</svg>

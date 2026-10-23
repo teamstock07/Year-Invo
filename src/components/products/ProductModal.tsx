@@ -348,21 +348,29 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
             </div>
 
             <div className="flex flex-col sm:flex-row items-center gap-4">
-              {/* Image Preview Box */}
-              <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 overflow-hidden flex items-center justify-center shrink-0 shadow-xs">
+              {/* Image Preview Box - Square Shaped */}
+              <div className="relative w-28 h-28 aspect-square rounded-2xl bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 overflow-hidden flex items-center justify-center shrink-0 shadow-xs">
                 {imageUrl ? (
                   <img
                     src={imageUrl}
                     alt="Product Preview"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full aspect-square object-cover"
                     onError={(e) => {
                       (e.target as HTMLElement).style.display = 'none';
                     }}
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center text-slate-400 p-2 text-center">
-                    <ImageIcon className="w-8 h-8 mb-1 opacity-40" />
-                    <span className="text-[9px] font-medium">{t('noImageSelected') || 'No image'}</span>
+                    {name ? (
+                      <span className="font-black text-xl text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                        {name.trim().slice(0, 2).toUpperCase()}
+                      </span>
+                    ) : (
+                      <>
+                        <ImageIcon className="w-8 h-8 mb-1 opacity-40 text-slate-400" />
+                        <span className="text-[9px] font-medium">{t('noImageSelected') || 'No image'}</span>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

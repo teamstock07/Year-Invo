@@ -8,6 +8,7 @@ import { findProductWithStoreCheck } from '../../utils/scanner';
 import { playSuccessSound, playBeepSound } from '../../utils/audio';
 import { SyncStatusIndicator } from '../common/SyncStatusIndicator';
 import { QrScannerModal } from '../pos/QrScannerModal';
+import { PaymentMethodIcon } from '../common/PaymentLogos';
 import {
   Zap,
   Search,
@@ -385,21 +386,23 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
                       </span>
                     ) : null}
 
-                    {/* 1. Uploaded Product Image or Clean Default Placeholder */}
-                    <div className="relative w-full h-24 sm:h-28 rounded-xl overflow-hidden bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 flex items-center justify-center mb-2 shrink-0">
+                    {/* 1. Uploaded Product Image or Clean Default Placeholder - Square Shaped */}
+                    <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-center mb-2 shrink-0 shadow-2xs">
                       {productImg ? (
                         <img
                           src={productImg}
                           alt={prod.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                          className="w-full h-full aspect-square object-cover group-hover:scale-105 transition-transform duration-200"
                           onError={(e) => {
                             (e.target as HTMLElement).style.display = 'none';
                           }}
                         />
                       ) : (
-                        <div className="flex flex-col items-center justify-center text-slate-400 p-2 text-center">
-                          <Package className="w-7 h-7 mb-1 opacity-50 text-slate-400" />
-                          <span className="text-[9px] font-semibold text-slate-400 line-clamp-1">
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-850 text-slate-700 dark:text-slate-200 p-2 text-center">
+                          <span className="font-black text-base uppercase tracking-wider">
+                            {prod.name ? prod.name.trim().slice(0, 2).toUpperCase() : 'PR'}
+                          </span>
+                          <span className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
                             {prod.category || 'Product'}
                           </span>
                         </div>
@@ -538,14 +541,19 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
                     <div key={item.product.id} className="py-2.5 flex items-center justify-between gap-2 text-xs">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         {item.product.imageUrl ? (
-                          <img
-                            src={item.product.imageUrl}
-                            alt={item.product.name}
-                            className="w-9 h-9 rounded-lg object-cover shrink-0 border border-slate-200 dark:border-slate-700"
-                          />
+                          <div className="w-10 h-10 shrink-0 aspect-square rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs">
+                            <img
+                              src={item.product.imageUrl}
+                              alt={item.product.name}
+                              className="w-full h-full aspect-square object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          </div>
                         ) : (
-                          <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 border border-slate-200 dark:border-slate-700 text-slate-400">
-                            <Package className="w-4 h-4" />
+                          <div className="w-10 h-10 shrink-0 aspect-square rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-850 flex items-center justify-center shrink-0 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-black text-xs uppercase shadow-2xs">
+                            {item.product.name ? item.product.name.trim().slice(0, 2).toUpperCase() : <Package className="w-4 h-4 text-slate-400" />}
                           </div>
                         )}
                         <div className="min-w-0 flex-1">
@@ -726,14 +734,13 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
                 <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
                   {t('paymentMethod') || 'Payment Method'}
                 </span>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
-                    { id: 'Cash', label: t('paymentCash') || 'Cash', icon: Banknote },
-                    { id: 'bKash/Mobile', label: t('paymentQrMobile') || 'QR / Mobile', icon: QrCode },
-                    { id: 'Card', label: t('paymentCard') || 'Card', icon: CreditCard },
-                    { id: 'Due/Credit', label: t('paymentDueCredit') || 'Due / Credit', icon: Tag },
+                    { id: 'Cash', label: t('paymentCash') || 'Cash' },
+                    { id: 'bKash/Mobile', label: 'bKash / MFS' },
+                    { id: 'Card', label: t('paymentCard') || 'Card' },
+                    { id: 'Due/Credit', label: t('paymentDueCredit') || 'Due / Credit' },
                   ].map((pm) => {
-                    const Icon = pm.icon;
                     const isSelected = paymentMethod === pm.id;
                     return (
                       <button
@@ -751,7 +758,7 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
                             : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-300'
                         }`}
                       >
-                        <Icon className="w-3.5 h-3.5 shrink-0" />
+                        <PaymentMethodIcon method={pm.id} className="w-4 h-4 shrink-0" />
                         <span className="truncate">{pm.label}</span>
                       </button>
                     );
@@ -812,7 +819,7 @@ export const QuickSaleView: React.FC<QuickSaleViewProps> = ({ onOpenHistory }) =
           <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center space-y-4 shadow-2xl relative">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="font-bold text-sm text-white flex items-center gap-2">
-                <QrCode className="w-4 h-4 text-[#ff5c01]" />
+                <PaymentMethodIcon method={settings.paymentSettings?.qrProvider || 'bKash'} className="w-5 h-5" />
                 <span>{settings.paymentSettings?.qrProvider || 'QR'} Payment</span>
               </h3>
               <button

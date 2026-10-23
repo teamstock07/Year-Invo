@@ -9,6 +9,7 @@ import { DeviceAuthorizationGuard } from '../common/DeviceAuthorizationGuard';
 import { findProductByCode, findProductWithStoreCheck } from '../../utils/scanner';
 import { playSuccessSound, playBeepSound } from '../../utils/audio';
 import { SyncStatusIndicator } from '../common/SyncStatusIndicator';
+import { PaymentMethodIcon } from '../common/PaymentLogos';
 import {
   ShoppingCart,
   Search,
@@ -592,13 +593,24 @@ export const PosSystem: React.FC = () => {
                   </div>
                 ) : null}
 
-                {/* Compact Product Image */}
-                <div className="h-24 w-full rounded-lg overflow-hidden bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-700/60 mb-2">
-                  <img
-                    src={prod.imageUrl || 'https://images.unsplash.com/photo-1587049352847-4a222e784d38?auto=format&fit=crop&q=80&w=200'}
-                    alt={prod.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                  />
+                {/* Compact Product Image - Square Shaped */}
+                <div className="aspect-square w-full rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 mb-2.5 relative flex items-center justify-center shadow-2xs">
+                  {prod.imageUrl ? (
+                    <img
+                      src={prod.imageUrl}
+                      alt={prod.name}
+                      className="w-full h-full aspect-square object-cover group-hover:scale-105 transition-transform duration-200"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-850 text-slate-700 dark:text-slate-200 p-2 text-center">
+                      <span className="font-black text-sm uppercase tracking-wider">
+                        {prod.name ? prod.name.trim().slice(0, 2).toUpperCase() : 'PR'}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -865,11 +877,10 @@ export const PosSystem: React.FC = () => {
             <div className="grid grid-cols-4 gap-1.5">
               {[
                 { id: 'Cash', label: 'Cash', icon: Banknote },
-                { id: 'bKash/Mobile', label: 'QR / Mobile', icon: Smartphone },
+                { id: 'bKash/Mobile', label: 'bKash / MFS', icon: Smartphone },
                 { id: 'Card', label: 'Card', icon: CreditCard },
                 { id: 'Due/Credit', label: 'Due / Credit', icon: Tag },
               ].map((pm) => {
-                const Icon = pm.icon;
                 const isSelected = paymentMethod === pm.id;
                 return (
                   <button
@@ -881,13 +892,13 @@ export const PosSystem: React.FC = () => {
                         setIsQrPaymentModalOpen(true);
                       }
                     }}
-                    className={`py-1.5 px-1 rounded-xl text-[10px] font-bold flex flex-col items-center justify-center gap-1 border transition-all cursor-pointer relative ${
+                    className={`py-2 px-1 rounded-xl text-[10px] font-bold flex flex-col items-center justify-center gap-1 border transition-all cursor-pointer relative ${
                       isSelected
                         ? 'bg-[#ff5c01] text-white border-[#ff5c01] shadow-xs'
                         : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300'
                     }`}
                   >
-                    <Icon className="w-3.5 h-3.5" />
+                    <PaymentMethodIcon method={pm.id} className="w-4 h-4 shrink-0" />
                     <span>{pm.label}</span>
                   </button>
                 );
@@ -942,7 +953,7 @@ export const PosSystem: React.FC = () => {
           <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center space-y-4 shadow-2xl relative">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="font-bold text-sm text-white flex items-center gap-2">
-                <QrCode className="w-4 h-4 text-[#ff5c01]" />
+                <PaymentMethodIcon method={settings.paymentSettings?.qrProvider || 'bKash'} className="w-5 h-5" />
                 <span>{settings.paymentSettings?.qrProvider || 'QR'} Payment</span>
               </h3>
               <button

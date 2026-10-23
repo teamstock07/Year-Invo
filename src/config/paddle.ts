@@ -1,8 +1,11 @@
 import { BillingCycle } from '../types';
 
+export type PaddleBillingDuration = 'monthly' | '6_month' | 'yearly' | '5_year';
+
 export interface PaddlePlanMapping {
-  plan: 'Pro' | 'Business' | 'Premium';
+  plan: 'Pro' | 'Premium';
   billingCycle: BillingCycle;
+  billingDuration: PaddleBillingDuration;
   priceId: string;
 }
 
@@ -16,7 +19,7 @@ const getMetaEnv = (): Record<string, string> => {
 
 const metaEnv = getMetaEnv();
 
-const getEnv = (metaVal: string | undefined, processKey: string, fallback: string): string => {
+const getEnv = (metaVal: string | undefined, processKey: string, fallback: string = ''): string => {
   let val = metaVal;
   if (!val && typeof process !== 'undefined' && process.env && process.env[processKey]) {
     val = process.env[processKey];
@@ -24,119 +27,261 @@ const getEnv = (metaVal: string | undefined, processKey: string, fallback: strin
   if (!val) {
     val = fallback;
   }
-  return val.trim().replace(/^["']|["']$/g, '').trim();
+  return (val || '').trim().replace(/^["']|["']$/g, '').trim();
 };
 
-const explicitEnv = getEnv(metaEnv.VITE_PADDLE_ENVIRONMENT, 'VITE_PADDLE_ENVIRONMENT', '');
-const explicitToken = getEnv(metaEnv.VITE_PADDLE_CLIENT_TOKEN, 'VITE_PADDLE_CLIENT_TOKEN', '');
+// 1. Paddle Environment ('production' | 'sandbox')
+const rawEnv =
+  getEnv(metaEnv.VITE_PADDLE_ENVIRONMENT, 'VITE_PADDLE_ENVIRONMENT', '') ||
+  getEnv(metaEnv.PADDLE_ENVIRONMENT, 'PADDLE_ENVIRONMENT', '') ||
+  (typeof process !== 'undefined' && process.env?.PADDLE_ENVIRONMENT) ||
+  '';
 
-// Determine environment
-const environment: 'sandbox' | 'production' =
-  explicitEnv === 'production'
-    ? 'production'
-    : explicitEnv === 'sandbox'
+const explicitToken =
+  getEnv(metaEnv.VITE_PADDLE_CLIENT_TOKEN, 'VITE_PADDLE_CLIENT_TOKEN', '') ||
+  getEnv(metaEnv.PADDLE_CLIENT_TOKEN, 'PADDLE_CLIENT_TOKEN', '') ||
+  (typeof process !== 'undefined' && process.env?.PADDLE_CLIENT_TOKEN) ||
+  '';
+
+export const environment: 'sandbox' | 'production' =
+  rawEnv === 'sandbox' || (explicitToken.startsWith('test_') && rawEnv !== 'production')
     ? 'sandbox'
-    : explicitToken.startsWith('live_')
-    ? 'production'
-    : 'sandbox';
+    : 'production';
 
-// Determine clientToken: ensure token prefix matches target environment
-let clientToken = explicitToken;
-if (!clientToken) {
-  clientToken =
-    environment === 'production'
-      ? 'live_ff98bcb698b681e88f039a1097b'
-      : 'test_4edba2ed321c928c96b435a966d';
-} else if (environment === 'sandbox' && clientToken.startsWith('live_')) {
-  console.warn(
-    '[PADDLE CONFIG] Live token provided for Sandbox environment. Falling back to Sandbox token (test_...) to match Sandbox Price IDs.'
-  );
-  clientToken = 'test_4edba2ed321c928c96b435a966d';
-} else if (environment === 'production' && clientToken.startsWith('test_')) {
-  console.warn(
-    '[PADDLE CONFIG] Test token provided for Production environment. Falling back to Live token for Production.'
-  );
-  clientToken = 'live_ff98bcb698b681e88f039a1097b';
-}
+// 2. Paddle Client-side Token (Public - never secret keys)
+export const clientToken = explicitToken || '';
+
+// 3. Exactly EIGHT Paid Price IDs Configuration
+// PRO (Monthly, 6 Months, Yearly, 5 Years)
+const proMonthlyPriceId =
+  getEnv(metaEnv.VITE_PADDLE_PRO_MONTHLY_PRICE_ID, 'PADDLE_PRO_MONTHLY_PRICE_ID', '') ||
+  getEnv(metaEnv.PADDLE_PRO_MONTHLY_PRICE_ID, 'VITE_PADDLE_PRO_MONTHLY_PRICE_ID', '') ||
+  '';
+
+const pro6MonthPriceId =
+  getEnv(metaEnv.VITE_PADDLE_PRO_6_MONTH_PRICE_ID, 'PADDLE_PRO_6_MONTH_PRICE_ID', '') ||
+  getEnv(metaEnv.PADDLE_PRO_6_MONTH_PRICE_ID, 'VITE_PADDLE_PRO_6_MONTH_PRICE_ID', '') ||
+  '';
+
+const proYearlyPriceId =
+  getEnv(metaEnv.VITE_PADDLE_PRO_YEARLY_PRICE_ID, 'PADDLE_PRO_YEARLY_PRICE_ID', '') ||
+  getEnv(metaEnv.PADDLE_PRO_YEARLY_PRICE_ID, 'VITE_PADDLE_PRO_YEARLY_PRICE_ID', '') ||
+  '';
+
+const pro5YearPriceId =
+  getEnv(metaEnv.VITE_PADDLE_PRO_5_YEAR_PRICE_ID, 'PADDLE_PRO_5_YEAR_PRICE_ID', '') ||
+  getEnv(metaEnv.PADDLE_PRO_5_YEAR_PRICE_ID, 'VITE_PADDLE_PRO_5_YEAR_PRICE_ID', '') ||
+  '';
+
+// PREMIUM (Monthly, 6 Months, Yearly, 5 Years)
+const premiumMonthlyPriceId =
+  getEnv(metaEnv.VITE_PADDLE_PREMIUM_MONTHLY_PRICE_ID, 'PADDLE_PREMIUM_MONTHLY_PRICE_ID', '') ||
+  getEnv(metaEnv.PADDLE_PREMIUM_MONTHLY_PRICE_ID, 'VITE_PADDLE_PREMIUM_MONTHLY_PRICE_ID', '') ||
+  '';
+
+const premium6MonthPriceId =
+  getEnv(metaEnv.VITE_PADDLE_PREMIUM_6_MONTH_PRICE_ID, 'PADDLE_PREMIUM_6_MONTH_PRICE_ID', '') ||
+  getEnv(metaEnv.PADDLE_PREMIUM_6_MONTH_PRICE_ID, 'VITE_PADDLE_PREMIUM_6_MONTH_PRICE_ID', '') ||
+  '';
+
+const premiumYearlyPriceId =
+  getEnv(metaEnv.VITE_PADDLE_PREMIUM_YEARLY_PRICE_ID, 'PADDLE_PREMIUM_YEARLY_PRICE_ID', '') ||
+  getEnv(metaEnv.PADDLE_PREMIUM_YEARLY_PRICE_ID, 'VITE_PADDLE_PREMIUM_YEARLY_PRICE_ID', '') ||
+  '';
+
+const premium5YearPriceId =
+  getEnv(metaEnv.VITE_PADDLE_PREMIUM_5_YEAR_PRICE_ID, 'PADDLE_PREMIUM_5_YEAR_PRICE_ID', '') ||
+  getEnv(metaEnv.PADDLE_PREMIUM_5_YEAR_PRICE_ID, 'VITE_PADDLE_PREMIUM_5_YEAR_PRICE_ID', '') ||
+  '';
 
 export const PADDLE_CONFIG = {
   environment,
   clientToken,
 
   priceIds: {
-    proMonthly: getEnv(
-      metaEnv.VITE_PADDLE_PRO_MONTHLY_PRICE_ID,
-      'VITE_PADDLE_PRO_MONTHLY_PRICE_ID',
-      'pri_01kzv66qktfknx85x73xer2qgj'
-    ),
-    proYearly: getEnv(
-      metaEnv.VITE_PADDLE_PRO_YEARLY_PRICE_ID,
-      'VITE_PADDLE_PRO_YEARLY_PRICE_ID',
-      'pri_01kzv6jmxvp82kaym27fpt92dn'
-    ),
-    proFiveYear: getEnv(
-      metaEnv.VITE_PADDLE_PRO_FIVE_YEAR_PRICE_ID,
-      'VITE_PADDLE_PRO_FIVE_YEAR_PRICE_ID',
-      'pri_01kzv6jmxvp82kaym27fpt95yr'
-    ),
-    premiumMonthly: getEnv(
-      metaEnv.VITE_PADDLE_PREMIUM_MONTHLY_PRICE_ID,
-      'VITE_PADDLE_PREMIUM_MONTHLY_PRICE_ID',
-      'pri_01kzv6fev3d3n02cwx6bzdwsag'
-    ),
-    premiumYearly: getEnv(
-      metaEnv.VITE_PADDLE_PREMIUM_YEARLY_PRICE_ID,
-      'VITE_PADDLE_PREMIUM_YEARLY_PRICE_ID',
-      'pri_01kzv6m5hxxgsc4x829zy2bnhe'
-    ),
-    premiumFiveYear: getEnv(
-      metaEnv.VITE_PADDLE_PREMIUM_FIVE_YEAR_PRICE_ID,
-      'VITE_PADDLE_PREMIUM_FIVE_YEAR_PRICE_ID',
-      'pri_01kzv6m5hxxgsc4x829zy2b5yr'
-    ),
+    // Pro Tier (4 Durations)
+    proMonthly: proMonthlyPriceId,
+    pro6Month: pro6MonthPriceId,
+    proYearly: proYearlyPriceId,
+    pro5Year: pro5YearPriceId,
+
+    // Aliases for compatibility
+    proBase: proMonthlyPriceId,
+    proSixMonth: pro6MonthPriceId,
+    proFiveYear: pro5YearPriceId,
+
+    // Premium Tier (4 Durations)
+    premiumMonthly: premiumMonthlyPriceId,
+    premium6Month: premium6MonthPriceId,
+    premiumYearly: premiumYearlyPriceId,
+    premium5Year: premium5YearPriceId,
+
+    // Aliases for compatibility
+    premiumBase: premiumMonthlyPriceId,
+    premiumSixMonth: premium6MonthPriceId,
+    premiumFiveYear: premium5YearPriceId,
   },
 };
 
 /**
- * Returns the exact Paddle Price ID for a given plan and billing cycle.
+ * Dynamically synchronizes Paddle configuration with the server runtime endpoint (/api/paddle/config)
+ * if client-side variables were not baked in at build time.
+ */
+let syncPromise: Promise<typeof PADDLE_CONFIG> | null = null;
+
+export const syncPaddleRuntimeConfig = async (): Promise<typeof PADDLE_CONFIG> => {
+  if (typeof window === 'undefined') {
+    return PADDLE_CONFIG;
+  }
+
+  if (syncPromise) {
+    return syncPromise;
+  }
+
+  syncPromise = (async () => {
+    try {
+      const res = await fetch('/api/paddle/config');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.environment) {
+          PADDLE_CONFIG.environment = data.environment;
+        }
+        if (data.clientToken && !PADDLE_CONFIG.clientToken) {
+          PADDLE_CONFIG.clientToken = data.clientToken;
+        }
+        if (data.priceIds) {
+          if (data.priceIds.proMonthly) {
+            PADDLE_CONFIG.priceIds.proMonthly = data.priceIds.proMonthly;
+            PADDLE_CONFIG.priceIds.proBase = data.priceIds.proMonthly;
+          }
+          if (data.priceIds.pro6Month) {
+            PADDLE_CONFIG.priceIds.pro6Month = data.priceIds.pro6Month;
+            PADDLE_CONFIG.priceIds.proSixMonth = data.priceIds.pro6Month;
+          }
+          if (data.priceIds.proYearly) {
+            PADDLE_CONFIG.priceIds.proYearly = data.priceIds.proYearly;
+          }
+          if (data.priceIds.pro5Year) {
+            PADDLE_CONFIG.priceIds.pro5Year = data.priceIds.pro5Year;
+            PADDLE_CONFIG.priceIds.proFiveYear = data.priceIds.pro5Year;
+          }
+
+          if (data.priceIds.premiumMonthly) {
+            PADDLE_CONFIG.priceIds.premiumMonthly = data.priceIds.premiumMonthly;
+            PADDLE_CONFIG.priceIds.premiumBase = data.priceIds.premiumMonthly;
+          }
+          if (data.priceIds.premium6Month) {
+            PADDLE_CONFIG.priceIds.premium6Month = data.priceIds.premium6Month;
+            PADDLE_CONFIG.priceIds.premiumSixMonth = data.priceIds.premium6Month;
+          }
+          if (data.priceIds.premiumYearly) {
+            PADDLE_CONFIG.priceIds.premiumYearly = data.priceIds.premiumYearly;
+          }
+          if (data.priceIds.premium5Year) {
+            PADDLE_CONFIG.priceIds.premium5Year = data.priceIds.premium5Year;
+            PADDLE_CONFIG.priceIds.premiumFiveYear = data.priceIds.premium5Year;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[PADDLE CONFIG] Could not fetch server runtime config, using local config:', err);
+    }
+    return PADDLE_CONFIG;
+  })();
+
+  return syncPromise;
+};
+
+// Initiate non-blocking runtime configuration fetch in browser
+if (typeof window !== 'undefined') {
+  syncPaddleRuntimeConfig().catch(() => {});
+}
+
+/**
+ * Returns the exact Paddle Price ID for a given plan and billing cycle/duration.
  */
 export const getPaddlePriceId = (
-  plan: 'Pro' | 'Business' | 'Premium',
-  billingCycle: BillingCycle
+  plan: 'Pro' | 'Business' | 'Premium' | 'Lifetime' | string,
+  billingCycle: BillingCycle | string
 ): string => {
-  const isPremium = plan === 'Premium' || plan === 'Business';
-  if (isPremium) {
-    if (billingCycle === 'five_year') return PADDLE_CONFIG.priceIds.premiumFiveYear;
-    if (billingCycle === 'yearly') return PADDLE_CONFIG.priceIds.premiumYearly;
-    return PADDLE_CONFIG.priceIds.premiumMonthly;
+  const normPlan = plan === 'Premium' || plan === 'Business' || plan === 'Lifetime' ? 'Premium' : 'Pro';
+  const normCycle = (billingCycle || 'monthly').toString().toLowerCase();
+
+  const isSixMonths = normCycle === 'six_months' || normCycle === '6_month' || normCycle === '6months';
+  const isYearly = normCycle === 'yearly' || normCycle === '1_year' || normCycle === 'annual';
+  const isFiveYear = normCycle === 'five_year' || normCycle === '5_year' || normCycle === '5years';
+
+  if (normPlan === 'Premium') {
+    if (isFiveYear) return PADDLE_CONFIG.priceIds.premium5Year || PADDLE_CONFIG.priceIds.premiumFiveYear;
+    if (isYearly) return PADDLE_CONFIG.priceIds.premiumYearly;
+    if (isSixMonths) return PADDLE_CONFIG.priceIds.premium6Month || PADDLE_CONFIG.priceIds.premiumSixMonth;
+    return PADDLE_CONFIG.priceIds.premiumMonthly || PADDLE_CONFIG.priceIds.premiumBase;
   }
-  if (billingCycle === 'five_year') return PADDLE_CONFIG.priceIds.proFiveYear;
-  if (billingCycle === 'yearly') return PADDLE_CONFIG.priceIds.proYearly;
-  return PADDLE_CONFIG.priceIds.proMonthly;
+
+  // Pro Plan
+  if (isFiveYear) return PADDLE_CONFIG.priceIds.pro5Year || PADDLE_CONFIG.priceIds.proFiveYear;
+  if (isYearly) return PADDLE_CONFIG.priceIds.proYearly;
+  if (isSixMonths) return PADDLE_CONFIG.priceIds.pro6Month || PADDLE_CONFIG.priceIds.proSixMonth;
+  return PADDLE_CONFIG.priceIds.proMonthly || PADDLE_CONFIG.priceIds.proBase;
 };
 
 /**
- * Determines plan name and billing cycle from a given Paddle Price ID.
+ * Determines plan name and billing cycle/duration from a given Paddle Price ID.
  */
 export const getPlanAndCycleFromPriceId = (
   priceId: string
-): { plan: 'Pro' | 'Premium'; billingCycle: BillingCycle } => {
+): {
+  plan: 'Pro' | 'Premium';
+  billingCycle: BillingCycle;
+  billingDuration: PaddleBillingDuration;
+} => {
+  const cleanId = (priceId || '').trim();
   const { priceIds } = PADDLE_CONFIG;
-  if (priceId === priceIds.premiumFiveYear) {
-    return { plan: 'Premium', billingCycle: 'five_year' };
-  }
-  if (priceId === priceIds.premiumYearly) {
-    return { plan: 'Premium', billingCycle: 'yearly' };
-  }
-  if (priceId === priceIds.premiumMonthly) {
-    return { plan: 'Premium', billingCycle: 'monthly' };
-  }
-  if (priceId === priceIds.proFiveYear) {
-    return { plan: 'Pro', billingCycle: 'five_year' };
-  }
-  if (priceId === priceIds.proYearly) {
-    return { plan: 'Pro', billingCycle: 'yearly' };
-  }
-  return { plan: 'Pro', billingCycle: 'monthly' };
-};
 
+  // Check Premium Price IDs
+  if (cleanId && (
+    cleanId === priceIds.premium5Year ||
+    cleanId === priceIds.premiumFiveYear ||
+    cleanId === priceIds.premiumYearly ||
+    cleanId === priceIds.premium6Month ||
+    cleanId === priceIds.premiumSixMonth ||
+    cleanId === priceIds.premiumMonthly ||
+    cleanId === priceIds.premiumBase
+  )) {
+    if (cleanId === priceIds.premium5Year || cleanId === priceIds.premiumFiveYear) {
+      return { plan: 'Premium', billingCycle: 'five_year', billingDuration: '5_year' };
+    }
+    if (cleanId === priceIds.premiumYearly) {
+      return { plan: 'Premium', billingCycle: 'yearly', billingDuration: 'yearly' };
+    }
+    if (cleanId === priceIds.premium6Month || cleanId === priceIds.premiumSixMonth) {
+      return { plan: 'Premium', billingCycle: 'six_months', billingDuration: '6_month' };
+    }
+    return { plan: 'Premium', billingCycle: 'monthly', billingDuration: 'monthly' };
+  }
+
+  // Check Pro Price IDs
+  if (cleanId && (
+    cleanId === priceIds.pro5Year ||
+    cleanId === priceIds.proFiveYear ||
+    cleanId === priceIds.proYearly ||
+    cleanId === priceIds.pro6Month ||
+    cleanId === priceIds.proSixMonth ||
+    cleanId === priceIds.proMonthly ||
+    cleanId === priceIds.proBase
+  )) {
+    if (cleanId === priceIds.pro5Year || cleanId === priceIds.proFiveYear) {
+      return { plan: 'Pro', billingCycle: 'five_year', billingDuration: '5_year' };
+    }
+    if (cleanId === priceIds.proYearly) {
+      return { plan: 'Pro', billingCycle: 'yearly', billingDuration: 'yearly' };
+    }
+    if (cleanId === priceIds.pro6Month || cleanId === priceIds.proSixMonth) {
+      return { plan: 'Pro', billingCycle: 'six_months', billingDuration: '6_month' };
+    }
+    return { plan: 'Pro', billingCycle: 'monthly', billingDuration: 'monthly' };
+  }
+
+  // Fallback defaults
+  return { plan: 'Pro', billingCycle: 'monthly', billingDuration: 'monthly' };
+};

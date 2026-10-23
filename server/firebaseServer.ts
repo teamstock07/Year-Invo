@@ -34,10 +34,14 @@ firebaseConfig = {
   storageBucket: firebaseConfig.storageBucket || process.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: firebaseConfig.messagingSenderId || process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: firebaseConfig.appId || process.env.VITE_FIREBASE_APP_ID,
+  firestoreDatabaseId: firebaseConfig.firestoreDatabaseId || process.env.VITE_FIREBASE_DATABASE_ID,
 };
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
-export const serverDb = getFirestore(app);
+const dbId = firebaseConfig.firestoreDatabaseId;
+export const serverDb = dbId && dbId !== '(default)'
+  ? getFirestore(app, dbId)
+  : getFirestore(app);
 
 export {
   doc,

@@ -222,11 +222,22 @@ export const CategoryBrandView: React.FC = () => {
                   className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 shadow-xs hover:border-[#ff5c01]/40 transition-all"
                 >
                   <div className="flex items-center gap-3 overflow-hidden">
-                    <img
-                      src={prod.imageUrl || 'https://images.unsplash.com/photo-1587049352847-4a222e784d38?auto=format&fit=crop&q=80&w=200'}
-                      alt={prod.name}
-                      className="w-12 h-12 rounded-xl object-cover bg-slate-200 dark:bg-slate-800 shrink-0"
-                    />
+                    {prod.imageUrl ? (
+                      <div className="w-12 h-12 shrink-0 aspect-square rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs">
+                        <img
+                          src={prod.imageUrl}
+                          alt={prod.name}
+                          className="w-full h-full aspect-square object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = 'none';
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-12 h-12 shrink-0 aspect-square rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-850 flex items-center justify-center text-slate-700 dark:text-slate-200 font-black text-xs uppercase shadow-2xs border border-slate-200 dark:border-slate-700">
+                        {prod.name ? prod.name.trim().slice(0, 2).toUpperCase() : 'PR'}
+                      </div>
+                    )}
                     <div className="min-w-0">
                       <h4 className="font-bold text-xs text-slate-900 dark:text-slate-100 truncate">{prod.name}</h4>
                       <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">

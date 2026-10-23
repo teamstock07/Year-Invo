@@ -305,10 +305,19 @@ export const ExpiredProductsView: React.FC = () => {
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         {p.imageUrl ? (
-                          <img src={p.imageUrl} alt={p.name} className="w-9 h-9 rounded-xl object-cover border border-slate-200 dark:border-slate-700" />
+                          <div className="w-10 h-10 shrink-0 aspect-square rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs">
+                            <img
+                              src={p.imageUrl}
+                              alt={p.name}
+                              className="w-full h-full aspect-square object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          </div>
                         ) : (
-                          <div className="w-9 h-9 rounded-xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold text-xs">
-                            {p.name.charAt(0)}
+                          <div className="w-10 h-10 shrink-0 aspect-square rounded-xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center font-black text-xs uppercase shadow-2xs border border-rose-200 dark:border-rose-900/60">
+                            {p.name ? p.name.trim().slice(0, 2).toUpperCase() : 'EX'}
                           </div>
                         )}
                         <div>

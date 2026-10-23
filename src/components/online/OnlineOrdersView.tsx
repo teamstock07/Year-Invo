@@ -40,6 +40,8 @@ import {
   Check,
   Building,
   UserPlus,
+  Loader2,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface OnlineOrdersViewProps {
@@ -142,6 +144,11 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
   const [itemSelectProductId, setItemSelectProductId] = useState('');
   const [itemSelectQty, setItemSelectQty] = useState(1);
 
+  // Submission & Feedback States
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [orderFormError, setOrderFormError] = useState<string | null>(null);
+  const [successToast, setSuccessToast] = useState<string | null>(null);
+
   // Matching customers for search
   const filteredCustomerList = useMemo(() => {
     const list = onlineCustomers || [];
@@ -225,6 +232,7 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
     }
     setItemSelectProductId('');
     setItemSelectQty(1);
+    setOrderFormError(null);
   };
 
   const handleUpdateItemQty = (prodId: string, newQty: number) => {
@@ -262,52 +270,121 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
 
   const handleCreateOrderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedItems.length === 0) {
-      alert('Please add at least one product to the order.');
+    setOrderFormError(null);
+
+    // Auto-include product if user selected one from dropdown but didn't click "+ Add Item"
+    let currentItems = [...selectedItems];
+    if (itemSelectProductId) {
+      const prod = availableProducts.find((p) => p.id === itemSelectProductId);
+      if (prod) {
+        const unitPrice = Number(prod.sellingPrice) || 0;
+        const qty = Math.max(1, Number(itemSelectQty) || 1);
+        const existingIdx = currentItems.findIndex((i) => i.productId === prod.id);
+        if (existingIdx >= 0) {
+          const updated = [...currentItems];
+          const newQty = updated[existingIdx].quantity + qty;
+          updated[existingIdx] = {
+            ...updated[existingIdx],
+            quantity: newQty,
+            total: newQty * unitPrice,
+          };
+          currentItems = updated;
+        } else {
+          currentItems = [
+            ...currentItems,
+            {
+              productId: prod.id,
+              productName: prod.name,
+              sku: prod.sku,
+              buyingPrice: Number(prod.buyingPrice) || 0,
+              sellingPrice: unitPrice,
+              quantity: qty,
+              unit: prod.unit || 'pcs',
+              total: qty * unitPrice,
+              imageUrl: prod.imageUrl,
+            },
+          ];
+        }
+        setSelectedItems(currentItems);
+        setItemSelectProductId('');
+        setItemSelectQty(1);
+      }
+    }
+
+    // Required Field Validations
+    if (!customerName.trim()) {
+      setOrderFormError('Please enter the customer name.');
       return;
     }
-    if (!customerName.trim() || !customerPhone.trim()) {
-      alert('Please enter customer name and phone number.');
+    if (!customerPhone.trim()) {
+      setOrderFormError('Please enter the customer phone number.');
+      return;
+    }
+    if (!deliveryAddress.trim()) {
+      setOrderFormError('Please enter the delivery address.');
+      return;
+    }
+    if (currentItems.length === 0) {
+      setOrderFormError('Please select and add at least one product to the order.');
       return;
     }
 
-    const sub = itemsSubtotal;
-    const ship = Number(deliveryCharge) || 0;
-    const disc = Number(discount) || 0;
-    const finalGrandTotal = deliveryPayer === 'Customer'
-      ? Math.max(0, sub + ship - disc)
-      : Math.max(0, sub - disc);
+    try {
+      setIsSubmittingOrder(true);
+      setOrderFormError(null);
 
-    await createOnlineOrder({
-      customerId: selectedCustomerId || undefined,
-      customerName: customerName.trim(),
-      customerPhone: customerPhone.trim(),
-      customerEmail: customerEmail.trim() || undefined,
-      deliveryAddress: deliveryAddress.trim(),
-      deliveryCity,
-      deliveryPayer,
-      deliveryCharge: ship,
-      courierCost: Number(courierCost) || ship,
-      discount: disc,
-      subtotal: sub,
-      grandTotal: finalGrandTotal,
-      paymentMethod,
-      courierName,
-      trackingNumber: trackingNumber.trim() || undefined,
-      notes: orderNotes.trim() || undefined,
-      items: selectedItems,
-    });
+      const sub = currentItems.reduce(
+        (sum, item) => sum + (Number(item.total) || (Number(item.sellingPrice) || 0) * (Number(item.quantity) || 1)),
+        0
+      );
+      const ship = Number(deliveryCharge) || 0;
+      const disc = Number(discount) || 0;
+      const finalGrandTotal = deliveryPayer === 'Customer'
+        ? Math.max(0, sub + ship - disc)
+        : Math.max(0, sub - disc);
 
-    // Reset Form
-    setIsCreateModalOpen(false);
-    setSelectedItems([]);
-    setSelectedCustomerId(null);
-    setCustomerName('');
-    setCustomerPhone('');
-    setCustomerEmail('');
-    setDeliveryAddress('');
-    setDiscount(0);
-    setOrderNotes('');
+      const created = await createOnlineOrder({
+        customerId: selectedCustomerId || undefined,
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim(),
+        customerEmail: customerEmail.trim() || undefined,
+        deliveryAddress: deliveryAddress.trim(),
+        deliveryCity,
+        deliveryPayer,
+        deliveryCharge: ship,
+        courierCost: Number(courierCost) || ship,
+        discount: disc,
+        subtotal: sub,
+        grandTotal: finalGrandTotal,
+        paymentMethod,
+        courierName,
+        trackingNumber: trackingNumber.trim() || undefined,
+        notes: orderNotes.trim() || undefined,
+        items: currentItems,
+      });
+
+      // Show success toast notification
+      setSuccessToast(`Order #${created.orderNo} created successfully!`);
+      setTimeout(() => setSuccessToast(null), 5000);
+
+      // Reset Form and close modal only on success
+      setIsCreateModalOpen(false);
+      setSelectedItems([]);
+      setSelectedCustomerId(null);
+      setCustomerName('');
+      setCustomerPhone('');
+      setCustomerEmail('');
+      setDeliveryAddress('');
+      setDiscount(0);
+      setOrderNotes('');
+      setTrackingNumber('');
+      setOrderFormError(null);
+    } catch (err: any) {
+      console.error('[CreateOnlineOrder] Order submission failed:', err);
+      setOrderFormError(err?.message || 'Failed to create order. Please check the network/database connection and try again.');
+    } finally {
+      setIsSubmittingOrder(false);
+    }
   };
 
   // Filtered Orders
@@ -444,7 +521,22 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
   }, [onlineCustomers, selectedCustomerId]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {/* Floating Success Notification Toast */}
+      {successToast && (
+        <div className="fixed top-5 right-5 z-50 animate-in fade-in slide-in-from-top-3 flex items-center gap-3 px-4 py-3 bg-emerald-600 text-white rounded-2xl shadow-xl shadow-emerald-600/30 font-semibold text-xs border border-emerald-500">
+          <CheckCircle2 className="w-5 h-5 shrink-0" />
+          <span>{successToast}</span>
+          <button
+            type="button"
+            onClick={() => setSuccessToast(null)}
+            className="p-1 rounded-lg hover:bg-emerald-700 ml-2 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Top Action Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -462,6 +554,7 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
             type="button"
             onClick={() => {
               handleClearSelectedCustomer();
+              setOrderFormError(null);
               setIsCreateModalOpen(true);
             }}
             className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 rounded-xl shadow-md shadow-indigo-600/20 transition-all hover:scale-[1.01]"
@@ -810,12 +903,33 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => setIsCreateModalOpen(false)}
+                onClick={() => {
+                  setIsCreateModalOpen(false);
+                  setOrderFormError(null);
+                }}
                 className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Error Message Alert Banner */}
+            {orderFormError && (
+              <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900/60 text-rose-800 dark:text-rose-200 flex items-start gap-3 animate-in fade-in">
+                <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                <div className="flex-1 text-xs">
+                  <span className="font-bold block">Could not create order:</span>
+                  <span>{orderFormError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOrderFormError(null)}
+                  className="text-rose-400 hover:text-rose-600 dark:hover:text-rose-200 p-0.5"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
             <form onSubmit={handleCreateOrderSubmit} className="space-y-4 text-xs">
               {/* CUSTOMER SELECTION SECTION */}
@@ -1316,22 +1430,53 @@ export const OnlineOrdersView: React.FC<OnlineOrdersViewProps> = ({
               </div>
 
               {/* Submit Buttons */}
-              <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="px-4 py-2.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={selectedItems.length === 0}
-                  className="inline-flex items-center gap-1.5 px-5 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl shadow transition-colors"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Create Order</span>
-                </button>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {selectedItems.length > 0 ? (
+                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                      <Check className="w-3.5 h-3.5" />
+                      {selectedItems.length} {selectedItems.length === 1 ? 'item' : 'items'} added to order
+                    </span>
+                  ) : itemSelectProductId ? (
+                    <span className="text-indigo-600 dark:text-indigo-400 font-medium">
+                      Selected product will be automatically added when you click Create Order
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">
+                      Select and add at least 1 product above
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center justify-end gap-2.5">
+                  <button
+                    type="button"
+                    disabled={isSubmittingOrder}
+                    onClick={() => {
+                      setIsCreateModalOpen(false);
+                      setOrderFormError(null);
+                    }}
+                    className="px-4 py-2.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl disabled:opacity-50 cursor-pointer transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingOrder}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-60 disabled:cursor-not-allowed rounded-xl shadow-md shadow-indigo-600/20 transition-all cursor-pointer hover:scale-[1.01]"
+                  >
+                    {isSubmittingOrder ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Creating Order...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Create Order</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

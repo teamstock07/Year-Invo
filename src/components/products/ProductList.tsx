@@ -297,17 +297,19 @@ export const ProductList: React.FC = () => {
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         {p.imageUrl ? (
-                          <img
-                            src={p.imageUrl}
-                            alt={p.name}
-                            className="w-10 h-10 rounded-xl object-cover bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
-                            onError={(e) => {
-                              (e.target as HTMLElement).style.display = 'none';
-                            }}
-                          />
+                          <div className="w-11 h-11 shrink-0 aspect-square rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs">
+                            <img
+                              src={p.imageUrl}
+                              alt={p.name}
+                              className="w-full h-full aspect-square object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          </div>
                         ) : (
-                          <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400">
-                            <Package className="w-5 h-5 opacity-60" />
+                          <div className="w-11 h-11 shrink-0 aspect-square rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-850 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-black text-xs uppercase tracking-wider shadow-2xs">
+                            {p.name ? p.name.trim().slice(0, 2).toUpperCase() : <Package className="w-5 h-5 text-slate-400" />}
                           </div>
                         )}
                         <div>

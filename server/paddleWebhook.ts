@@ -10,7 +10,6 @@ import {
   query,
   where,
   getDocs,
-  addDoc,
 } from './firebaseServer';
 
 /**
@@ -52,7 +51,7 @@ export function verifyPaddleWebhookSignature(
 export async function handlePaddleWebhook(req: Request & { rawBody?: string }, res: Response) {
   try {
     const webhookSecret = process.env.PADDLE_WEBHOOK_SECRET;
-    const signatureHeader = req.headers['paddle-signature'] as string | undefined;
+    const signatureHeader = (req.headers['paddle-signature'] || req.headers['Paddle-Signature']) as string | undefined;
     const rawBody = req.rawBody || JSON.stringify(req.body);
 
     // Validate Signature if webhook secret is configured
@@ -63,12 +62,12 @@ export async function handlePaddleWebhook(req: Request & { rawBody?: string }, r
         return res.status(401).json({ error: 'Invalid Paddle webhook signature' });
       }
     } else {
-      console.log('[Paddle Webhook] PADDLE_WEBHOOK_SECRET not set; proceeding with unverified webhook processing (Sandbox Mode).');
+      console.log('[Paddle Webhook] PADDLE_WEBHOOK_SECRET not set; processing without signature validation (Sandbox/Testing).');
     }
 
     const payload = req.body;
     const eventId = payload.event_id || payload.id || `evt_${Date.now()}`;
-    const eventType = payload.event_type || payload.action || 'unknown';
+    const eventType = (payload.event_type || payload.action || 'unknown').toLowerCase();
     const data = payload.data || {};
 
     console.log(`[Paddle Webhook Received] Event: ${eventType} (ID: ${eventId})`);
@@ -77,56 +76,88 @@ export async function handlePaddleWebhook(req: Request & { rawBody?: string }, r
     const eventDocRef = doc(serverDb, 'paddle_events', eventId);
     const existingEventDoc = await getDoc(eventDocRef);
     if (existingEventDoc.exists()) {
-      console.log(`[Paddle Webhook] Event ${eventId} already processed. Skipping.`);
+      console.log(`[Paddle Webhook] Event ${eventId} already processed. Skipping duplicate.`);
       return res.status(200).json({ status: 'ok', message: 'Event already processed' });
     }
 
-    // Extract metadata from custom_data
+    // Extract metadata from custom_data & items
     const customData = data.custom_data || data.items?.[0]?.custom_data || {};
     const userId = customData.userId || customData.user_id;
     const userEmail = customData.userEmail || customData.user_email || data.customer?.email || data.customer_email;
     const priceId = data.items?.[0]?.price?.id || data.items?.[0]?.price_id || data.price_id || '';
 
-    // Price ID mapping
-    const PRICE_PRO_MONTHLY = process.env.VITE_PADDLE_PRO_MONTHLY_PRICE_ID || 'pri_01kzv66qktfknx85x73xer2qgj';
-    const PRICE_PRO_YEARLY = process.env.VITE_PADDLE_PRO_YEARLY_PRICE_ID || 'pri_01kzv6jmxvp82kaym27fpt92dn';
-    const PRICE_PRO_FIVE_YEAR = process.env.VITE_PADDLE_PRO_FIVE_YEAR_PRICE_ID || 'pri_01kzv6jmxvp82kaym27fpt95yr';
-    const PRICE_PREMIUM_MONTHLY = process.env.VITE_PADDLE_PREMIUM_MONTHLY_PRICE_ID || 'pri_01kzv6fev3d3n02cwx6bzdwsag';
-    const PRICE_PREMIUM_YEARLY = process.env.VITE_PADDLE_PREMIUM_YEARLY_PRICE_ID || 'pri_01kzv6m5hxxgsc4x829zy2bnhe';
-    const PRICE_PREMIUM_FIVE_YEAR = process.env.VITE_PADDLE_PREMIUM_FIVE_YEAR_PRICE_ID || 'pri_01kzv6m5hxxgsc4x829zy2b5yr';
+    // Exactly 8 Paddle Price IDs from environment variables
+    const PRO_MONTHLY = (process.env.PADDLE_PRO_MONTHLY_PRICE_ID || process.env.VITE_PADDLE_PRO_MONTHLY_PRICE_ID || process.env.PADDLE_PRO_PRICE_ID || '').trim();
+    const PRO_6_MONTH = (process.env.PADDLE_PRO_6_MONTH_PRICE_ID || process.env.VITE_PADDLE_PRO_6_MONTH_PRICE_ID || process.env.PADDLE_PRO_SIX_MONTH_PRICE_ID || process.env.VITE_PADDLE_PRO_SIX_MONTH_PRICE_ID || '').trim();
+    const PRO_YEARLY = (process.env.PADDLE_PRO_YEARLY_PRICE_ID || process.env.VITE_PADDLE_PRO_YEARLY_PRICE_ID || '').trim();
+    const PRO_5_YEAR = (process.env.PADDLE_PRO_5_YEAR_PRICE_ID || process.env.VITE_PADDLE_PRO_5_YEAR_PRICE_ID || process.env.PADDLE_PRO_FIVE_YEAR_PRICE_ID || '').trim();
 
-    let targetPlan: 'Pro' | 'Business' = 'Pro';
-    let billingCycle: 'monthly' | 'yearly' | 'five_year' = 'monthly';
+    const PREMIUM_MONTHLY = (process.env.PADDLE_PREMIUM_MONTHLY_PRICE_ID || process.env.VITE_PADDLE_PREMIUM_MONTHLY_PRICE_ID || process.env.PADDLE_PREMIUM_PRICE_ID || '').trim();
+    const PREMIUM_6_MONTH = (process.env.PADDLE_PREMIUM_6_MONTH_PRICE_ID || process.env.VITE_PADDLE_PREMIUM_6_MONTH_PRICE_ID || process.env.PADDLE_PREMIUM_SIX_MONTH_PRICE_ID || process.env.VITE_PADDLE_PREMIUM_SIX_MONTH_PRICE_ID || '').trim();
+    const PREMIUM_YEARLY = (process.env.PADDLE_PREMIUM_YEARLY_PRICE_ID || process.env.VITE_PADDLE_PREMIUM_YEARLY_PRICE_ID || '').trim();
+    const PREMIUM_5_YEAR = (process.env.PADDLE_PREMIUM_5_YEAR_PRICE_ID || process.env.VITE_PADDLE_PREMIUM_5_YEAR_PRICE_ID || process.env.PADDLE_PREMIUM_FIVE_YEAR_PRICE_ID || '').trim();
 
+    // Determine target plan ('Pro' or 'Premium')
+    let targetPlan: 'Pro' | 'Premium' = 'Pro';
+    let billingDuration: 'monthly' | '6_month' | 'yearly' | '5_year' = 'monthly';
+    let billingCycle: 'monthly' | 'six_months' | 'yearly' | 'five_year' = 'monthly';
+
+    const cleanPriceId = (priceId || '').trim();
+
+    // Check Premium matches
     if (
-      priceId === PRICE_PREMIUM_MONTHLY ||
-      priceId === PRICE_PREMIUM_YEARLY ||
-      priceId === PRICE_PREMIUM_FIVE_YEAR ||
-      customData.requestedPlan === 'Business' ||
-      customData.requestedPlan === 'Premium'
+      (PREMIUM_MONTHLY && cleanPriceId === PREMIUM_MONTHLY) ||
+      (PREMIUM_6_MONTH && cleanPriceId === PREMIUM_6_MONTH) ||
+      (PREMIUM_YEARLY && cleanPriceId === PREMIUM_YEARLY) ||
+      (PREMIUM_5_YEAR && cleanPriceId === PREMIUM_5_YEAR) ||
+      customData.requestedPlan === 'Premium' ||
+      customData.requestedPlan === 'Business'
     ) {
-      targetPlan = 'Business';
-    } else if (
-      priceId === PRICE_PRO_MONTHLY ||
-      priceId === PRICE_PRO_YEARLY ||
-      priceId === PRICE_PRO_FIVE_YEAR ||
-      customData.requestedPlan === 'Pro'
-    ) {
+      targetPlan = 'Premium';
+      if (PREMIUM_5_YEAR && cleanPriceId === PREMIUM_5_YEAR) {
+        billingDuration = '5_year';
+        billingCycle = 'five_year';
+      } else if (PREMIUM_YEARLY && cleanPriceId === PREMIUM_YEARLY) {
+        billingDuration = 'yearly';
+        billingCycle = 'yearly';
+      } else if (PREMIUM_6_MONTH && cleanPriceId === PREMIUM_6_MONTH) {
+        billingDuration = '6_month';
+        billingCycle = 'six_months';
+      } else if (PREMIUM_MONTHLY && cleanPriceId === PREMIUM_MONTHLY) {
+        billingDuration = 'monthly';
+        billingCycle = 'monthly';
+      }
+    } else {
+      // Pro matches
       targetPlan = 'Pro';
+      if (PRO_5_YEAR && cleanPriceId === PRO_5_YEAR) {
+        billingDuration = '5_year';
+        billingCycle = 'five_year';
+      } else if (PRO_YEARLY && cleanPriceId === PRO_YEARLY) {
+        billingDuration = 'yearly';
+        billingCycle = 'yearly';
+      } else if (PRO_6_MONTH && cleanPriceId === PRO_6_MONTH) {
+        billingDuration = '6_month';
+        billingCycle = 'six_months';
+      } else if (PRO_MONTHLY && cleanPriceId === PRO_MONTHLY) {
+        billingDuration = 'monthly';
+        billingCycle = 'monthly';
+      }
     }
 
-    if (
-      priceId === PRICE_PRO_FIVE_YEAR ||
-      priceId === PRICE_PREMIUM_FIVE_YEAR ||
-      customData.billingCycle === 'five_year'
-    ) {
-      billingCycle = 'five_year';
-    } else if (
-      priceId === PRICE_PRO_YEARLY ||
-      priceId === PRICE_PREMIUM_YEARLY ||
-      customData.billingCycle === 'yearly'
-    ) {
-      billingCycle = 'yearly';
+    // Secondary fallback from customData if priceId was unconfigured
+    if (customData.billingCycle) {
+      const cc = customData.billingCycle.toLowerCase();
+      if (cc === 'five_year' || cc === '5_year') {
+        billingDuration = '5_year';
+        billingCycle = 'five_year';
+      } else if (cc === 'yearly' || cc === '1_year') {
+        billingDuration = 'yearly';
+        billingCycle = 'yearly';
+      } else if (cc === 'six_months' || cc === '6_month') {
+        billingDuration = '6_month';
+        billingCycle = 'six_months';
+      }
     }
 
     // Locate target user document in Firestore
@@ -152,65 +183,78 @@ export async function handlePaddleWebhook(req: Request & { rawBody?: string }, r
       }
     }
 
+    // Categorize Event Types
     const isActiveEvent = [
       'subscription.created',
       'subscription.updated',
       'subscription.activated',
+      'subscription.resumed',
       'transaction.completed',
       'transaction.paid',
     ].includes(eventType);
 
-    const isCancelEvent = [
-      'subscription.canceled',
-      'subscription.past_due',
-    ].includes(eventType);
+    const isPastDueEvent = eventType === 'subscription.past_due';
+    const isPausedEvent = eventType === 'subscription.paused';
+    const isCancelEvent = eventType === 'subscription.canceled' || eventType === 'subscription.cancelled';
 
     if (isActiveEvent && targetUserDocRef) {
       const periodDurationMs =
-        billingCycle === 'five_year'
+        billingDuration === '5_year'
           ? 5 * 365 * 24 * 60 * 60 * 1000
-          : billingCycle === 'yearly'
+          : billingDuration === 'yearly'
           ? 365 * 24 * 60 * 60 * 1000
+          : billingDuration === '6_month'
+          ? 180 * 24 * 60 * 60 * 1000
           : 30 * 24 * 60 * 60 * 1000;
+
       const startsAt = data.current_billing_period?.starts_at || new Date().toISOString();
       const endsAt = data.current_billing_period?.ends_at || new Date(Date.now() + periodDurationMs).toISOString();
+      const scheduledChange = data.scheduled_change;
+      const cancelAtPeriodEnd = scheduledChange?.action === 'cancel' || Boolean(data.cancel_at_period_end);
 
       const updateData = {
+        userId: targetUserId,
+        plan: targetPlan.toLowerCase(),
         subscriptionPlan: targetPlan,
         subscription: targetPlan.toLowerCase(),
-        subscriptionStatus: 'active',
-        startDate: startsAt,
-        expiryDate: endsAt,
-        billingPeriod: billingCycle,
+        billingDuration: billingDuration,
         billingCycle: billingCycle,
-        transactionId: data.id || data.transaction_id || `PADDLE_${Date.now()}`,
+        subscriptionStatus: 'active',
         paddleCustomerId: data.customer_id || data.customer?.id || '',
         paddleSubscriptionId: data.id || data.subscription_id || '',
-        paddlePriceId: priceId,
+        paddleTransactionId: data.transaction_id || data.id || `PADDLE_${Date.now()}`,
+        paddlePriceId: cleanPriceId,
+        currentPeriodStart: startsAt,
+        currentPeriodEnd: endsAt,
+        cancelAtPeriodEnd,
+        startDate: startsAt,
+        expiryDate: endsAt,
         paymentProvider: 'Paddle',
         paymentMethod: 'Paddle Billing',
         paymentRegion: 'international',
-        currentPeriodStart: startsAt,
-        currentPeriodEnd: endsAt,
         updatedAt: new Date().toISOString(),
       };
 
       await updateDoc(targetUserDocRef, updateData);
-      console.log(`[Paddle Webhook] Updated user ${targetUserId} to ${targetPlan} Plan (${billingCycle})`);
+      console.log(`[Paddle Webhook] Updated user ${targetUserId} to plan=${targetPlan.toLowerCase()} (billingDuration=${billingDuration}, status=active)`);
 
-      // Add / Update subscription request record in Firestore
+      // Add / Update subscription history record in Firestore
       const reqId = `paddle_${data.id || Date.now()}`;
       const chargedAmount =
-        targetPlan === 'Business'
-          ? billingCycle === 'five_year'
-            ? 225
-            : billingCycle === 'yearly'
-            ? 51
-            : 5
-          : billingCycle === 'five_year'
-          ? 67.50
-          : billingCycle === 'yearly'
-          ? 9.00
+        targetPlan === 'Premium'
+          ? billingDuration === '5_year'
+            ? 120.00
+            : billingDuration === 'yearly'
+            ? 30.00
+            : billingDuration === '6_month'
+            ? 17.85
+            : 3.50
+          : billingDuration === '5_year'
+          ? 60.00
+          : billingDuration === 'yearly'
+          ? 14.40
+          : billingDuration === '6_month'
+          ? 7.65
           : 1.50;
 
       await setDoc(
@@ -220,35 +264,55 @@ export async function handlePaddleWebhook(req: Request & { rawBody?: string }, r
           userId: targetUserId,
           userEmail: userEmail || '',
           requestedPlan: targetPlan,
+          plan: targetPlan.toLowerCase(),
           currentPlan: 'Free',
           billingCycle: billingCycle,
+          billingDuration: billingDuration,
           paymentMethod: 'Paddle Billing',
           paymentProvider: 'Paddle',
           paymentRegion: 'international',
           currency: 'USD',
-          transactionId: data.id || data.transaction_id || `TRX_${Date.now()}`,
+          transactionId: data.transaction_id || data.id || `TRX_${Date.now()}`,
+          paddleCustomerId: data.customer_id || data.customer?.id || '',
+          paddleSubscriptionId: data.id || data.subscription_id || '',
+          paddlePriceId: cleanPriceId,
           amount: chargedAmount,
           status: 'approved',
           requestDate: new Date().toISOString(),
           reviewedDate: new Date().toISOString(),
           approvedBy: 'Paddle Webhook System',
-          paddleCustomerId: data.customer_id || data.customer?.id || '',
-          paddleSubscriptionId: data.id || data.subscription_id || '',
-          paddlePriceId: priceId,
           currentPeriodStart: startsAt,
           currentPeriodEnd: endsAt,
+          cancelAtPeriodEnd,
+          updatedAt: new Date().toISOString(),
         },
         { merge: true }
       );
-    } else if (isCancelEvent && targetUserDocRef) {
+    } else if (isPastDueEvent && targetUserDocRef) {
       await updateDoc(targetUserDocRef, {
+        subscriptionStatus: 'past_due',
+        updatedAt: new Date().toISOString(),
+      });
+      console.log(`[Paddle Webhook] User ${targetUserId} subscription marked as past_due.`);
+    } else if (isPausedEvent && targetUserDocRef) {
+      await updateDoc(targetUserDocRef, {
+        subscriptionStatus: 'paused',
+        updatedAt: new Date().toISOString(),
+      });
+      console.log(`[Paddle Webhook] User ${targetUserId} subscription marked as paused.`);
+    } else if (isCancelEvent && targetUserDocRef) {
+      // When subscription actually ends / cancels in Paddle:
+      // Revert to Free plan, without deleting products, inventory, customers, sales, orders, or personal ledger.
+      await updateDoc(targetUserDocRef, {
+        plan: 'free',
         subscriptionPlan: 'Free',
         subscription: 'free',
-        subscriptionStatus: 'cancelled',
+        subscriptionStatus: 'canceled',
+        cancelAtPeriodEnd: false,
         cancelledAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
-      console.log(`[Paddle Webhook] User ${targetUserId} subscription cancelled/reverted to Free.`);
+      console.log(`[Paddle Webhook] User ${targetUserId} subscription cancelled. Plan safely reverted to Free.`);
     }
 
     // Save processed event to Firestore for idempotency & audit trail
@@ -258,7 +322,7 @@ export async function handlePaddleWebhook(req: Request & { rawBody?: string }, r
       processedAt: new Date().toISOString(),
       userId: targetUserId || null,
       userEmail: userEmail || null,
-      priceId: priceId || null,
+      priceId: cleanPriceId || null,
       paddleSubscriptionId: data.id || data.subscription_id || null,
     });
 
@@ -275,3 +339,4 @@ export async function handlePaddleWebhook(req: Request & { rawBody?: string }, r
     });
   }
 }
+

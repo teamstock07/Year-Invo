@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- bKash Magenta Background -->
+  <rect width="512" height="512" rx="80" fill="#E2136E"/>
+  <!-- Origami Bird in White -->
+  <g fill="#FFFFFF">
+    <!-- Top-Left Main Wing -->
+    <polygon points="145,145 238,185 197,305 130,205" fill="#FFFFFF"/>
+    <!-- Center Top Wing Panel -->
+    <polygon points="238,185 410,185 375,270 197,305" fill="#FFFFFF" fill-opacity="0.96"/>
+    <!-- Head / Beak -->
+    <polygon points="410,185 450,225 375,270" fill="#FFFFFF"/>
+    <!-- Lower Body / Belly -->
+    <polygon points="197,305 375,270 225,350" fill="#FFFFFF" fill-opacity="0.92"/>
+    <!-- Tail Left Droop -->
+    <polygon points="197,305 225,350 148,440" fill="#FFFFFF"/>
+  </g>
+</svg>

@@ -450,6 +450,7 @@ function parseOwnerPaymentSettings(pData: any): OwnerPaymentSettings {
   const defaultBkashNum = bdMethods?.bkash?.number ?? pData?.paymentNumber ?? pData?.accountNumber ?? '01700000000';
   const defaultNagadNum = bdMethods?.nagad?.number ?? pData?.paymentNumber ?? pData?.accountNumber ?? '01700000000';
   const defaultRocketNum = bdMethods?.rocket?.number ?? pData?.paymentNumber ?? pData?.accountNumber ?? '01700000000';
+  const defaultBankNum = bdMethods?.bank?.number ?? bdMethods?.bank?.accountNumber ?? '1501203948501001';
 
   const bangladeshConfig: BangladeshPaymentConfig = {
     enabled: bdData?.enabled ?? pData?.localPaymentEnabled ?? true,
@@ -457,24 +458,41 @@ function parseOwnerPaymentSettings(pData: any): OwnerPaymentSettings {
       bkash: {
         enabled: bdMethods?.bkash?.enabled ?? true,
         number: defaultBkashNum,
+        type: bdMethods?.bkash?.type || 'Personal',
+        instructions: bdMethods?.bkash?.instructions || '1. Open bKash App or dial *247#\n2. Select "Send Money"\n3. Enter the Number & Amount\n4. Add Store Name as Reference\n5. Copy TrxID and submit below',
       },
       nagad: {
         enabled: bdMethods?.nagad?.enabled ?? true,
         number: defaultNagadNum,
+        type: bdMethods?.nagad?.type || 'Personal',
+        instructions: bdMethods?.nagad?.instructions || '1. Open Nagad App or dial *167#\n2. Select "Send Money"\n3. Enter the Number & Amount\n4. Add Store Name as Reference\n5. Copy TrxID and submit below',
       },
       rocket: {
-        enabled: bdMethods?.rocket?.enabled ?? false,
+        enabled: bdMethods?.rocket?.enabled ?? true,
         number: defaultRocketNum,
+        type: bdMethods?.rocket?.type || 'Personal',
+        instructions: bdMethods?.rocket?.instructions || '1. Open Rocket App or dial *322#\n2. Select "Send Money"\n3. Enter the Rocket Account & Amount\n4. Add Store Name as Reference\n5. Copy TrxID and submit below',
+      },
+      bank: {
+        enabled: bdMethods?.bank?.enabled ?? true,
+        number: defaultBankNum,
+        type: bdMethods?.bank?.type || 'Bank Account',
+        bankName: bdMethods?.bank?.bankName || 'BRAC Bank PLC',
+        branchName: bdMethods?.bank?.branchName || 'Gulshan Branch',
+        accountName: bdMethods?.bank?.accountName || 'YearInvo Software Solution',
+        routingNumber: bdMethods?.bank?.routingNumber || '060261325',
+        instructions: bdMethods?.bank?.instructions || '1. Transfer via BEFTN / NPSB / EFT to the company bank account\n2. Mention your Store Name or Email in the transfer note\n3. Enter the transaction reference / slip number below',
       },
     },
     receiverName: bdData?.receiverName || pData?.receiverName || pData?.accountName || 'YearInvo Store',
     storeName: bdData?.storeName || pData?.storeName || 'YearInvo Store',
-    transactionIdInstruction: bdData?.transactionIdInstruction || pData?.transactionIdInstruction || 'Copy your transaction ID and enter it below.',
+    transactionIdInstruction: bdData?.transactionIdInstruction || pData?.transactionIdInstruction || 'Copy your transaction ID (TrxID) or Bank Reference Number and enter it below.',
+    defaultInstructions: bdData?.defaultInstructions || '',
   };
 
   return {
     localPaymentEnabled: bangladeshConfig.enabled,
-    paymentMethod: pData?.paymentMethod || 'bKash / Nagad / Rocket',
+    paymentMethod: pData?.paymentMethod || 'bKash / Nagad / Rocket / Bank',
     paymentNumber: defaultBkashNum,
     receiverName: bangladeshConfig.receiverName,
     storeName: bangladeshConfig.storeName,
@@ -510,17 +528,42 @@ const defaultSettings: BusinessSettings = {
     paymentNumber: '01700000000',
     receiverName: 'YearInvo Store',
     storeName: 'YearInvo Store',
-    transactionIdInstruction: 'Copy your transaction ID and enter it below.',
+    transactionIdInstruction: 'Copy your transaction ID (TrxID) or Bank Reference Number and enter it below.',
     bangladesh: {
       enabled: true,
       methods: {
-        bkash: { enabled: true, number: '01700000000' },
-        nagad: { enabled: true, number: '01700000000' },
-        rocket: { enabled: false, number: '01700000000' },
+        bkash: {
+          enabled: true,
+          number: '01700000000',
+          type: 'Personal',
+          instructions: '1. Open bKash App or dial *247#\n2. Select "Send Money"\n3. Enter the Number & Amount\n4. Add Store Name as Reference\n5. Copy TrxID and submit below',
+        },
+        nagad: {
+          enabled: true,
+          number: '01800000000',
+          type: 'Personal',
+          instructions: '1. Open Nagad App or dial *167#\n2. Select "Send Money"\n3. Enter the Number & Amount\n4. Add Store Name as Reference\n5. Copy TrxID and submit below',
+        },
+        rocket: {
+          enabled: true,
+          number: '01900000000-1',
+          type: 'Personal',
+          instructions: '1. Open Rocket App or dial *322#\n2. Select "Send Money"\n3. Enter the Rocket Account & Amount\n4. Add Store Name as Reference\n5. Copy TrxID and submit below',
+        },
+        bank: {
+          enabled: true,
+          number: '1501203948501001',
+          type: 'Bank Account',
+          bankName: 'BRAC Bank PLC',
+          branchName: 'Gulshan Branch',
+          accountName: 'YearInvo Software Solution',
+          routingNumber: '060261325',
+          instructions: '1. Transfer via BEFTN / NPSB / EFT to the company bank account\n2. Mention your Store Name or Email in the transfer note\n3. Enter the transaction reference / slip number below',
+        },
       },
       receiverName: 'YearInvo Store',
       storeName: 'YearInvo Store',
-      transactionIdInstruction: 'Copy your transaction ID and enter it below.',
+      transactionIdInstruction: 'Copy your transaction ID (TrxID) or Bank Reference Number and enter it below.',
     },
     qrEnabled: true,
     qrProvider: 'bKash',
@@ -5406,10 +5449,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       // Deduct from offline POS products if matching ID exists
-      const updatedProducts = products.map((prod) => {
+      const updatedProducts = (products || []).map((prod) => {
         const itemSold = newOrder.items.find((it) => it.productId === prod.id);
         if (itemSold) {
-          const newQty = Math.max(0, prod.currentStock - itemSold.quantity);
+          const curStock = prod.currentStock !== undefined ? (Number(prod.currentStock) || 0) : (Number((prod as any).stock) || 0);
+          const newQty = Math.max(0, curStock - itemSold.quantity);
           return { ...prod, currentStock: newQty };
         }
         return prod;
@@ -5423,14 +5467,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 2. Auto catalog customer in onlineCustomers if not present or update stats
     const existingCustomer = orderData.customerId
-      ? onlineCustomers.find((c) => c.id === orderData.customerId)
-      : onlineCustomers.find((c) => c.phone === newOrder.customerPhone);
+      ? (onlineCustomers || []).find((c) => c.id === orderData.customerId)
+      : (onlineCustomers || []).find((c) => c.phone === newOrder.customerPhone);
 
     if (existingCustomer) {
       newOrder.customerId = existingCustomer.id;
       await updateOnlineCustomer(existingCustomer.id, {
-        totalOrders: existingCustomer.totalOrders + 1,
-        totalSpent: existingCustomer.totalSpent + newOrder.grandTotal,
+        totalOrders: (Number(existingCustomer.totalOrders) || 0) + 1,
+        totalSpent: (Number(existingCustomer.totalSpent) || 0) + newOrder.grandTotal,
         lastOrderDate: new Date().toISOString(),
         address: newOrder.deliveryAddress || existingCustomer.address,
         city: newOrder.deliveryCity || existingCustomer.city,
@@ -5450,18 +5494,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // 3. Save Order in state, IndexedDB, and Cloud Sync
-    const updatedOrders = [newOrder, ...onlineOrders];
+    const updatedOrders = [newOrder, ...(onlineOrders || [])];
     setOnlineOrders(updatedOrders);
     localStorage.setItem(`biz_online_orders_${currentUserId}`, JSON.stringify(updatedOrders));
 
     try {
       await offlineDb.setCollection(currentUserId, 'onlineOrders', updatedOrders);
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[OfflineDB] Could not cache onlineOrders:', e);
+    }
 
     if (currentUserId !== 'default') {
       try {
         await saveUserCloudCollection(currentUserId, 'onlineOrders', { items: updatedOrders });
-      } catch (e) {}
+      } catch (cloudErr: any) {
+        console.error('[CreateOnlineOrder] Cloud sync failed:', cloudErr);
+        throw new Error(`Failed to save order to database: ${cloudErr?.message || cloudErr}`);
+      }
 
       await syncQueueService.enqueue('CREATE_ONLINE_ORDER', newOrder);
     }

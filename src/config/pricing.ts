@@ -52,7 +52,7 @@ export const PRICING_CONFIG = {
       yearly: 1440, // ৳1,440 base (with configurable annual discount e.g. 15% -> ৳1,224)
       yearlyDiscountPercent: 15,
       fiveYear: 6000,
-      fiveYearDiscountPercent: 33,
+      fiveYearDiscountPercent: 25,
     },
     premium: {
       monthly: 250, // ৳250 / month
@@ -63,7 +63,7 @@ export const PRICING_CONFIG = {
       yearly: 3000, // ৳3,000 base (with configurable annual discount e.g. 20% -> ৳2,400)
       yearlyDiscountPercent: 20,
       fiveYear: 12000,
-      fiveYearDiscountPercent: 20,
+      fiveYearDiscountPercent: 25,
     },
   },
   international: {
@@ -79,7 +79,7 @@ export const PRICING_CONFIG = {
       yearly: 14.40, // $14.40 (Save 20% vs 12 × $1.50 = $18.00)
       yearlyDiscountPercent: 20,
       fiveYear: 60.00,
-      fiveYearDiscountPercent: 33,
+      fiveYearDiscountPercent: 25,
     },
     premium: {
       monthly: 3.50, // $3.50 / month
@@ -90,7 +90,7 @@ export const PRICING_CONFIG = {
       yearly: 30.00, // $30.00 (Save 28.6% vs 12 × $3.50 = $42.00)
       yearlyDiscountPercent: 20,
       fiveYear: 120.00,
-      fiveYearDiscountPercent: 43,
+      fiveYearDiscountPercent: 25,
     },
   },
 };

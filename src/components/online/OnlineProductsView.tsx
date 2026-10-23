@@ -295,15 +295,20 @@ export const OnlineProductsView: React.FC = () => {
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-3">
                         {prod.imageUrl ? (
-                          <img
-                            src={prod.imageUrl}
-                            alt={prod.name}
-                            referrerPolicy="no-referrer"
-                            className="w-10 h-10 rounded-xl object-cover border border-slate-200 dark:border-slate-700"
-                          />
+                          <div className="w-11 h-11 shrink-0 aspect-square rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs">
+                            <img
+                              src={prod.imageUrl}
+                              alt={prod.name}
+                              referrerPolicy="no-referrer"
+                              className="w-full h-full aspect-square object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          </div>
                         ) : (
-                          <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 font-black text-sm">
-                            {prod.name.charAt(0).toUpperCase()}
+                          <div className="w-11 h-11 shrink-0 aspect-square rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-850 flex items-center justify-center text-slate-700 dark:text-slate-200 font-black text-xs uppercase shadow-2xs border border-slate-200 dark:border-slate-700">
+                            {prod.name ? prod.name.trim().slice(0, 2).toUpperCase() : 'PR'}
                           </div>
                         )}
                         <div>
@@ -530,14 +535,16 @@ export const OnlineProductsView: React.FC = () => {
                 </label>
                 <div className="flex items-center gap-3">
                   {imageUrl ? (
-                    <img
-                      src={imageUrl}
-                      alt="Preview"
-                      referrerPolicy="no-referrer"
-                      className="w-12 h-12 rounded-xl object-cover border border-slate-200 dark:border-slate-700"
-                    />
+                    <div className="w-14 h-14 shrink-0 aspect-square rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 shadow-2xs">
+                      <img
+                        src={imageUrl}
+                        alt="Preview"
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full aspect-square object-cover"
+                      />
+                    </div>
                   ) : (
-                    <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                    <div className="w-14 h-14 shrink-0 aspect-square rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 border border-slate-200 dark:border-slate-700">
                       <Upload className="w-5 h-5" />
                     </div>
                   )}

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Rocket Purple Paper Airplane & Typography -->
+  <g fill="#8C3494">
+    <!-- Paper Airplane (Folded Origami) -->
+    <!-- Main Top Wing -->
+    <polygon points="385,115 225,180 325,235 385,115" fill="#8C3494"/>
+    <!-- Folded Wing Panel -->
+    <polygon points="225,180 345,260 325,235" fill="#75287D"/>
+    <!-- Tail / Bottom Fold -->
+    <polygon points="345,260 295,210 325,235" fill="#621E6A"/>
+
+    <!-- English Word "ROCKET" -->
+    <text x="200" y="240" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="34" letter-spacing="4" fill="#8C3494">ROCKET</text>
+
+    <!-- Bengali "রকেট" Logo Letterforms -->
+    <!-- Dot under 'র' -->
+    <circle cx="108" cy="342" r="20" fill="#8C3494"/>
+    
+    <!-- Letter 'র' (Ra) -->
+    <path d="M 85 255 L 140 255 C 160 255, 175 270, 175 290 C 175 315, 155 330, 130 330 L 115 330 L 115 295 L 130 295 C 138 295, 142 292, 142 288 C 142 282, 136 280, 128 280 L 85 280 Z" fill="#8C3494"/>
+    
+    <!-- Letter 'ক' (Ka) -->
+    <path d="M 180 255 L 290 255 L 290 280 L 255 280 L 255 345 L 222 345 L 222 280 L 180 280 Z" fill="#8C3494"/>
+    <path d="M 222 300 C 190 300, 180 325, 205 345 C 220 345, 222 335, 222 325 Z" fill="#8C3494"/>
+    <path d="M 255 300 C 285 300, 295 325, 270 345 C 255 345, 255 335, 255 325 Z" fill="#8C3494"/>
+
+    <!-- Letter 'ট' (Ta) -->
+    <path d="M 305 255 L 435 255 L 435 280 L 380 280 C 405 285, 435 305, 435 335 C 435 365, 395 375, 345 375 C 310 375, 295 360, 295 340 L 328 340 C 328 348, 335 352, 348 352 C 375 352, 400 348, 400 330 C 400 310, 375 305, 345 305 L 340 305 L 340 280 L 305 280 Z" fill="#8C3494"/>
+    
+    <!-- Subtitle: ডাচ-বাংলা ব্যাংক মোবাইল ব্যাংকিং -->
+    <text x="256" y="398" font-family="'Hind Siliguri', 'Noto Sans Bengali', system-ui, sans-serif" font-weight="600" font-size="19" text-anchor="middle" fill="#8C3494" letter-spacing="0.5">
+      ডাচ-বাংলা ব্যাংক মোবাইল ব্যাংকিং
+    </text>
+  </g>
+</svg>

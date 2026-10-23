@@ -36,9 +36,12 @@ import {
   getProviderById,
 } from '../../config/paymentProviders';
 import {
+  YearInvoLogo,
+  YearInvoBrandHeader,
   BkashLogo,
   NagadLogo,
   RocketLogo,
+  BankPaymentLogo,
   BankTransferLogo,
   PayPalLogoComponent,
   CardLogosComponent,
@@ -130,6 +133,11 @@ interface SubDict {
   profitLossReporting: string;
   apiPrioritySupport: string;
 
+  personalLedgerIncluded: string;
+  smartReorderIncluded: string;
+  customerLoyaltyIncluded: string;
+  auditLogIncluded: string;
+
   // Feature Matrix Header
   matrixTitle: string;
   matrixSubtitle: string;
@@ -220,6 +228,11 @@ const subTranslations: Record<string, SubDict> = {
     profitLossReporting: 'Profit & Loss Financial Reporting',
     apiPrioritySupport: '24/7 Priority Support & API Access',
 
+    personalLedgerIncluded: 'Personal Ledger (ব্যক্তিগত খাতা)',
+    smartReorderIncluded: 'Smart Reorder System & Stock Alerts',
+    customerLoyaltyIncluded: 'Customer Loyalty & Rewards Program',
+    auditLogIncluded: 'Audit Log & Security Activity Trail',
+
     matrixTitle: 'Feature Matrix Comparison',
     matrixSubtitle: 'Detailed comparison of capabilities across Free Trial, Pro, and Premium plans.',
   },
@@ -306,6 +319,11 @@ const subTranslations: Record<string, SubDict> = {
     cloudBackupExport: 'ক্লাউড ব্যাকআপ ও ডাটা এক্সপোর্ট',
     profitLossReporting: 'সম্পূর্ণ লাভ-ক্ষতি আর্থিক রিপোর্ট',
     apiPrioritySupport: '২৪/৭ অগ্রাধিকার সহায়তা',
+
+    personalLedgerIncluded: 'ব্যক্তিগত খাতা (Personal Ledger)',
+    smartReorderIncluded: 'স্মার্ট রিঅর্ডার সিস্টেম ও স্টক অ্যালার্ট',
+    customerLoyaltyIncluded: 'কাস্টমার লয়্যালটি ও রিওয়ার্ড প্রোগ্রাম',
+    auditLogIncluded: 'অডিট লগ ও সিকিউরিটি অ্যাক্টিভিটি ট্রেইল',
 
     matrixTitle: 'প্ল্যান তুলনামূলক তালিকা',
     matrixSubtitle: 'ফ্রি ট্রায়াল, প্রো এবং প্রিমিয়াম প্ল্যানের বৈশিষ্ট্যের তুলনা দেখুন।',
@@ -394,6 +412,11 @@ const subTranslations: Record<string, SubDict> = {
     profitLossReporting: 'تقارير الأرباح والخسائر',
     apiPrioritySupport: 'دعم أولوية 24/7',
 
+    personalLedgerIncluded: 'دفتر الحسابات الشخصي (Personal Ledger)',
+    smartReorderIncluded: 'نظام إعادة الطلب الذكي وتنبيهات المخزون',
+    customerLoyaltyIncluded: 'برنامج ولاء ومكافآت العملاء',
+    auditLogIncluded: 'سجل تدقيق الأنشطة والأمان',
+
     matrixTitle: 'مقارنة خطط الاشتراك',
     matrixSubtitle: 'مقارنة بين التجربة المجانية و Pro و Premium.',
   },
@@ -481,6 +504,11 @@ const subTranslations: Record<string, SubDict> = {
     profitLossReporting: 'लाभ-हानि वित्तीय रिपोर्ट',
     apiPrioritySupport: '24/7 प्राथमिकता सहायता',
 
+    personalLedgerIncluded: 'व्यक्तिगत खाता (Personal Ledger)',
+    smartReorderIncluded: 'स्मार्ट री-ऑर्डर सिस्टम व स्टॉक अलर्ट',
+    customerLoyaltyIncluded: 'ग्राहक लॉयल्टी व रिवॉर्ड प्रोग्राम',
+    auditLogIncluded: 'ऑडिट लॉग और सुरक्षा गतिविधि रिकॉर्ड',
+
     matrixTitle: 'फीचर तुलना तालिका',
     matrixSubtitle: 'फ्री ट्रायल, प्रो और प्रीमियम प्लान की विशेषताओं की तुलना करें।',
   },
@@ -520,6 +548,7 @@ export const SubscriptionView: React.FC = () => {
       if (provider.id === 'bkash') return bgConfig.methods.bkash?.enabled;
       if (provider.id === 'nagad') return bgConfig.methods.nagad?.enabled;
       if (provider.id === 'rocket') return bgConfig.methods.rocket?.enabled;
+      if (provider.id === 'bank' || provider.id === 'bank_transfer') return bgConfig.methods.bank?.enabled;
     }
     return true;
   });
@@ -527,12 +556,19 @@ export const SubscriptionView: React.FC = () => {
   const selectedProvider =
     currentEnabledProviders.find((p) => p.id === selectedProviderId) || currentEnabledProviders[0];
 
-  const getBangladeshNumberForProvider = (providerId: string) => {
+  const getBangladeshMethodConfig = (providerId: string) => {
     if (bgConfig && bgConfig.methods) {
-      if (providerId === 'bkash' && bgConfig.methods.bkash?.number) return bgConfig.methods.bkash.number;
-      if (providerId === 'nagad' && bgConfig.methods.nagad?.number) return bgConfig.methods.nagad.number;
-      if (providerId === 'rocket' && bgConfig.methods.rocket?.number) return bgConfig.methods.rocket.number;
+      if (providerId === 'bkash') return bgConfig.methods.bkash;
+      if (providerId === 'nagad') return bgConfig.methods.nagad;
+      if (providerId === 'rocket') return bgConfig.methods.rocket;
+      if (providerId === 'bank' || providerId === 'bank_transfer') return bgConfig.methods.bank;
     }
+    return null;
+  };
+
+  const getBangladeshNumberForProvider = (providerId: string) => {
+    const methodCfg = getBangladeshMethodConfig(providerId);
+    if (methodCfg?.number) return methodCfg.number;
     return settings.paymentSettings?.paymentNumber || settings.paymentSettings?.accountNumber || selectedProvider?.instructions?.accountNumber || '01700000000';
   };
 
@@ -619,7 +655,7 @@ export const SubscriptionView: React.FC = () => {
       setIsSubmitting(false);
     } catch (err: any) {
       console.error('[Paddle Checkout Launch Error]:', err);
-      setSubmitError('Paddle automated popup was blocked or unavailable. You can enter your payment reference / transaction ID below for immediate review.');
+      setSubmitError(err?.message || 'Paddle checkout could not open. You can enter your payment reference / transaction ID below for immediate review.');
       setIntlManualMode(true);
       setIsSubmitting(false);
     }
@@ -826,20 +862,33 @@ export const SubscriptionView: React.FC = () => {
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>{langDict.basicProductMgmt}</span>
               </div>
-
-              <div className="pt-2 space-y-2 text-slate-400 dark:text-slate-500">
-                <div className="flex items-center gap-2">
-                  <XCircle className="w-4 h-4 text-slate-400 dark:text-slate-600 shrink-0" />
-                  <span>{langDict.posSystemLocked}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <XCircle className="w-4 h-4 text-slate-400 dark:text-slate-600 shrink-0" />
-                  <span>{langDict.teamLocked}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <XCircle className="w-4 h-4 text-slate-400 dark:text-slate-600 shrink-0" />
-                  <span>{langDict.qrCodeLocked}</span>
-                </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.basicStockView}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.customerDirectory}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.orderHistory}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.basicReportAnalysis}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.mobileAppAccess}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.basicNotifications}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.standardSupport}</span>
               </div>
             </div>
           </div>
@@ -904,20 +953,41 @@ export const SubscriptionView: React.FC = () => {
             </div>
 
             <div className="space-y-2.5 pt-4 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300">
-              <div className="font-bold text-[#ff5c01]">
-                {langDict.everythingInFreePlus}
-              </div>
               <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>{langDict.unlimitedProducts}</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>{langDict.unlimitedStock}</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>{langDict.unlimitedSales}</span>
+              </div>
+              <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.sellSystemEnabled}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.basicProductMgmt}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.basicStockView}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.advancedStockMgmt}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.customerDirectory}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.orderHistory}</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
@@ -927,28 +997,29 @@ export const SubscriptionView: React.FC = () => {
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>{langDict.pdfInvoices}</span>
               </div>
-
-              <div className="pt-2 space-y-2 text-slate-400 dark:text-slate-500">
-                <div className="flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-slate-400 dark:text-slate-600 shrink-0" />
-                  <span>POS & Sell (Premium Only)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-slate-400 dark:text-slate-600 shrink-0" />
-                  <span>Personal Ledger (ব্যক্তিগত খাতা)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-slate-400 dark:text-slate-600 shrink-0" />
-                  <span>Barcode & QR Code Generator</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-slate-400 dark:text-slate-600 shrink-0" />
-                  <span>Team & Payroll Management</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-slate-400 dark:text-slate-600 shrink-0" />
-                  <span>AI Assistant & Smart Reorder</span>
-                </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.detailedSalesReports}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.profitLossReporting}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.cloudBackupExport}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.mobileAppAccess}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.basicNotifications}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.standardSupport}</span>
               </div>
             </div>
           </div>
@@ -1021,28 +1092,41 @@ export const SubscriptionView: React.FC = () => {
             </div>
 
             <div className="space-y-2.5 pt-4 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300">
-              <div className="font-bold text-[#ff5c01]">
-                {langDict.everythingInProPlus}
-              </div>
               <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>{langDict.unlimitedProducts}</span>
               </div>
               <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>{langDict.posSystemUnlocked}</span>
+                <span>{langDict.unlimitedStock}</span>
               </div>
               <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>{langDict.teamUnlocked}</span>
+                <span>{langDict.unlimitedSales}</span>
               </div>
               <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>{langDict.qrCodeUnlocked}</span>
+                <span>{langDict.sellSystemEnabled}</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>{langDict.barcodePrinting}</span>
+                <span>{langDict.basicProductMgmt}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.basicStockView}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.advancedStockMgmt}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.customerDirectory}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.orderHistory}</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
@@ -1050,7 +1134,79 @@ export const SubscriptionView: React.FC = () => {
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.pdfInvoices}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.detailedSalesReports}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.profitLossReporting}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.cloudBackupExport}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.mobileAppAccess}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.basicNotifications}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.standardSupport}</span>
+              </div>
+              <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.posSystemUnlocked}</span>
+              </div>
+              <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.personalLedgerIncluded}</span>
+              </div>
+              <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.barcodePrinting}</span>
+              </div>
+              <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.qrCodeUnlocked}</span>
+              </div>
+              <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.teamUnlocked}</span>
+              </div>
+              <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.payrollIncluded}</span>
+              </div>
+              <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.smartReorderIncluded}</span>
+              </div>
+              <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.aiInsightsIncluded}</span>
+              </div>
+              <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.customerLoyaltyIncluded}</span>
+              </div>
+              <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.auditLogIncluded}</span>
+              </div>
+              <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>{langDict.multiStoreMultiUser}</span>
+              </div>
+              <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{langDict.apiPrioritySupport}</span>
               </div>
             </div>
           </div>
@@ -1201,21 +1357,23 @@ export const SubscriptionView: React.FC = () => {
       {requestPlan && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-7 max-w-2xl w-full space-y-5 shadow-2xl text-slate-100 max-h-[92vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex items-start justify-between border-b border-slate-800 pb-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                    Subscription Upgrade
-                  </span>
-                  <span className="text-xs font-bold text-slate-400 capitalize">
-                    {billingCycle === 'five_year' ? '5-Year' : billingCycle} Billing
-                  </span>
+            {/* YearInvo Brand Top Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <YearInvoLogo size={38} />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-lg text-white tracking-tight">
+                      YearInvo
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      Checkout
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 font-medium">
+                    Upgrade to {requestPlan} Plan ({billingCycle === 'five_year' ? '5-Year' : billingCycle} Billing)
+                  </p>
                 </div>
-                <h3 className="font-extrabold text-lg sm:text-xl text-white flex items-center gap-2">
-                  <Crown className="w-5 h-5 text-amber-400" />
-                  <span>Upgrade to {requestPlan} Plan</span>
-                </h3>
               </div>
               <button
                 onClick={() => setRequestPlan(null)}
@@ -1345,59 +1503,115 @@ export const SubscriptionView: React.FC = () => {
             </div>
 
             {/* Provider Instructions Card (Only for Bangladesh manual payment methods) */}
-            {selectedProvider && selectedProvider.region === 'bangladesh' && (
-              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
-                  <div className="flex items-center gap-2">
-                    <Info className="w-4 h-4 text-[#ff5c01]" />
-                    <span className="text-xs font-bold text-white">
-                      Payment Instructions ({selectedProvider.name})
-                    </span>
+            {selectedProvider && selectedProvider.region === 'bangladesh' && (() => {
+              const methodCfg = getBangladeshMethodConfig(selectedProvider.id);
+              const isBank = selectedProvider.id === 'bank' || selectedProvider.id === 'bank_transfer';
+              return (
+                <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <Info className="w-4 h-4 text-[#ff5c01]" />
+                      <span className="text-xs font-bold text-white">
+                        Payment Instructions ({selectedProvider.name})
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {methodCfg?.type && (
+                        <span className="px-2.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/30 text-[10px] text-blue-400 font-bold capitalize">
+                          {methodCfg.type} Account
+                        </span>
+                      )}
+                      {settings.paymentSettings?.storeName && (
+                        <span className="px-2.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] text-amber-400 font-bold">
+                          {settings.paymentSettings.storeName}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  {settings.paymentSettings?.storeName && (
-                    <span className="px-2.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] text-amber-400 font-bold">
-                      {settings.paymentSettings.storeName}
-                    </span>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs bg-slate-900/80 p-3.5 rounded-xl border border-slate-800">
+                    <div>
+                      <span className="text-slate-500 text-[10px] block">Payment Method</span>
+                      <span className="font-bold text-slate-200">
+                        {selectedProvider.name}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 text-[10px] block">
+                        {isBank ? 'Bank Account Number' : 'Payment Number'}
+                      </span>
+                      <span className="font-mono font-extrabold text-amber-400">
+                        {getBangladeshNumberForProvider(selectedProvider.id)}
+                      </span>
+                    </div>
+
+                    {isBank ? (
+                      <>
+                        <div>
+                          <span className="text-slate-500 text-[10px] block">Bank Name</span>
+                          <span className="font-bold text-slate-200">
+                            {methodCfg?.bankName || 'Dutch-Bangla Bank Limited'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 text-[10px] block">Account Name</span>
+                          <span className="font-bold text-slate-200">
+                            {methodCfg?.accountName || settings.paymentSettings?.receiverName || 'YearInvo Tech Ltd'}
+                          </span>
+                        </div>
+                        {methodCfg?.branchName && (
+                          <div>
+                            <span className="text-slate-500 text-[10px] block">Branch Name</span>
+                            <span className="font-bold text-slate-200">{methodCfg.branchName}</span>
+                          </div>
+                        )}
+                        {methodCfg?.routingNumber && (
+                          <div>
+                            <span className="text-slate-500 text-[10px] block">Routing Number</span>
+                            <span className="font-mono font-bold text-slate-200">{methodCfg.routingNumber}</span>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <span className="text-slate-500 text-[10px] block">Receiver / Account Name</span>
+                          <span className="font-bold text-slate-200">
+                            {settings.paymentSettings?.receiverName || settings.paymentSettings?.accountName || selectedProvider.instructions?.accountName || 'YearInvo Store'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 text-[10px] block">Store Name</span>
+                          <span className="font-bold text-slate-200">
+                            {settings.paymentSettings?.storeName || 'YearInvo Store'}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {methodCfg?.instructions && (
+                    <div className="bg-amber-500/10 p-3 rounded-xl border border-amber-500/20 space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 block">
+                        Specific Payment Steps
+                      </span>
+                      <p className="text-xs text-amber-200/90 whitespace-pre-line leading-relaxed">
+                        {methodCfg.instructions}
+                      </p>
+                    </div>
                   )}
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-900/80 p-3 rounded-xl border border-slate-800">
-                  <div>
-                    <span className="text-slate-500 text-[10px] block">Payment Method</span>
-                    <span className="font-bold text-slate-200">
-                      {selectedProvider.name}
+                  <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-800/60 space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                      Transaction ID Instruction
                     </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 text-[10px] block">Payment Number</span>
-                    <span className="font-mono font-extrabold text-amber-400">
-                      {getBangladeshNumberForProvider(selectedProvider.id)}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 text-[10px] block">Receiver / Merchant Name</span>
-                    <span className="font-bold text-slate-200">
-                      {settings.paymentSettings?.receiverName || settings.paymentSettings?.accountName || selectedProvider.instructions?.accountName || 'YearInvo Store'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 text-[10px] block">Store Name</span>
-                    <span className="font-bold text-slate-200">
-                      {settings.paymentSettings?.storeName || 'YearInvo Store'}
-                    </span>
+                    <p className="text-xs text-slate-300 whitespace-pre-line leading-relaxed">
+                      {settings.paymentSettings?.transactionIdInstruction || 'Copy your transaction ID and enter it below.'}
+                    </p>
                   </div>
                 </div>
-
-                <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-800/60 space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                    Transaction ID Instruction
-                  </span>
-                  <p className="text-xs text-slate-300 whitespace-pre-line leading-relaxed">
-                    {settings.paymentSettings?.transactionIdInstruction || 'Copy your transaction ID and enter it below.'}
-                  </p>
-                </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Transaction ID Form Submission or Paddle Checkout */}
             {activeRegion === 'international' && !intlManualMode ? (

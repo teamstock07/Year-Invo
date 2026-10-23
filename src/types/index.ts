@@ -1009,6 +1009,12 @@ export interface QrPaymentSettings {
 export interface BangladeshMethodConfig {
   enabled: boolean;
   number: string;
+  type?: 'Personal' | 'Merchant' | 'Agent' | 'Bank Account' | string;
+  instructions?: string;
+  accountName?: string;
+  bankName?: string;
+  branchName?: string;
+  routingNumber?: string;
 }
 
 export interface BangladeshPaymentConfig {
@@ -1017,10 +1023,12 @@ export interface BangladeshPaymentConfig {
     bkash: BangladeshMethodConfig;
     nagad: BangladeshMethodConfig;
     rocket: BangladeshMethodConfig;
+    bank?: BangladeshMethodConfig;
   };
   receiverName: string;
   storeName: string;
   transactionIdInstruction: string;
+  defaultInstructions?: string;
 }
 
 export interface OwnerPaymentSettings {

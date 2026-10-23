@@ -11,6 +11,7 @@ import {
 import { Settings, Save, Shield, Download, Upload, Store, DollarSign, Receipt, Users, Camera, Trash2, Image, User, SlidersHorizontal, ShoppingBag, Truck, Lock, Crown, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { isOnlineBusinessEligible, defaultOnlineBusinessSettings } from '../../types';
 import { OnlineUpgradeModal } from '../online/OnlineUpgradeModal';
+import { LocalPaymentManagement } from '../owner/LocalPaymentManagement';
 
 export const SettingsView: React.FC = () => {
   const { settings, updateSettings, resetAllDataToZero, t, setActiveTab, user, toggleOnlineBusinessMode, isOnlineBusinessActive } = useApp();
@@ -620,6 +621,13 @@ export const SettingsView: React.FC = () => {
           </button>
         </div>
       </form>
+
+      {/* Local Payment Management (Strictly for Owner/Admin) */}
+      {(user?.role === 'Owner' || user?.role === 'PlatformOwner' || user?.email?.toLowerCase().trim() === 'teamstock07@gmail.com') && (
+        <div className="pt-2">
+          <LocalPaymentManagement />
+        </div>
+      )}
 
       {/* Online Business Upgrade Modal */}
       {showUpgradeModal && (
