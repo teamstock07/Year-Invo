@@ -287,8 +287,8 @@ export const LoginView: React.FC = () => {
                   </h2>
                   <p className="text-xs text-slate-400 mt-1">
                     {isBn
-                      ? 'আপনার রেজিস্টার্ড ইমেইল এড্রেস লিখুন। আমরা ফায়ারবেস পাসওয়ার্ড রিসেট লিংক পাঠাবো।'
-                      : 'Enter your registered email address to receive a password reset link via Firebase.'}
+                      ? 'আপনার রেজিস্টার্ড ইমেইল এড্রেস লিখুন। আমরা পাসওয়ার্ড রিসেট লিংক পাঠাবো।'
+                      : 'Enter your registered email address to receive a password reset link.'}
                   </p>
                 </div>
 
@@ -380,8 +380,20 @@ export const LoginView: React.FC = () => {
                 </div>
 
                 {error && (
-                  <div className="p-3.5 rounded-xl bg-rose-950/50 border border-rose-800 text-rose-400 text-xs font-medium">
-                    {error}
+                  <div className="p-3.5 rounded-xl bg-rose-950/50 border border-rose-800 text-rose-300 text-xs font-medium space-y-1.5">
+                    <p>{error}</p>
+                    {error.includes('already exists') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setError('');
+                          setMode('login');
+                        }}
+                        className="text-xs font-bold text-[#ff8038] hover:underline block"
+                      >
+                        {isBn ? 'লগইন পেজে যান →' : 'Click here to Log In instead →'}
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -594,7 +606,7 @@ export const LoginView: React.FC = () => {
                       disabled={authLoading}
                       className="w-full py-3.5 bg-[#ff5c01] hover:bg-[#e05100] text-white font-black rounded-2xl text-sm transition-all text-center shadow-lg shadow-[#ff5c01]/25 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
                     >
-                      <span>{authLoading ? (isBn ? 'স্টোর তৈরি হচ্ছে...' : 'Creating Account in Firebase...') : (isBn ? 'নতুন দোকান তৈরি করুন' : 'Create Your Store & Access Dashboard')}</span>
+                      <span>{authLoading ? (isBn ? 'স্টোর তৈরি হচ্ছে...' : 'Creating Account...') : (isBn ? 'নতুন দোকান তৈরি করুন' : 'Create Your Store & Access Dashboard')}</span>
                       <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>

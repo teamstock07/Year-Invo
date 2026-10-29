@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { generateUniqueSku, generateUniqueBarcode } from '../utils/scanner';
 import { compressImage } from '../utils/imageCompressor';
 import { auth, db } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
 import {
   sendPasswordResetEmail,
   sendEmailVerification,
@@ -2453,10 +2454,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       return { success: true };
     } catch (error: any) {
-      console.error('Firebase Auth login error [Full Error]:', error);
-      if (error && typeof error === 'object') {
-        console.error('Firebase Error Code:', error.code, '| Message:', error.message, '| Full Details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
-      }
+      console.warn('[Firebase Auth Notice] Login notice:', error?.message || error);
       let message = 'Failed to sign in. Please check your credentials.';
       if (error.code === 'auth/operation-not-allowed') {
         message = 'Email/Password sign-in is disabled in your Firebase Console. Please go to Firebase Console -> Authentication -> Sign-in method and enable Email/Password.';
@@ -2623,10 +2621,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         message: 'A 6-digit verification code has been sent to your email address.',
       };
     } catch (error: any) {
-      console.error('Firebase signup error [Full Error]:', error);
-      if (error && typeof error === 'object') {
-        console.error('Firebase Error Code:', error.code, '| Message:', error.message, '| Full Details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+      if (error?.code === 'auth/email-already-in-use') {
+        console.warn('[Firebase Auth Notice] Email already in use:', cleanEmail);
+      } else {
+        console.warn('[Firebase Auth Notice] Signup notice:', error?.message || error);
       }
+
       let message = error.message || 'Failed to create account.';
       if (error.code === 'auth/operation-not-allowed') {
         message = 'Email/Password sign-in is disabled in your Firebase Console. Please go to Firebase Console -> Authentication -> Sign-in method and enable Email/Password.';
@@ -2798,6 +2798,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const logout = async (): Promise<void> => {
     try {
+      await supabase.auth.signOut();
+    } catch (sbErr) {
+      console.warn('Supabase signOut notice:', sbErr);
+    }
+    try {
       await signOut(auth);
     } catch (e) {
       console.warn('Firebase signOut notice:', e);
@@ -2847,13 +2852,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'অনুগ্রহ করে একটি সঠিক ইমেইল এড্রেস প্রদান করুন।' };
     }
     try {
-      await sendPasswordResetEmail(auth, cleanEmail);
+      const redirectOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://yearmedia.xyz';
+      const { error: sbError } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+        redirectTo: redirectOrigin,
+      });
+      if (sbError) {
+        console.warn('[Supabase Auth] Password reset notice:', sbError.message);
+      }
       return {
         success: true,
         message: `পাসওয়ার্ড রিসেট লিংক (${cleanEmail}) ইমেইলে পাঠানো হয়েছে। আপনার ইনবক্স চেক করুন।`,
       };
     } catch (error: any) {
-      console.warn('Firebase password reset notification:', error);
+      console.warn('Password reset notification:', error);
       return {
         success: true,
         message: `পাসওয়ার্ড রিসেট রিকোয়েস্ট প্রক্রিয়া করা হয়েছে (${cleanEmail})। আপনার ইমেইল চেক করুন।`,
