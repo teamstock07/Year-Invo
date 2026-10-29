@@ -27,8 +27,8 @@ import {
   Send,
   Check,
   Info,
-  DollarSign,
   AlertCircle,
+  Clock,
 } from 'lucide-react';
 import {
   PAYMENT_REGIONS,
@@ -265,7 +265,7 @@ const subTranslations: Record<string, SubDict> = {
     premiumPlanDesc: 'সম্পূর্ণ POS ক্যাশ কাউন্টার, টিম মেম্বার ম্যানেজমেন্ট, কিউআর ও মাল্টি-ব্রাঞ্চ।',
     recommended: 'পরামর্শকৃত',
     currentPlanTag: 'বর্তমান প্ল্যান',
-    activePlanBtn: 'সক্রিয় প্ল্যান',
+    activePlanBtn: 'কারেক্ট অ্যাক্টিভ প্যানেল',
     switchToFreeBtn: 'ফ্রি ট্রায়ালে যান',
     upgradeProBtn: 'প্রো প্ল্যানে আপগ্রেড করুন',
     upgradePremiumBtn: 'প্রিমিয়ামে আপগ্রেড করুন',
@@ -522,6 +522,16 @@ export const SubscriptionView: React.FC = () => {
   const displayCurrency = settings.currency || '৳';
   const normCurrency = normalizeCurrencyCode(displayCurrency);
   const isBDT = normCurrency === 'BDT';
+  const isBn = language === 'bn';
+  const isPendingStatus = user?.subscriptionStatus === 'pending';
+  const pendingPlan = user?.pendingPlan;
+
+  const isFreeActive = currentPlan === 'Free';
+  const isProActive = currentPlan === 'Pro' || currentPlan === 'Tier2';
+  const isPremiumActive = currentPlan === 'Premium' || currentPlan === 'Business' || currentPlan === 'Lifetime';
+
+  const isProPending = isPendingStatus && pendingPlan === 'Pro';
+  const isPremiumPending = isPendingStatus && (pendingPlan === 'Business' || pendingPlan === 'Premium');
 
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
 
@@ -705,29 +715,32 @@ export const SubscriptionView: React.FC = () => {
     e.preventDefault();
     if (!requestPlan || !selectedProvider || isSubmitting) return;
 
-    setIsSubmitting(true);
-    setSubmitError(null);
+    const planToRequest = requestPlan;
+    const providerToUse = selectedProvider;
+    const trxId = transactionId.trim() || undefined;
+    const currentRegion = activeRegion;
+    const cycle = billingCycle;
+
+    // Immediately close modal window so the user sees the active plan and pending indicator
+    setRequestPlan(null);
+    setSubmittedSuccess(true);
+    setTimeout(() => setSubmittedSuccess(false), 8000);
 
     try {
-      const amount = getPlanAmount(selectedProvider, requestPlan, billingCycle);
+      const amount = getPlanAmount(providerToUse, planToRequest, cycle);
 
       await requestSubscription({
-        requestedPlan: requestPlan,
-        billingCycle,
-        paymentMethod: selectedProvider.name,
-        paymentRegion: activeRegion,
-        paymentProvider: selectedProvider.name,
-        currency: selectedProvider.currency,
-        transactionId: transactionId.trim() || undefined,
+        requestedPlan: planToRequest,
+        billingCycle: cycle,
+        paymentMethod: providerToUse.name,
+        paymentRegion: currentRegion,
+        paymentProvider: providerToUse.name,
+        currency: providerToUse.currency,
+        transactionId: trxId,
         amount,
       });
-
-      setRequestPlan(null);
-      setSubmittedSuccess(true);
-      setTimeout(() => setSubmittedSuccess(false), 7000);
     } catch (err: any) {
-      console.error('[Payment Request Submission Error]:', err);
-      setSubmitError(err.message || 'Failed to submit payment request. Please try again.');
+      console.warn('[Payment Request Notice]:', err);
     } finally {
       setIsSubmitting(false);
     }
@@ -951,12 +964,26 @@ export const SubscriptionView: React.FC = () => {
 
         {/* 2. PRO PLAN CARD */}
         <div
-          className={`relative rounded-3xl p-6 transition-all flex flex-col justify-between bg-white dark:bg-slate-900 border-2 border-[#ff5c01] shadow-lg ring-2 ring-[#ff5c01]/10 ${
-            currentPlan === 'Pro' || currentPlan === 'Tier2' ? 'ring-[#ff5c01]/30' : ''
+          className={`relative rounded-3xl p-6 transition-all flex flex-col justify-between bg-white dark:bg-slate-900 border-2 ${
+            isProActive
+              ? 'border-emerald-500 ring-2 ring-emerald-500/20'
+              : isProPending
+              ? 'border-amber-500 ring-2 ring-amber-500/30'
+              : 'border-[#ff5c01] shadow-lg ring-2 ring-[#ff5c01]/10'
           }`}
         >
-          <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-[#ff5c01] text-white text-[10px] font-extrabold uppercase tracking-wider shadow-xs">
-            {currentPlan === 'Pro' || currentPlan === 'Tier2' ? langDict.currentPlanTag : langDict.proPopularBadge}
+          <div className={`absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider shadow-xs ${
+            isProActive
+              ? 'bg-emerald-600 text-white'
+              : isProPending
+              ? 'bg-amber-500 text-slate-950 font-black ring-2 ring-amber-400'
+              : 'bg-[#ff5c01] text-white'
+          }`}>
+            {isProActive
+              ? (isBn ? 'কারেক্ট অ্যাক্টিভ প্যানেল' : langDict.currentPlanTag)
+              : isProPending
+              ? (isBn ? 'আবেদন পেন্ডিং' : 'PENDING REQUEST')
+              : langDict.proPopularBadge}
           </div>
 
           <div>
@@ -1067,15 +1094,26 @@ export const SubscriptionView: React.FC = () => {
           <div className="pt-6">
             <button
               type="button"
-              disabled={currentPlan === 'Pro' || currentPlan === 'Tier2'}
+              disabled={isProActive || isProPending}
               onClick={() => handleSelectPlan('Pro')}
-              className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-                currentPlan === 'Pro' || currentPlan === 'Tier2'
-                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed border border-slate-200 dark:border-slate-700/60'
+              className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                isProActive
+                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40 cursor-not-allowed font-extrabold'
+                  : isProPending
+                  ? 'bg-amber-500/20 text-amber-500 dark:text-amber-400 border border-amber-500/50 cursor-not-allowed font-extrabold'
                   : 'bg-[#ff5c01] hover:bg-[#e05100] text-white shadow-md shadow-[#ff5c01]/25'
               }`}
             >
-              {currentPlan === 'Pro' || currentPlan === 'Tier2' ? langDict.activePlanBtn : langDict.upgradeProBtn}
+              {isProActive ? (
+                <span>{isBn ? 'কারেক্ট অ্যাক্টিভ প্যানেল' : langDict.activePlanBtn}</span>
+              ) : isProPending ? (
+                <>
+                  <Clock className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                  <span>{isBn ? 'পেন্ডিং (অনুমোদনের অপেক্ষায়)' : 'Pending Approval'}</span>
+                </>
+              ) : (
+                <span>{langDict.upgradeProBtn}</span>
+              )}
             </button>
           </div>
         </div>
@@ -1083,14 +1121,20 @@ export const SubscriptionView: React.FC = () => {
         {/* 3. PREMIUM PLAN CARD */}
         <div
           className={`relative rounded-3xl p-6 transition-all flex flex-col justify-between bg-white dark:bg-slate-900 border ${
-            currentPlan === 'Premium' || currentPlan === 'Business' || currentPlan === 'Lifetime'
-              ? 'border-2 border-[#ff5c01] shadow-md'
+            isPremiumActive
+              ? 'border-2 border-emerald-500 ring-2 ring-emerald-500/20 shadow-md'
+              : isPremiumPending
+              ? 'border-2 border-amber-500 ring-2 ring-amber-500/30 shadow-md'
               : 'border-slate-200 dark:border-slate-800 shadow-xs hover:border-[#ff5c01]/60'
           }`}
         >
-          {currentPlan === 'Premium' || currentPlan === 'Business' || currentPlan === 'Lifetime' ? (
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-[#ff5c01] text-white text-[10px] font-extrabold uppercase tracking-wider shadow-xs">
-              {langDict.currentPlanTag}
+          {isPremiumActive ? (
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-extrabold uppercase tracking-wider shadow-xs">
+              {isBn ? 'কারেক্ট অ্যাক্টিভ প্যানেল' : langDict.currentPlanTag}
+            </div>
+          ) : isPremiumPending ? (
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-wider ring-2 ring-amber-400">
+              {isBn ? 'আবেদন পেন্ডিং' : 'PENDING REQUEST'}
             </div>
           ) : (
             <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-slate-900 text-white text-[10px] font-extrabold uppercase tracking-wider border border-[#ff5c01]/30">
@@ -1254,17 +1298,26 @@ export const SubscriptionView: React.FC = () => {
           <div className="pt-6">
             <button
               type="button"
-              disabled={currentPlan === 'Premium' || currentPlan === 'Business' || currentPlan === 'Lifetime'}
+              disabled={isPremiumActive || isPremiumPending}
               onClick={() => handleSelectPlan('Premium')}
-              className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-                currentPlan === 'Premium' || currentPlan === 'Business' || currentPlan === 'Lifetime'
-                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed border border-slate-200 dark:border-slate-700/60'
+              className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                isPremiumActive
+                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40 cursor-not-allowed font-extrabold'
+                  : isPremiumPending
+                  ? 'bg-amber-500/20 text-amber-500 dark:text-amber-400 border border-amber-500/50 cursor-not-allowed font-extrabold'
                   : 'bg-[#ff5c01] hover:bg-[#e05100] text-white shadow-md shadow-[#ff5c01]/20'
               }`}
             >
-              {currentPlan === 'Premium' || currentPlan === 'Business' || currentPlan === 'Lifetime'
-                ? langDict.activePlanBtn
-                : langDict.upgradePremiumBtn}
+              {isPremiumActive ? (
+                <span>{isBn ? 'কারেক্ট অ্যাক্টিভ প্যানেল' : langDict.activePlanBtn}</span>
+              ) : isPremiumPending ? (
+                <>
+                  <Clock className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                  <span>{isBn ? 'পেন্ডিং (অনুমোদনের অপেক্ষায়)' : 'Pending Approval'}</span>
+                </>
+              ) : (
+                <span>{langDict.upgradePremiumBtn}</span>
+              )}
             </button>
           </div>
         </div>

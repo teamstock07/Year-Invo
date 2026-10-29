@@ -4,6 +4,12 @@ import { compressImage } from '../utils/imageCompressor';
 import { auth, db } from '../lib/firebase';
 import { supabase } from '../lib/supabase';
 import {
+  getSupabaseSubscriptionRequests,
+  createSupabaseSubscriptionRequest,
+  updateSupabaseSubscriptionRequestStatus,
+  updateSupabaseUserPlan,
+} from '../services/supabaseDbService';
+import {
   sendPasswordResetEmail,
   sendEmailVerification,
   createUserWithEmailAndPassword,
@@ -1043,67 +1049,95 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     syncQueueService.setUserId(currentUid);
   }, [user?.id]);
 
-  // Subscription Approval Requests Directory (Realtime Firestore Synchronization)
+  // Subscription Approval Requests Directory (Supabase & Realtime Synchronization)
   const [subscriptionRequests, setSubscriptionRequests] = useState<SubscriptionRequest[]>([]);
 
   useEffect(() => {
-    const unsubSubReqs = onSnapshot(
-      collection(db, 'subscriptionRequests'),
-      (snapshot) => {
-        const list: SubscriptionRequest[] = [];
-        snapshot.forEach((docSnap) => {
-          const d = docSnap.data();
-          let dateStr = new Date().toISOString();
-          if (d.createdAt) {
-            if (typeof d.createdAt === 'string') {
-              dateStr = d.createdAt;
-            } else if (d.createdAt?.toDate) {
-              dateStr = d.createdAt.toDate().toISOString();
-            }
-          } else if (d.requestDate) {
-            dateStr = d.requestDate;
-          }
+    let isMounted = true;
 
-          list.push({
-            id: docSnap.id,
-            userId: d.uid || d.userId || '',
-            userName: d.userName || d.ownerName || 'User',
-            userEmail: d.email || d.userEmail || '',
-            brandName: d.storeName || d.brandName || '',
-            currentPlan: d.currentPlan || 'Free',
-            requestedPlan: d.requestedPlan || 'Pro',
-            billingCycle: d.billingCycle || 'monthly',
-            paymentMethod: d.paymentMethod || 'bKash',
-            paymentProvider: d.paymentProvider || d.paymentMethod || 'bKash',
-            paymentRegion: d.paymentRegion || (d.currency === 'USD' ? 'international' : 'bangladesh'),
-            currency: d.currency || (d.paymentRegion === 'international' ? 'USD' : 'BDT'),
-            transactionId: d.transactionId || '',
-            amount: typeof d.amount === 'number' ? d.amount : 0,
-            status: d.status || 'pending',
-            requestDate: dateStr,
-            reviewedDate: d.reviewedDate || '',
-            approvedBy: d.approvedBy || d.reviewedBy || '',
-            startDate: d.startDate || undefined,
-            expiryDate: d.expiryDate || undefined,
-            billingPeriod: d.billingPeriod || d.billingCycle || 'monthly',
-            cancelledAt: d.cancelledAt || '',
-            cancelledBy: d.cancelledBy || '',
-            previousPlan: d.previousPlan || undefined,
-            previousStatus: d.previousStatus || undefined,
-            notes: d.notes || '',
-          });
-        });
-
-        // Sort newest requests first
-        list.sort((a, b) => new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime());
-        setSubscriptionRequests(list);
-      },
-      (error) => {
-        console.warn('onSnapshot subscriptionRequests error:', error);
+    const loadSubRequests = async () => {
+      try {
+        const sbReqs = await getSupabaseSubscriptionRequests();
+        if (isMounted && sbReqs) {
+          setSubscriptionRequests(sbReqs);
+        }
+      } catch (err) {
+        console.warn('Notice loading subscription requests from Supabase:', err);
       }
-    );
+    };
 
-    return () => unsubSubReqs();
+    // Initial load
+    loadSubRequests();
+
+    // Polling interval
+    const pollInterval = setInterval(loadSubRequests, 12000);
+
+    // Supabase Realtime channel
+    const channel = supabase
+      .channel('subscription_requests_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'subscription_requests' },
+        () => {
+          loadSubRequests();
+        }
+      )
+      .subscribe();
+
+    // Firestore fallback (non-blocking)
+    let unsubFirestore: (() => void) | null = null;
+    try {
+      unsubFirestore = onSnapshot(
+        collection(db, 'subscriptionRequests'),
+        (snapshot) => {
+          const list: SubscriptionRequest[] = [];
+          snapshot.forEach((docSnap) => {
+            const d = docSnap.data();
+            list.push({
+              id: docSnap.id,
+              userId: d.uid || d.userId || '',
+              userName: d.userName || d.ownerName || 'User',
+              userEmail: d.email || d.userEmail || '',
+              brandName: d.storeName || d.brandName || '',
+              currentPlan: d.currentPlan || 'Free',
+              requestedPlan: d.requestedPlan || 'Pro',
+              billingCycle: d.billingCycle || 'monthly',
+              paymentMethod: d.paymentMethod || 'bKash',
+              paymentProvider: d.paymentProvider || d.paymentMethod || 'bKash',
+              paymentRegion: d.paymentRegion || 'bangladesh',
+              currency: d.currency || 'BDT',
+              transactionId: d.transactionId || '',
+              amount: typeof d.amount === 'number' ? d.amount : 0,
+              status: d.status || 'pending',
+              requestDate: d.createdAt || d.requestDate || new Date().toISOString(),
+              reviewedDate: d.reviewedDate || '',
+              approvedBy: d.approvedBy || '',
+              notes: d.notes || '',
+            });
+          });
+          if (isMounted && list.length > 0) {
+            setSubscriptionRequests((prev) => {
+              const map = new Map<string, SubscriptionRequest>();
+              list.forEach((r) => map.set(r.id, r));
+              prev.forEach((r) => {
+                if (!map.has(r.id)) map.set(r.id, r);
+              });
+              const merged = Array.from(map.values());
+              merged.sort((a, b) => new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime());
+              return merged;
+            });
+          }
+        },
+        () => {}
+      );
+    } catch (e) {}
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+      supabase.removeChannel(channel);
+      if (unsubFirestore) unsubFirestore();
+    };
   }, []);
   const [settings, setSettings] = useState<BusinessSettings>(() => {
     const saved = localStorage.getItem('biz_settings');
@@ -3252,70 +3286,68 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const targetUid = user.id || user.uid || (auth.currentUser ? auth.currentUser.uid : '');
     const userEmail = user.email || (auth.currentUser ? auth.currentUser.email : '') || '';
-
-    // Create a new document reference with unique ID immediately
-    const docRef = doc(collection(db, 'subscriptionRequests'));
-
-    // Save document with exact fields required by prompt and UI
-    const docData: Record<string, any> = {
-      id: docRef.id,
-      uid: targetUid,
-      userId: targetUid,
-      email: userEmail,
-      userEmail: userEmail,
-      userName: user.ownerName || user.fullName || 'Merchant',
-      storeName: user.brandName || user.storeName || 'My Store',
-      brandName: user.brandName || user.storeName || 'My Store',
-      currentPlan: user.subscriptionPlan || 'Free',
-      requestedPlan: data.requestedPlan || 'Pro',
-      billingCycle: data.billingCycle || 'monthly',
-      paymentMethod: data.paymentMethod || 'PayPal / Credit Card',
-      paymentRegion: data.paymentRegion || 'international',
-      paymentProvider: data.paymentProvider || data.paymentMethod || 'PayPal / Credit Card',
-      currency: data.currency || (data.paymentRegion === 'bangladesh' ? 'BDT' : 'USD'),
-      transactionId: data.transactionId ? String(data.transactionId).trim() : '',
-      amount: typeof data.amount === 'number' ? data.amount : 0,
-      status: 'pending',
-      createdAt: serverTimestamp(),
-      requestDate: new Date().toISOString(),
-    };
-
-    console.log('[Firestore Write Pre-check]');
-    console.log('  - Firebase Project ID:', auth.app.options.projectId);
-    console.log('  - Collection Name: subscriptionRequests');
-    console.log('  - Document ID:', docRef.id);
-    console.log('  - Target UID:', targetUid);
-    console.log('  - Write Payload:', docData);
+    const generatedId = `sub_req_${Date.now()}`;
 
     try {
-      // 1. Write to subscriptionRequests with timeout so UI never hangs
-      const writePromise = setDoc(docRef, docData);
-      const writeTimeout = new Promise((resolve) => setTimeout(resolve, 3500));
-      await Promise.race([writePromise, writeTimeout]);
+      // 1. Primary write to Supabase PostgreSQL subscription_requests table
+      await createSupabaseSubscriptionRequest({
+        id: generatedId,
+        userId: targetUid,
+        userEmail: userEmail,
+        requestedPlan: data.requestedPlan || 'Pro',
+        billingCycle: data.billingCycle || 'monthly',
+        paymentMethod: data.paymentMethod || 'Manual',
+        paymentProvider: data.paymentProvider || data.paymentMethod || 'Manual',
+        paymentRegion: data.paymentRegion || 'bangladesh',
+        transactionId: data.transactionId ? String(data.transactionId).trim() : '',
+        amount: typeof data.amount === 'number' ? data.amount : 0,
+        currency: data.currency || (data.paymentRegion === 'bangladesh' ? 'BDT' : 'USD'),
+        status: 'pending',
+      });
 
-      console.log('[Firestore Write Success]');
-      console.log('  - Collection Name: subscriptionRequests');
-      console.log('  - Document Path:', docRef.path);
-      console.log('  - Document ID:', docRef.id);
-
-      // 2. Update user's pending status in Firestore in background
+      // 2. Mark user subscriptionStatus as 'pending' in Supabase (keeping their current plan active until approved)
       if (targetUid) {
-        const userRef = doc(db, 'users', targetUid);
-        setDoc(
-          userRef,
-          {
-            pendingPlan: data.requestedPlan,
-            subscriptionStatus: 'pending',
-            uid: targetUid,
-            email: userEmail,
-          },
-          { merge: true }
-        ).catch((uErr) => {
-          console.warn('Notice updating user pending plan in Firestore:', uErr);
-        });
+        try {
+          await supabase
+            .from('users')
+            .update({
+              subscription_status: 'pending',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', targetUid);
+        } catch (uErr) {
+          console.warn('Notice updating user status in Supabase:', uErr);
+        }
       }
 
-      // 3. Local user state update
+      // 3. Fallback write to Firestore (completely non-blocking, never hangs UI)
+      try {
+        const docRef = doc(db, 'subscriptionRequests', generatedId);
+        setDoc(docRef, {
+          id: generatedId,
+          uid: targetUid,
+          userId: targetUid,
+          email: userEmail,
+          userEmail: userEmail,
+          userName: user.ownerName || user.fullName || 'Merchant',
+          storeName: user.brandName || user.storeName || 'My Store',
+          brandName: user.brandName || user.storeName || 'My Store',
+          currentPlan: user.subscriptionPlan || 'Free',
+          requestedPlan: data.requestedPlan || 'Pro',
+          billingCycle: data.billingCycle || 'monthly',
+          paymentMethod: data.paymentMethod || 'Manual',
+          paymentRegion: data.paymentRegion || 'bangladesh',
+          paymentProvider: data.paymentProvider || data.paymentMethod || 'Manual',
+          currency: data.currency || (data.paymentRegion === 'bangladesh' ? 'BDT' : 'USD'),
+          transactionId: data.transactionId ? String(data.transactionId).trim() : '',
+          amount: typeof data.amount === 'number' ? data.amount : 0,
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+          requestDate: new Date().toISOString(),
+        }).catch(() => {});
+      } catch (fErr) {}
+
+      // 4. Update local user state: remains on currentPlan, but subscriptionStatus is 'pending' and pendingPlan is set
       const updatedUser: UserProfile = {
         ...user,
         pendingPlan: data.requestedPlan,
@@ -3324,13 +3356,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setUser(updatedUser);
       setAllUsers((prev) => prev.map((u) => (u.id === user.id ? updatedUser : u)));
 
-      // 4. Send user notification
+      // 5. Add to local subscriptionRequests state so Owner Panel and user see it immediately
+      const newReq: SubscriptionRequest = {
+        id: generatedId,
+        userId: targetUid,
+        userName: user.ownerName || user.fullName || 'Merchant',
+        userEmail: userEmail,
+        brandName: user.brandName || user.storeName || 'My Store',
+        currentPlan: user.subscriptionPlan || 'Free',
+        requestedPlan: data.requestedPlan || 'Pro',
+        billingCycle: data.billingCycle || 'monthly',
+        paymentMethod: data.paymentMethod || 'Manual',
+        paymentProvider: data.paymentProvider || data.paymentMethod || 'Manual',
+        paymentRegion: data.paymentRegion || 'bangladesh',
+        currency: data.currency || (data.paymentRegion === 'bangladesh' ? 'BDT' : 'USD'),
+        transactionId: data.transactionId ? String(data.transactionId).trim() : '',
+        amount: typeof data.amount === 'number' ? data.amount : 0,
+        status: 'pending',
+        requestDate: new Date().toISOString(),
+        billingPeriod: data.billingCycle || 'monthly',
+      };
+      setSubscriptionRequests((prev) => [newReq, ...prev.filter((r) => r.id !== generatedId)]);
+
+      // 6. User notification
       const notif: AppNotification = {
         id: `notif-${Date.now()}`,
-        title: 'Subscription Request Submitted',
-        titleBn: 'সাবস্ক্রিপশন আবেদন জমা দেওয়া হয়েছে',
-        message: `Your request for the ${data.requestedPlan} Plan is pending approval by the platform owner.`,
-        messageBn: `আপনার ${data.requestedPlan} প্ল্যানের আবেদন প্লাটফর্ম এডমিন অনুমোদনের অপেক্ষায় রয়েছে।`,
+        title: 'Subscription Request Pending',
+        titleBn: 'সাবস্ক্রিপশন আবেদন পেন্ডিং রয়েছে',
+        message: `Your request for the ${data.requestedPlan} Plan has been submitted and is pending approval by the platform owner.`,
+        messageBn: `আপনার ${data.requestedPlan} প্ল্যানের আবেদনটি সফলভাবে জমা হয়েছে এবং ওনার প্যানেলের অনুমোদনের অপেক্ষায় পেন্ডিং রয়েছে।`,
         type: 'subscription',
         priority: 'info',
         date: new Date().toISOString().split('T')[0],
@@ -3342,10 +3396,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       return true;
     } catch (error: any) {
-      console.error('[Firestore Write Failure] Failed to create subscription request document in Firestore:', error);
-      if (error && typeof error === 'object') {
-        console.error('[COMPLETE Firebase Error Details]:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
-      }
+      console.error('[Subscription Request Error]:', error);
       throw error;
     }
   };
@@ -3361,72 +3412,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const expiryDate = req.requestedPlan === 'Lifetime' || req.requestedPlan === 'Free' ? undefined : calculateSubscriptionExpiry(startDate, billingPeriod);
 
     try {
-      console.log('[Firestore Write Start] Approving request in "subscriptionRequests":', requestId);
+      console.log('[Supabase DB] Approving request:', requestId);
 
-      // 1. If user has other active/approved requests, update them to superseded/cancelled to avoid duplicate active subscriptions
+      // 1. Update status in Supabase subscription_requests
+      await updateSupabaseSubscriptionRequestStatus(requestId, 'approved', { approvedBy: ownerIdentifier });
+
+      // 2. Update merchant user plan in Supabase users table
       if (req.userId) {
-        const otherApprovedReqs = subscriptionRequests.filter(
-          (r) => r.userId === req.userId && r.id !== requestId && r.status === 'approved'
-        );
-        for (const oldReq of otherApprovedReqs) {
-          const oldReqRef = doc(db, 'subscriptionRequests', oldReq.id);
-          await setDoc(
-            oldReqRef,
-            {
-              status: 'cancelled',
-              cancelledAt: nowIso,
-              cancelledBy: ownerIdentifier,
-              notes: `Superseded by new approved plan (${req.requestedPlan}) on ${new Date().toLocaleDateString()}`,
-            },
-            { merge: true }
-          );
-        }
+        await updateSupabaseUserPlan(req.userId, req.requestedPlan, 'active', expiryDate);
       }
 
-      // 2. Update request status in Firestore
-      const reqRef = doc(db, 'subscriptionRequests', requestId);
-      const reqUpdateData: Record<string, any> = {
-        status: 'approved',
-        reviewedDate: nowIso,
-        approvedBy: ownerIdentifier,
-        reviewedAt: serverTimestamp(),
-        startDate,
-        billingPeriod,
-        billingCycle: billingPeriod,
-      };
-      if (expiryDate) {
-        reqUpdateData.expiryDate = expiryDate;
-      }
-      await setDoc(reqRef, reqUpdateData, { merge: true });
-      console.log('[Firestore Write Success] Approved request in "subscriptionRequests":', requestId);
-
-      // 3. Update merchant user profile in Firestore
-      if (req.userId) {
-        console.log('[Firestore Write Start] Updating merchant profile in "users" collection:', req.userId);
-        const userRef = doc(db, 'users', req.userId);
-        const userDocUpdate: Record<string, any> = {
-          subscriptionPlan: req.requestedPlan,
-          subscription: req.requestedPlan.toLowerCase(),
-          subscriptionStatus: 'active',
+      // 3. Fallback Firestore update
+      try {
+        const reqRef = doc(db, 'subscriptionRequests', requestId);
+        await setDoc(reqRef, {
+          status: 'approved',
+          reviewedDate: nowIso,
+          approvedBy: ownerIdentifier,
           startDate,
           billingPeriod,
           billingCycle: billingPeriod,
-          paymentMethod: req.paymentMethod || req.paymentProvider || 'Manual / Cash',
-          paymentProvider: req.paymentProvider || req.paymentMethod || 'Manual / Cash',
-          paymentRegion: req.paymentRegion || 'bangladesh',
-          transactionId: req.transactionId || undefined,
-          pendingPlan: deleteField(),
-        };
-        if (expiryDate) {
-          userDocUpdate.expiryDate = expiryDate;
-        } else {
-          userDocUpdate.expiryDate = deleteField();
-        }
-        await setDoc(userRef, userDocUpdate, { merge: true });
-        console.log('[Firestore Write Success] Updated merchant profile in "users" collection:', req.userId);
-      }
+          ...(expiryDate ? { expiryDate } : {}),
+        }, { merge: true });
 
-      // 4. Local states update
+        if (req.userId) {
+          const userRef = doc(db, 'users', req.userId);
+          await setDoc(userRef, {
+            subscriptionPlan: req.requestedPlan,
+            subscription: req.requestedPlan.toLowerCase(),
+            subscriptionStatus: 'active',
+            startDate,
+            billingPeriod,
+            billingCycle: billingPeriod,
+            pendingPlan: deleteField(),
+            ...(expiryDate ? { expiryDate } : { expiryDate: deleteField() }),
+          }, { merge: true });
+        }
+      } catch (fErr) {}
+
+      // 4. Update local subscriptionRequests state
+      setSubscriptionRequests((prev) =>
+        prev.map((r) =>
+          r.id === requestId
+            ? {
+                ...r,
+                status: 'approved',
+                reviewedDate: nowIso,
+                approvedBy: ownerIdentifier,
+                startDate,
+                expiryDate,
+              }
+            : r
+        )
+      );
+
+      // 5. Update local allUsers and current user (if affected)
       setAllUsers((prev) =>
         prev.map((u) => {
           if (u.id === req.userId) {
@@ -3465,7 +3505,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         title: 'Subscription Plan Activated!',
         titleBn: 'সাবস্ক্রিপশন প্ল্যান সক্রিয় হয়েছে!',
         message: `Your request for the ${req.requestedPlan} Plan has been reviewed and APPROVED by the owner.`,
-        messageBn: `আপনার ${req.requestedPlan} প্ল্যানের আবেদন অনুমোদন করা হয়েছে।`,
+        messageBn: `আপনার ${req.requestedPlan} প্ল্যানের আবেদনটি ওনার প্যানেল থেকে অনুমোদন করা হয়েছে এবং ফিচারগুলো সক্রিয় করা হয়েছে!`,
         type: 'subscription',
         priority: 'info',
         date: new Date().toISOString().split('T')[0],
@@ -3475,10 +3515,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addManualNotification(notif);
       logActivity('Approved Subscription Request', 'সাবস্ক্রিপশন আবেদন অনুমোদন করা হয়েছে', req.userEmail);
     } catch (error: any) {
-      console.error('[Firestore Write Failure] Error approving subscription request:', error);
-      if (error && typeof error === 'object') {
-        console.error('[COMPLETE Firebase Error Details]:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
-      }
+      console.error('[Error approving subscription request]:', error);
     }
   };
 
@@ -3490,43 +3527,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const ownerIdentifier = user?.ownerName || user?.email || 'Owner';
 
     try {
-      console.log('[Firestore Write Start] Cancelling subscription request:', requestId);
-
-      // 1. Mark request as cancelled in Firestore (Preserving history!)
-      const reqRef = doc(db, 'subscriptionRequests', requestId);
-      await setDoc(
-        reqRef,
-        {
-          status: 'cancelled',
-          cancelledAt: nowIso,
-          cancelledBy: ownerIdentifier,
-          previousPlan: req.requestedPlan || req.currentPlan,
-          previousStatus: req.status,
-          notes: notes ? (req.notes ? `${req.notes} | Cancellation Note: ${notes}` : `Cancellation Note: ${notes}`) : req.notes,
-        },
-        { merge: true }
-      );
-
-      // 2. Revert merchant user profile to Free plan in Firestore (preserving account and store data)
+      // 1. Supabase write
+      await updateSupabaseSubscriptionRequestStatus(requestId, 'cancelled', { approvedBy: ownerIdentifier, notes });
       if (req.userId) {
-        console.log('[Firestore Write Start] Reverting user profile to Free plan:', req.userId);
-        const userRef = doc(db, 'users', req.userId);
+        await updateSupabaseUserPlan(req.userId, 'free', 'cancelled');
+      }
+
+      // 2. Firestore fallback
+      try {
+        const reqRef = doc(db, 'subscriptionRequests', requestId);
         await setDoc(
-          userRef,
+          reqRef,
           {
+            status: 'cancelled',
+            cancelledAt: nowIso,
+            cancelledBy: ownerIdentifier,
+            notes: notes ? `Cancellation Note: ${notes}` : req.notes,
+          },
+          { merge: true }
+        );
+        if (req.userId) {
+          const userRef = doc(db, 'users', req.userId);
+          await setDoc(userRef, {
             subscriptionPlan: 'Free',
             subscription: 'free',
             subscriptionStatus: 'cancelled',
             pendingPlan: deleteField(),
-            cancelledAt: nowIso,
-            cancelledBy: ownerIdentifier,
-            previousPlan: req.requestedPlan || req.currentPlan,
-          },
-          { merge: true }
-        );
-      }
+          }, { merge: true });
+        }
+      } catch (fErr) {}
 
       // 3. Update local user state
+      setSubscriptionRequests((prev) =>
+        prev.map((r) => (r.id === requestId ? { ...r, status: 'cancelled', notes } : r))
+      );
+
       setAllUsers((prev) =>
         prev.map((u) => {
           if (u.id === req.userId) {
@@ -3537,7 +3572,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               pendingPlan: undefined,
               cancelledAt: nowIso,
               cancelledBy: ownerIdentifier,
-              previousPlan: req.requestedPlan || req.currentPlan,
             };
           }
           return u;
@@ -3552,17 +3586,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           pendingPlan: undefined,
           cancelledAt: nowIso,
           cancelledBy: ownerIdentifier,
-          previousPlan: req.requestedPlan || req.currentPlan,
         });
       }
 
-      // 4. Dispatch notification & activity log
       const notif: AppNotification = {
         id: `notif-${Date.now()}`,
         title: 'Subscription Plan Cancelled',
         titleBn: 'সাবস্ক্রিপশন বাতিল করা হয়েছে',
-        message: `Your ${req.requestedPlan || req.currentPlan} Plan subscription has been cancelled by the owner and reverted to the Free Plan. All your store products, sales, and data are safely preserved.`,
-        messageBn: `আপনার ${req.requestedPlan || req.currentPlan} প্ল্যানটি বাতিল করে ফ্রি প্ল্যানে ফেরত নেওয়া হয়েছে। আপনার সকল তথ্য অক্ষত রয়েছে।`,
+        message: `Your ${req.requestedPlan || req.currentPlan} Plan subscription has been cancelled.`,
+        messageBn: `আপনার ${req.requestedPlan || req.currentPlan} প্ল্যানটি বাতিল করা হয়েছে।`,
         type: 'subscription',
         priority: 'info',
         date: new Date().toISOString().split('T')[0],
@@ -3570,9 +3602,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         linkTab: 'subscription',
       };
       addManualNotification(notif);
-      logActivity('Cancelled User Subscription', 'সাবস্ক্রিপশন বাতিল করা হয়েছে', req.userEmail);
     } catch (error: any) {
-      console.error('[Firestore Write Failure] Error cancelling subscription request:', error);
+      console.warn('Error cancelling subscription request:', error);
     }
   };
 
@@ -3584,46 +3615,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const ownerIdentifier = user?.ownerName || user?.email || 'Owner';
 
     try {
-      console.log('[Firestore Write Start] Cancelling user subscription for user:', userId);
-
-      // 1. Mark any active/approved or pending requests for this user as cancelled
       const userReqs = subscriptionRequests.filter(
         (r) => r.userId === userId && (r.status === 'approved' || r.status === 'pending')
       );
 
       for (const req of userReqs) {
-        const reqRef = doc(db, 'subscriptionRequests', req.id);
-        await setDoc(
-          reqRef,
-          {
-            status: 'cancelled',
-            cancelledAt: nowIso,
-            cancelledBy: ownerIdentifier,
-            previousPlan: req.requestedPlan || targetUser.subscriptionPlan,
-            previousStatus: req.status,
-            notes: notes ? `Cancellation Note: ${notes}` : req.notes,
-          },
-          { merge: true }
-        );
+        await updateSupabaseSubscriptionRequestStatus(req.id, 'cancelled', { approvedBy: ownerIdentifier, notes });
       }
+      await updateSupabaseUserPlan(userId, 'free', 'cancelled');
 
-      // 2. Revert user profile in Firestore
-      const userRef = doc(db, 'users', userId);
-      await setDoc(
-        userRef,
-        {
-          subscriptionPlan: 'Free',
-          subscription: 'free',
-          subscriptionStatus: 'cancelled',
-          pendingPlan: deleteField(),
-          cancelledAt: nowIso,
-          cancelledBy: ownerIdentifier,
-          previousPlan: targetUser.subscriptionPlan,
-        },
-        { merge: true }
-      );
-
-      // 3. Local state updates
       setAllUsers((prev) =>
         prev.map((u) => {
           if (u.id === userId) {
@@ -3634,7 +3634,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               pendingPlan: undefined,
               cancelledAt: nowIso,
               cancelledBy: ownerIdentifier,
-              previousPlan: targetUser.subscriptionPlan,
             };
           }
           return u;
@@ -3649,26 +3648,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           pendingPlan: undefined,
           cancelledAt: nowIso,
           cancelledBy: ownerIdentifier,
-          previousPlan: targetUser.subscriptionPlan,
         });
       }
-
-      const notif: AppNotification = {
-        id: `notif-${Date.now()}`,
-        title: 'Subscription Cancelled',
-        titleBn: 'সাবস্ক্রিপশন বাতিল করা হয়েছে',
-        message: `Your ${targetUser.subscriptionPlan} Plan subscription has been cancelled by the owner. You are now on the Free Plan. All your store products, sales, and business data are safely preserved.`,
-        messageBn: `আপনার সাবস্ক্রিপশন বাতিল করা হয়েছে। সকল তথ্য নিরাপদ রয়েছে।`,
-        type: 'subscription',
-        priority: 'info',
-        date: new Date().toISOString().split('T')[0],
-        read: false,
-        linkTab: 'subscription',
-      };
-      addManualNotification(notif);
-      logActivity('Cancelled User Subscription', 'সাবস্ক্রিপশন বাতিল করা হয়েছে', targetUser.email);
     } catch (error: any) {
-      console.error('[Firestore Write Failure] Error cancelling user subscription:', error);
+      console.warn('Error cancelling user subscription:', error);
     }
   };
 
@@ -3677,34 +3660,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!req) return;
 
     try {
-      console.log('[Firestore Write Start] Rejecting request in "subscriptionRequests":', requestId);
-      // 1. Update request status in Firestore
-      const reqRef = doc(db, 'subscriptionRequests', requestId);
-      await setDoc(
-        reqRef,
-        {
-          status: 'rejected',
-          notes: notes || '',
-          reviewedDate: new Date().toISOString(),
-          reviewedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-      console.log('[Firestore Write Success] Rejected request in "subscriptionRequests":', requestId);
-
-      // 2. Update merchant user profile in Firestore
+      await updateSupabaseSubscriptionRequestStatus(requestId, 'rejected', { approvedBy: user?.ownerName || 'Owner', notes });
       if (req.userId) {
-        console.log('[Firestore Write Start] Updating user status in "users" collection:', req.userId);
-        const userRef = doc(db, 'users', req.userId);
-        await setDoc(
-          userRef,
-          {
-            subscriptionStatus: 'active',
-            pendingPlan: deleteField(),
-          },
-          { merge: true }
-        );
-        console.log('[Firestore Write Success] Updated user status in "users" collection:', req.userId);
+        await supabase.from('users').update({
+          subscription_status: 'active',
+          updated_at: new Date().toISOString(),
+        }).eq('id', req.userId);
+      }
+
+      setSubscriptionRequests((prev) =>
+        prev.map((r) => (r.id === requestId ? { ...r, status: 'rejected', notes } : r))
+      );
+
+      setAllUsers((prev) =>
+        prev.map((u) => {
+          if (u.id === req.userId) {
+            return {
+              ...u,
+              subscriptionStatus: 'active',
+              pendingPlan: undefined,
+            };
+          }
+          return u;
+        })
+      );
+
+      if (user && user.id === req.userId) {
+        setUser({
+          ...user,
+          subscriptionStatus: 'active',
+          pendingPlan: undefined,
+        });
       }
 
       setAllUsers((prev) =>
