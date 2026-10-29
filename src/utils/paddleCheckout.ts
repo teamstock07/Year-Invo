@@ -69,18 +69,29 @@ export const initializePaddle = async (): Promise<any> => {
                     activeOnCloseCallback();
                   }
                 } else if (eventName === 'checkout.error' || eventName === 'error') {
-                  console.error('[PADDLE DEBUG] Paddle Checkout Error Event:', event);
-
-                  let userMsg = 'Paddle checkout encountered an error.';
                   const detail = event?.detail || event?.error?.detail || '';
                   const errMessage = event?.errors?.[0]?.message || event?.error?.message || '';
+                  const isNotEnabled =
+                    detail === 'transaction_checkout_not_enabled' ||
+                    errMessage === 'transaction_checkout_not_enabled';
 
-                  if (detail === 'transaction_checkout_not_enabled' || errMessage === 'transaction_checkout_not_enabled') {
-                    userMsg = 'Paddle checkout is not enabled for live transactions on this account, or the Price IDs belong to Sandbox. To test checkouts, use Sandbox mode or complete Paddle live account approval.';
+                  if (isNotEnabled) {
+                    console.warn(
+                      '[PADDLE DEBUG] Paddle Checkout Notice: Checkouts are not enabled on this account (onboarding/verification pending).',
+                      event
+                    );
+                  } else {
+                    console.warn('[PADDLE DEBUG] Paddle Checkout Event Notice:', event);
+                  }
+
+                  let userMsg = 'Paddle checkout encountered an issue.';
+                  if (isNotEnabled) {
+                    userMsg =
+                      "Checkouts aren't enabled for this Paddle account yet because business onboarding and compliance verification are pending in your Paddle Dashboard. You can submit your payment transaction reference or invoice below for immediate manual activation.";
                   } else if (errMessage) {
-                    userMsg = `Paddle Checkout Error: ${errMessage}`;
+                    userMsg = `Paddle Checkout Notice: ${errMessage}`;
                   } else if (detail) {
-                    userMsg = `Paddle Checkout Error: ${detail}`;
+                    userMsg = `Paddle Checkout Notice: ${detail}`;
                   }
 
                   if (activeOnErrorCallback) {
@@ -202,14 +213,27 @@ export const openPaddleCheckout = async (options: OpenCheckoutOptions): Promise<
 
   if (!isPriceIdValid) {
     const err = new Error(`Invalid Price ID "${priceId}". Price IDs must start with "pri_".`);
-    console.error('[PADDLE DEBUG] checkoutError:', err.message);
-    throw err;
+    console.warn('[PADDLE DEBUG] checkout notice:', err.message);
+    if (activeOnErrorCallback) activeOnErrorCallback(err);
+    return;
   }
 
   if (!isUserAuthenticated) {
     const err = new Error('User is not authenticated. Cannot attach custom user data to checkout.');
-    console.error('[PADDLE DEBUG] checkoutError:', err.message);
-    throw err;
+    console.warn('[PADDLE DEBUG] checkout notice:', err.message);
+    if (activeOnErrorCallback) activeOnErrorCallback(err);
+    return;
+  }
+
+  if (PADDLE_CONFIG.checkoutEnabled === false) {
+    const notice =
+      PADDLE_CONFIG.checkoutStatusReason ||
+      "Checkouts are not enabled for this Paddle account yet because account onboarding/compliance verification is pending in your Paddle Dashboard. You can submit your payment transaction reference or invoice below for immediate manual approval.";
+    console.warn('[PADDLE DEBUG] Automated checkout opening bypassed because checkouts are pending account verification:', notice);
+    if (activeOnErrorCallback) {
+      activeOnErrorCallback(new Error(notice));
+    }
+    return;
   }
 
   try {
@@ -251,9 +275,10 @@ export const openPaddleCheckout = async (options: OpenCheckoutOptions): Promise<
     console.log('[PADDLE DEBUG] Paddle.Checkout.open invoked.');
   } catch (checkoutErr: any) {
     const actualErrorMsg = checkoutErr?.message || String(checkoutErr);
-    console.error('[PADDLE DEBUG] checkoutError:', checkoutErr);
-    // Display the actual technical error to caller and console rather than replacing it with generic text
-    throw new Error(actualErrorMsg);
+    console.warn('[PADDLE DEBUG] checkout notice:', checkoutErr);
+    if (activeOnErrorCallback) {
+      activeOnErrorCallback(new Error(actualErrorMsg));
+    }
   }
 };
 

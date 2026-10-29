@@ -97,6 +97,8 @@ const premium5YearPriceId =
 export const PADDLE_CONFIG = {
   environment,
   clientToken,
+  checkoutEnabled: true as boolean,
+  checkoutStatusReason: '' as string,
 
   priceIds: {
     // Pro Tier (4 Durations)
@@ -129,18 +131,19 @@ export const PADDLE_CONFIG = {
  */
 let syncPromise: Promise<typeof PADDLE_CONFIG> | null = null;
 
-export const syncPaddleRuntimeConfig = async (): Promise<typeof PADDLE_CONFIG> => {
+export const syncPaddleRuntimeConfig = async (forceRefresh = false): Promise<typeof PADDLE_CONFIG> => {
   if (typeof window === 'undefined') {
     return PADDLE_CONFIG;
   }
 
-  if (syncPromise) {
+  if (syncPromise && !forceRefresh) {
     return syncPromise;
   }
 
   syncPromise = (async () => {
     try {
-      const res = await fetch('/api/paddle/config');
+      const url = forceRefresh ? '/api/paddle/config?refresh=true' : '/api/paddle/config';
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         if (data.environment) {
@@ -148,6 +151,10 @@ export const syncPaddleRuntimeConfig = async (): Promise<typeof PADDLE_CONFIG> =
         }
         if (data.clientToken && !PADDLE_CONFIG.clientToken) {
           PADDLE_CONFIG.clientToken = data.clientToken;
+        }
+        if (typeof data.checkoutEnabled === 'boolean') {
+          PADDLE_CONFIG.checkoutEnabled = data.checkoutEnabled;
+          PADDLE_CONFIG.checkoutStatusReason = data.checkoutStatusReason || '';
         }
         if (data.priceIds) {
           if (data.priceIds.proMonthly) {

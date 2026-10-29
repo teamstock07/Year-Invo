@@ -9,19 +9,89 @@ const getPaddleBaseUrl = (): string => {
   return isSandbox ? 'https://sandbox-api.paddle.com' : 'https://api.paddle.com';
 };
 
+interface PaddleCheckoutStatus {
+  checkoutEnabled: boolean;
+  checkoutStatusReason?: string;
+  checkedAt: number;
+}
+
+let cachedCheckoutStatus: PaddleCheckoutStatus | null = null;
+
+async function checkPaddleCheckoutStatus(forceRefresh = false): Promise<{ checkoutEnabled: boolean; checkoutStatusReason?: string }> {
+  const now = Date.now();
+  if (!forceRefresh && cachedCheckoutStatus && now - cachedCheckoutStatus.checkedAt < 5 * 60 * 1000) {
+    return {
+      checkoutEnabled: cachedCheckoutStatus.checkoutEnabled,
+      checkoutStatusReason: cachedCheckoutStatus.checkoutStatusReason,
+    };
+  }
+
+  const apiKey = (process.env.PADDLE_API_KEY || '').trim();
+  const samplePriceId = (
+    process.env.PADDLE_PRO_MONTHLY_PRICE_ID ||
+    process.env.VITE_PADDLE_PRO_MONTHLY_PRICE_ID ||
+    ''
+  ).trim();
+
+  // If no API key or sample price configured, default to true
+  if (!apiKey || !samplePriceId) {
+    cachedCheckoutStatus = { checkoutEnabled: true, checkedAt: now };
+    return cachedCheckoutStatus;
+  }
+
+  try {
+    const baseUrl = getPaddleBaseUrl();
+    const res = await fetch(`${baseUrl}/transactions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        items: [{ price_id: samplePriceId, quantity: 1 }],
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 400 && data?.error?.code === 'transaction_checkout_not_enabled') {
+      const reason =
+        data?.error?.detail ||
+        "Checkouts aren't enabled for this account. This typically means that you haven't fully completed the Paddle onboarding process in your Paddle Dashboard.";
+      cachedCheckoutStatus = {
+        checkoutEnabled: false,
+        checkoutStatusReason: reason,
+        checkedAt: now,
+      };
+      return { checkoutEnabled: false, checkoutStatusReason: reason };
+    }
+
+    cachedCheckoutStatus = { checkoutEnabled: true, checkedAt: now };
+    return { checkoutEnabled: true };
+  } catch (err) {
+    console.warn('[Paddle API] Could not verify checkout capabilities:', err);
+    cachedCheckoutStatus = { checkoutEnabled: true, checkedAt: now };
+    return { checkoutEnabled: true };
+  }
+}
+
 /**
  * GET /api/paddle/config
  * Returns safe public client-side Paddle configuration without exposing secret keys.
  */
-export function handleGetPaddleConfig(req: Request, res: Response) {
+export async function handleGetPaddleConfig(req: Request, res: Response) {
   const env = (process.env.PADDLE_ENVIRONMENT || process.env.VITE_PADDLE_ENVIRONMENT || 'production').toLowerCase().trim();
   const clientToken = (process.env.PADDLE_CLIENT_TOKEN || process.env.VITE_PADDLE_CLIENT_TOKEN || '').trim();
   const isSandbox = env === 'sandbox' || (clientToken.startsWith('test_') && env !== 'production');
   const environment = isSandbox ? 'sandbox' : 'production';
+  const forceRefresh = req.query.refresh === 'true';
+
+  const status = await checkPaddleCheckoutStatus(forceRefresh);
 
   return res.json({
     environment,
     clientToken,
+    checkoutEnabled: status.checkoutEnabled,
+    checkoutStatusReason: status.checkoutStatusReason || '',
     priceIds: {
       proMonthly: (process.env.PADDLE_PRO_MONTHLY_PRICE_ID || process.env.VITE_PADDLE_PRO_MONTHLY_PRICE_ID || '').trim(),
       pro6Month: (process.env.PADDLE_PRO_6_MONTH_PRICE_ID || process.env.VITE_PADDLE_PRO_6_MONTH_PRICE_ID || '').trim(),

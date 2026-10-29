@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Language } from '../../types';
 import { openPaddleCheckout } from '../../utils/paddleCheckout';
+import { PADDLE_CONFIG, syncPaddleRuntimeConfig } from '../../config/paddle';
 import { calculatePlanPricing, BillingCycle, getPlanPriceFormatted, isBangladeshCountry } from '../../config/pricing';
 import {
   getExchangeRate,
@@ -27,6 +28,7 @@ import {
   Check,
   Info,
   DollarSign,
+  AlertCircle,
 } from 'lucide-react';
 import {
   PAYMENT_REGIONS,
@@ -532,6 +534,34 @@ export const SubscriptionView: React.FC = () => {
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [paddleCheckoutEnabled, setPaddleCheckoutEnabled] = useState<boolean>(PADDLE_CONFIG.checkoutEnabled);
+  const [paddleNotice, setPaddleNotice] = useState<string>(PADDLE_CONFIG.checkoutStatusReason || '');
+  const [isRefreshingPaddle, setIsRefreshingPaddle] = useState(false);
+
+  useEffect(() => {
+    syncPaddleRuntimeConfig().then((cfg) => {
+      setPaddleCheckoutEnabled(cfg.checkoutEnabled);
+      if (cfg.checkoutStatusReason) {
+        setPaddleNotice(cfg.checkoutStatusReason);
+      }
+    }).catch(() => {});
+  }, []);
+
+  const handleRefreshPaddleStatus = async () => {
+    setIsRefreshingPaddle(true);
+    try {
+      const cfg = await syncPaddleRuntimeConfig(true);
+      setPaddleCheckoutEnabled(cfg.checkoutEnabled);
+      setPaddleNotice(cfg.checkoutStatusReason || '');
+      if (cfg.checkoutEnabled) {
+        setSubmitError(null);
+      }
+    } catch (e) {
+      // ignore
+    } finally {
+      setIsRefreshingPaddle(false);
+    }
+  };
 
   const langDict = subTranslations[language] || subTranslations['en'];
 
@@ -617,6 +647,16 @@ export const SubscriptionView: React.FC = () => {
     setIsSubmitting(true);
     setSubmitError(null);
 
+    if (!paddleCheckoutEnabled) {
+      setSubmitError(
+        paddleNotice ||
+        "Checkouts aren't enabled for this Paddle account yet because account onboarding and compliance verification are pending in your Paddle Dashboard. You can submit your payment transaction reference or invoice below for manual activation."
+      );
+      setIntlManualMode(true);
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       await openPaddleCheckout({
         plan: requestPlan,
@@ -642,19 +682,19 @@ export const SubscriptionView: React.FC = () => {
             setSubmittedSuccess(true);
             setTimeout(() => setSubmittedSuccess(false), 7000);
           } catch (e: any) {
-            console.error('[Subscription Activation Error]:', e);
+            console.warn('[Subscription Activation Notice]:', e);
           }
         },
         onClose: () => setIsSubmitting(false),
         onError: (err: any) => {
           setIsSubmitting(false);
-          setSubmitError(err?.message || 'Paddle checkout encountered an error. You can submit your payment transaction reference below for manual approval.');
+          setSubmitError(err?.message || 'Paddle checkout is not available for this transaction. You can submit your payment transaction reference below for manual approval.');
           setIntlManualMode(true);
         },
       });
       setIsSubmitting(false);
     } catch (err: any) {
-      console.error('[Paddle Checkout Launch Error]:', err);
+      console.warn('[Paddle Checkout Launch Notice]:', err);
       setSubmitError(err?.message || 'Paddle checkout could not open. You can enter your payment reference / transaction ID below for immediate review.');
       setIntlManualMode(true);
       setIsSubmitting(false);
@@ -1614,7 +1654,7 @@ export const SubscriptionView: React.FC = () => {
             })()}
 
             {/* Transaction ID Form Submission or Paddle Checkout */}
-            {activeRegion === 'international' && !intlManualMode ? (
+            {activeRegion === 'international' && !intlManualMode && paddleCheckoutEnabled ? (
               <div className="space-y-4 pt-1">
                 {submitError && (
                   <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs font-medium">
@@ -1691,6 +1731,30 @@ export const SubscriptionView: React.FC = () => {
               </div>
             ) : (
               <form onSubmit={handleFormSubmitRequest} className="space-y-4">
+                {activeRegion === 'international' && !paddleCheckoutEnabled && (
+                  <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-300 text-xs flex items-start gap-2.5">
+                    <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <p className="font-semibold text-amber-200">
+                          Paddle Automated Checkout Awaiting Account Onboarding
+                        </p>
+                        <button
+                          type="button"
+                          disabled={isRefreshingPaddle}
+                          onClick={handleRefreshPaddleStatus}
+                          className="text-[11px] text-amber-400 hover:text-amber-200 underline font-medium ml-2 cursor-pointer disabled:opacity-50"
+                        >
+                          {isRefreshingPaddle ? 'Checking...' : 'Re-check Status'}
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-amber-300/80 leading-relaxed">
+                        Checkouts aren't enabled for this Paddle account yet because account onboarding and compliance verification are pending in your Paddle Dashboard. You can enter your payment reference, transaction ID, or invoice receipt number below for immediate manual activation.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {submitError && (
                   <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs font-medium">
                     {submitError}
@@ -1742,13 +1806,25 @@ export const SubscriptionView: React.FC = () => {
                 {/* Modal Buttons */}
                 <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-2">
                   {activeRegion === 'international' ? (
-                    <button
-                      type="button"
-                      onClick={() => setIntlManualMode(false)}
-                      className="text-xs text-blue-400 hover:text-blue-300 underline cursor-pointer"
-                    >
-                      ← Back to automated checkout
-                    </button>
+                    paddleCheckoutEnabled ? (
+                      <button
+                        type="button"
+                        onClick={() => setIntlManualMode(false)}
+                        className="text-xs text-blue-400 hover:text-blue-300 underline cursor-pointer"
+                      >
+                        ← Back to automated checkout
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={isRefreshingPaddle}
+                        onClick={handleRefreshPaddleStatus}
+                        className="text-xs text-amber-400 hover:text-amber-300 underline cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                      >
+                        {isRefreshingPaddle && <Loader2 className="w-3 h-3 animate-spin" />}
+                        <span>Re-check Paddle status</span>
+                      </button>
+                    )
                   ) : <div />}
 
                   <div className="flex items-center gap-3">
